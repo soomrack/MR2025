@@ -1,40 +1,118 @@
-#include <iostream>
+#include <stdio.h>
+
+typedef int RUB;
+
+struct Person {
+    RUB bank_account;
+    RUB income;
+    RUB food;
+    RUB clothes;
+    RUB monthly_payment;
+    RUB tax;
+    RUB fuel;
+    RUB car_fix;
+    
+};
+
+struct Person alice;
+
+
+void alice_income(const int year, const int month)
+{
+    if(month == 9) {
+        alice.income = alice.income * 1.05;  // Indexation
+    }
+        
+    if(year == 2030 && month == 3) {
+        alice.income *= 1.5;  // Promotion
+    }
+    
+    alice.bank_account += alice.income ;
+}
+
+
+void alice_food()
+{
+    alice.bank_account -= alice.food;
+}
+
+void alice_clothes()
+{
+    alice.bank_account -= alice.clothes;
+}
+
+void alice_mortgage()
+{
+    alice.bank_account -= alice.monthly_payment;
+}
+
+void alice_tax()
+{
+    alice.bank_account -= alice.tax;
+}
+
+void alice_fuel()
+{
+    alice.bank_account -= alice.fuel;
+}
+
+void alice_car_fix(const int year, const int month)
+{
+    if(month == 6) {
+        alice.bank_account -= alice.car_fix;  
+    }
+}
+
+void simulation()
+{
+    int year = 2025;
+    int month = 9;
+
+    while( !(year == 2045 && month == 9) ) {
+        alice_income(year, month);
+        alice_food();
+        alice_clothes();
+        alice_mortgage();
+        alice_tax();
+        alice_fuel();
+        alice_car_fix(year, month);
+        // alice_trip();
+        
+        
+        
+        ++month;
+        if(month == 13) {
+            month = 1;
+            ++year;
+        }
+    }
+}
+
+
+void print_alice_info()
+{
+    printf("Alice capital = %d RUR\n", alice.bank_account);
+}
+
+
+void alice_init()
+{
+    alice.bank_account = 1000 * 1000;
+    alice.monthly_payment = 112 * 1000;
+    alice.income = 200 * 1000;
+    alice.food = 30000;
+    alice.clothes = 1000;
+    alice.tax = (20000)/12;
+    alice.fuel = 10000;
+    alice.car_fix = 30000;
+}
+
 
 int main()
-{   
-    //Общие начальные данные
-    const int flatPrice = 7000; //Стоимость квартиры
-    int capital = 100; //Начальный капитал после первоначального взноса/платы за аренду
-    const int inflation = 0.08; //Величина инфляции
+{
+    alice_init();
+    
+    simulation();
 
-    //Параметры, необходимые для описания жизни А
-    const int period = 20; //Срок ипотеки
-    const int credRate = 0.24; //Ипотечная ставка
-    const int initialPayment = 1500; //Размер первоначального платежа
-    const int monthlyPay = 112; //Размер ежемесячного платежа
-
-    //Параметры, необходимые для описания жизни Б
-    const int depRate = 0.13; //Ставка по вкладу
-    const int monthlyAdd = 52; //Ежемесячное пополнение вклада
-    const int rentalCost = 60; //Ежемесячная плата за аренду жилья
-    int deposit = initialPayment; //Средства на депозите
-
-    //Траты, общие для А и Б
-    const int wage = 150; //Зарплата
-    const int food = 28; //Ежемесячные расходы на еду
-    const int utilityFee = 6; //Ежемесячная плата за коммунальные услуги
-    const int clothes = 7; //ГОДОВЫЕ расходы на одежду
-    const int unpredicted = 20; //ГОДОВЫЕ траты на непредвиденные расходы
-
-    int capitalA = capital;
-    int capitalB = capital;
-    int month = 0;
-    while (month<=period*12)
-    {   
-        deposit = (deposit + monthlyAdd)*(depRate/12);
-        capitalA = capitalA + wage - food - utilityFee - (clothes+unpredicted)/12 - monthlyPay;
-        capitalB = capitalB + wage - food - utilityFee - (clothes+unpredicted)/12 - rentalCost;
-        month++;
-    }
-    std::cout << "Капитал А через 20 лет: " << capitalA*1000 << " рублей" << std::endl;
-    std::cout << "Капитал Б через 20 лет: " << (capitalB - flatPrice)*1000 << " рублей"; 
+    print_alice_info();
+}
