@@ -75,6 +75,7 @@ void struct_print(std::string name2){
   int name1 = _get_id_from_name(name2);
   std::cout << persons[name1].name;
   std::cout << " bank account = ";
+  std::cout << "Shasha";
   std::cout << persons[name1].bank_account << " RUB" << std::endl;
 }
 
@@ -134,7 +135,7 @@ void simulation(void){
     person_car("Bob");
     person_trip("Bob", month);
     person_arenda("Bob", month);
-
+    
     person_income("Alice",year,month);
     person_food("Alice",month);
     person_car("Alice");
