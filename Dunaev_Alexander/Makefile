@@ -27,7 +27,7 @@ $(eval $(call run_tmpl,$(TARGET)))
 	$(CC) -c $(subst _,/,$(basename $@)).cpp -o $(BUILD_DIR)$@
 
 clean: 
-	rm -f $(BUILD_DIR)* *.run
+	rm -f $(BUILD_DIR)*.o *.run
 
 # $^ -- все зависимости
 # $@ -- цель 
