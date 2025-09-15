@@ -12,9 +12,7 @@ struct Person{
     RUB arenda;
     RUB car;
     RUB trip;
-    RUB apartment;
-    RUB annual_rate;
-    RUB year_of_mortgage;
+    RUB credit;
 };
 
 struct Person persons[nums_of_persons];
@@ -26,6 +24,7 @@ void person_income(std::string name2, const int year, const int month);
 void person_food(const std::string name2, const int month);
 void person_car(const std::string name2);
 void person_arenda(const std::string name2, const int month);
+void person_credit(const std::string name2, const int month);
 void simulation(void);
 
 void Bob_ini(int name1, std::string name2);
@@ -59,9 +58,6 @@ void Bob_ini(int name1, std::string name2){
   persons[name1].food = 40*1000;
   persons[name1].car = 20*1000;
   persons[name1].arenda = 80*1000;
-  persons[name1].apartment = 18*1000*1000;
-  persons[name1].annual_rate = 20;
-  persons[name1].year_of_mortgage = 20;
 }
 
 
@@ -71,10 +67,7 @@ void Alice_ini(int name1, std::string name2){
   persons[name1].income = 200*1000;
   persons[name1].food = 40*1000;
   persons[name1].car = 20*1000;
-  persons[name1].arenda = 80*1000;
-  persons[name1].apartment = 18*1000*1000;
-  persons[name1].annual_rate = 20;
-  persons[name1].year_of_mortgage = 20;
+  persons[name1].credit = 75*1000;
 }
 
 void struct_print(std::string name2){
@@ -105,18 +98,22 @@ void person_car(const std::string name2){
 
 void person_arenda(const std::string name2, const int month){
   int name1 = _get_id_from_name(name2);
-  if(month == 7){persons[name1].arenda+=1.02;}
+  if(month == 7){persons[name1].arenda*=1.02;}
   persons[name1].bank_account -= persons[name1].arenda;
 
 }
 
-void person_trip(const std::string name2, const int month){
+void person_trip(std::string name2, const int month){
   int name1 = _get_id_from_name(name2);
   persons[name1].bank_account -= persons[name1].trip;
   if(month == 2){
     persons[name1].bank_account -= persons[name1].trip;
   }
+}
 
+void person_credit(const std::string name2, const int month){
+  int name1 = _get_id_from_name(name2);
+  persons[name1].bank_account -= persons[name1].credit;
 }
 
 //void person_mortgage(const std::string name2){
@@ -144,6 +141,7 @@ void simulation(void){
     person_food("Alice",month);
     person_car("Alice");
     person_trip("Alice", month);   
+    person_credit("Alice", month);
 
 
     if (++month == 13){
