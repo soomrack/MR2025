@@ -9,7 +9,7 @@ struct Person {
     RUB food;
     RUB trip;
     RUB car_cost, car_expense;
-    RUB credit;
+    RUB mortage;
 };
 
 struct Person alice;
@@ -18,7 +18,7 @@ struct Person bob;
 void bob_init() { // ipoteka
     bob.bank_account = 2500 * 1000; //первоначальный взнос
     bob.income = 200 * 1000; // зпка
-    bob.credit = 130*1000;
+    bob.mortage = 130*1000;
     bob.food = 20000;
     bob.trip = 50 * 1000;
 }
@@ -91,7 +91,7 @@ void bob_income(const int year, const int month) {
 
 void bob_spending(const int year, const int month) {
     if (year >= 2025 && year < 2045) {
-        bob.bank_account -= bob.credit;
+        bob.bank_account -= bob.mortage;
     }
 }
 
@@ -133,6 +133,7 @@ void simulation() {
         }
     }
 }
+
 int main() {
     
     alice_init();
