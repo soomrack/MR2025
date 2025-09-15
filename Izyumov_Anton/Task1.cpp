@@ -1,12 +1,10 @@
 #include <stdio.h>
-#include <string.h>
 
 
 typedef long long int RUB;
 
 
-typedef struct {
-    const char* name;
+struct Person {
     RUB bank_account;
     RUB income;
     RUB spending;
@@ -14,94 +12,74 @@ typedef struct {
     RUB food_spending;
     RUB mortgage_spending;
     RUB rent_spending;
-    int has_mortgage;
-    int mortgage_closed;
-} Person;
-
-
-Person alice{
-    "Alice",
-    3 * 1000 * 1000, // start bank account
-    200 * 1000,      // income
-    50 * 1000,       // spending
-    40 * 1000,       // car spending
-    40 * 1000,       // food spending
-    100 * 1000,      // mortgage month spending
-    0,               // rent spending
-    1,               // has mortgage
-    0                // mortgage not closed
+    RUB house_cost;
+    RUB trip_spending;
+    RUB car_accident_cost;
+    bool mortgage_closed;
 };
 
 
-Person bob{
-    "Bob",
-    3 * 1000 * 1000, // the same start
-    200 * 1000,
-    50 * 1000,
-    40 * 1000,
-    40 * 1000,
-    0,               // has no mortgage spending
-    60 * 1000,       // rent spending
-    0,               // has no mortgage
-    0
-};
+struct Person alice;
+struct Person bob;
 
 
-Person* find_richest(Person* persons, const int n) {
-    if (n <= 0) return NULL;
-
-    Person* richest = &persons[0];
-    for (int i = 1; i < n; i++) {
-        if (persons[i].bank_account > richest->bank_account) {
-            richest = &persons[i];
-        }
-    }
-    return richest;
+void alice_init() {
+    alice.bank_account = 3 * 1000 * 1000;
+    alice.income = 200 * 1000;
+    alice.spending = 50000;
+    alice.car_spending = 40000;
+    alice.food_spending = 40000;
+    alice.mortgage_spending = 100 * 1000;
+    alice.trip_spending = 60000;
+    alice.mortgage_closed = false;
 }
 
 
-void persons_print(Person* persons, const int n) {
-    for (int i = 0; i < n; i++) {
-        printf("%s bank account = %lld rub.\n", persons[i].name, persons[i].bank_account);
-    }
-    Person* richest = find_richest(persons, n);
-    if (richest != NULL) {
-        printf("%s is in the best situation wtih %lld rub.\n", richest->name, richest->bank_account);
-    }
+void bob_init() { 
+    bob.bank_account = 3 * 1000 * 1000;
+    bob.income = 200 * 1000;
+    bob.spending = 50000;
+    bob.car_spending = 40000;
+    bob.food_spending = 40000;
+    bob.rent_spending = 60000;
+    bob.house_cost = 12 * 1000 * 1000;
+    bob.trip_spending = 60000;
+    bob.car_accident_cost = 100 * 1000;
 }
 
 
-void person_income(Person* p, const int year, const int month) {
-    if (strcmp(p->name, "Alice") == 0 && year == 2030 && month == 10) {
-        p->income *= 1.5; // Alice promotion
-    }
-    if (strcmp(p->name, "Bob") == 0 && year == 2027 && month == 7) {
-        p->income *= 1.3; // Bob promotion
-    }
-    p->bank_account += p->income;
+void persons_print() {
+    printf("Bob bank account = %lld rub.\n", bob.bank_account);
+    printf("Alice bank account = %lld rub.\n", alice.bank_account);
 }
 
 
-void person_housing(Person* p, const int year, const int month) {
-    if (p->has_mortgage && !p->mortgage_closed) {
+void alice_income(const int year, const int month) {
+    if (year == 2030 && month == 10) {
+        alice.income *= 1.5; // Alice promotion
+    }
+    alice.bank_account += alice.income;
+
+}
+
+
+void alice_mortgage(const int year, const int month) {
+    if (!alice.mortgage_closed) {
         if (year == 2025 && month == 9) {
-            p->bank_account -= 2 * 1000 * 1000; // Alice initial payment
+            alice.bank_account -= 2 * 1000 * 1000; // Alice initial payment
         }
         else {
-            p->bank_account -= p->mortgage_spending;
+            alice.bank_account -= alice.mortgage_spending;
         }
         if (year == 2045 && month == 9) {
-            p->mortgage_closed = 1;
+            alice.mortgage_closed = true;
         }
-    }
-    else if (p->rent_spending > 0) {
-        p->bank_account -= p->rent_spending;
     }
 }
 
 
-void person_spending(Person* p, const int month) {
-    RUB spending = p->spending;
+void alice_spending(const int month) {  // Alice out-of-pocket expenses
+    RUB spending = alice.spending;
     if (month == 2) {
         spending -= 7 * 1000;
     }
@@ -111,43 +89,101 @@ void person_spending(Person* p, const int month) {
     if (month == 8) {
         spending += 2 * 1000;
     }
-    p->bank_account -= spending;
+    alice.bank_account -= spending;
 }
 
 
-void person_food(Person* p) {
-    p->bank_account -= p->food_spending;
+void alice_food() {
+    alice.bank_account -= alice.food_spending;
 }
 
 
-void person_car(Person* p, const int year, const int month) {
-    if (strcmp(p->name, "Bob") == 0 && year == 2034 && month == 7) {
-        p->bank_account -= 100 * 1000; // Bob's car accident
-    }
-    p->bank_account -= p->car_spending;
+void alice_car() {
+        alice.bank_account -= alice.car_spending;
 }
 
 
-void person_trip(Person* p, const int month) {
+void alice_trip(const int month) {    // Alice annual trip
     if (month == 7) {
-        p->bank_account -= 60 * 1000;
+        alice.bank_account -= alice.trip_spending;
     }
 }
 
 
-void simulation(Person* persons, const int n) {
+///////////////////////////////////////////////////////////////////
+
+
+void bob_income(const int year, const int month) {
+    if (year == 2027 && month == 7) {
+        bob.income *= 1.3; // Bob promotion
+    }
+    bob.bank_account += bob.income;
+}
+
+
+void bob_rent(const int year, const int month) {
+    if (year == 2045 && month == 8) {
+        bob.bank_account -= bob.house_cost;  // Bob buy a house
+    }
+    else {
+        bob.bank_account -= bob.rent_spending;
+    }
+}
+
+
+void bob_spending(const int month) {  // Bob out-of-pocket expenses
+    RUB spending = bob.spending;
+    if (month == 2) {
+        spending -= 7 * 1000;
+    }
+    if (month == 7) {
+        spending += 5 * 1000;
+    }
+    if (month == 8) {
+        spending += 2 * 1000;
+    }
+    bob.bank_account -= spending;
+}
+
+
+void bob_food() {
+    bob.bank_account -= bob.food_spending;
+}
+
+
+void bob_car(const int year, const int month) {
+    if (year == 2034 && month == 7) {
+        bob.bank_account -= bob.car_accident_cost; // Bob's car accident
+    }
+    bob.bank_account -= bob.car_spending;
+}
+
+
+void bob_trip(const int month) {  // Bob's annual trip
+    if (month == 7) {
+        bob.bank_account -= bob.trip_spending;
+    }
+}
+
+
+void simulation() {
     int year = 2025;
     int month = 9;
 
     while (!(year == 2045 && month == 9)) {
-        for (int i = 0; i < n; i++) {
-            person_income(&persons[i], year, month);
-            person_housing(&persons[i], year, month);
-            person_spending(&persons[i], month);
-            person_food(&persons[i]);
-            person_car(&persons[i], year, month);
-            person_trip(&persons[i], month);
-        }
+        alice_income(year, month);
+        alice_mortgage(year, month);
+        alice_spending(month);
+        alice_food();
+        alice_car();
+        alice_trip(month);
+
+        bob_income(year, month);
+        bob_rent(year, month);
+        bob_spending(month);
+        bob_food();
+        bob_car(year, month);
+        bob_trip(month);
 
         month++;
         if (month == 13) {
@@ -157,12 +193,11 @@ void simulation(Person* persons, const int n) {
     }
 }
 
-
 int main() {
-    Person persons[] = { alice, bob };
-    int n = sizeof(persons) / sizeof(persons[0]);
+    alice_init();
+    bob_init();
 
-    simulation(persons, n);
+    simulation();
 
-    persons_print(persons, n);
+    persons_print();
 }
