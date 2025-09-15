@@ -20,6 +20,7 @@ struct Person persons[nums_of_persons];
 
 void struct_ini(int name1, std::string name2);
 void struct_print(std::string name2);
+void delta_print(std::string name1, std::string name2);
 void person_income(std::string name2, const int year, const int month);
 void person_food(const std::string name2, const int month);
 void person_car(const std::string name2);
@@ -40,6 +41,7 @@ int main(void){
 
   struct_print("Bob");
   struct_print("Alice");
+  delta_print("Bob", "Alice");
 }
 
 
@@ -75,10 +77,15 @@ void struct_print(std::string name2){
   int name1 = _get_id_from_name(name2);
   std::cout << persons[name1].name;
   std::cout << " bank account = ";
-  std::cout << "Shasha";
   std::cout << persons[name1].bank_account << " RUB" << std::endl;
 }
 
+void delta_print(std::string name1, std::string name2){
+  int name3= _get_id_from_name(name1);
+  int name4 = _get_id_from_name(name2);
+  std::cout << persons[name3].bank_account - persons[name4].bank_account;
+  std::cout << std::endl;
+}
 
 void person_income(std::string name2, const int year, const int month){
   int name1 = _get_id_from_name(name2);
@@ -120,7 +127,12 @@ void person_trip(std::string name2, const int month){
 
 
 void person_credit(const std::string name2, const int month){
+  static int flag = 0;
   int name1 = _get_id_from_name(name2);
+  if(flag == 0){
+    persons[name1].bank_account -= 2.5*1000*1000;
+    flag += 1;
+  }
   persons[name1].bank_account -= persons[name1].credit;
 }
 
@@ -135,7 +147,7 @@ void simulation(void){
     person_car("Bob");
     person_trip("Bob", month);
     person_arenda("Bob", month);
-    
+
     person_income("Alice",year,month);
     person_food("Alice",month);
     person_car("Alice");
