@@ -70,12 +70,14 @@ void Alice_ini(int name1, std::string name2){
   persons[name1].credit = 75*1000;
 }
 
+
 void struct_print(std::string name2){
   int name1 = _get_id_from_name(name2);
   std::cout << persons[name1].name;
   std::cout << " bank account = ";
   std::cout << persons[name1].bank_account << " RUB" << std::endl;
 }
+
 
 void person_income(std::string name2, const int year, const int month){
   int name1 = _get_id_from_name(name2);
@@ -85,16 +87,19 @@ void person_income(std::string name2, const int year, const int month){
   persons[name1].bank_account += persons[name1].income;
 }
 
+
 void person_food(const std::string name2, const int month){
   int name1 = _get_id_from_name(name2);
   persons[name1].bank_account -= persons[name1].food;
   if ( month == 12){persons[name1].bank_account -= persons[name1].food;}
 }
 
+
 void person_car(const std::string name2){
   int name1 = _get_id_from_name(name2);
   persons[name1].bank_account -= persons[name1].car;
 }
+
 
 void person_arenda(const std::string name2, const int month){
   int name1 = _get_id_from_name(name2);
@@ -102,6 +107,7 @@ void person_arenda(const std::string name2, const int month){
   persons[name1].bank_account -= persons[name1].arenda;
 
 }
+
 
 void person_trip(std::string name2, const int month){
   int name1 = _get_id_from_name(name2);
@@ -111,21 +117,13 @@ void person_trip(std::string name2, const int month){
   }
 }
 
+
 void person_credit(const std::string name2, const int month){
   int name1 = _get_id_from_name(name2);
   persons[name1].bank_account -= persons[name1].credit;
 }
 
-//void person_mortgage(const std::string name2){
-//  int name1 = _get_id_from_name(name2);
-//  int dolg = persons[name1].apartment / (persons[name1].year_of_mortgage*12);
-//  int procent = persons[name1].apartment*((persons[name1].annual_rate/100)/12);
-//  persons[name1].apartment -= dolg;
-//  int payment = dolg + procent;
-//
-//  persons[name1].bank_account -= payment;
-//
-//}
+
 void simulation(void){
   int year={2025};
   int month={9};
@@ -142,7 +140,6 @@ void simulation(void){
     person_car("Alice");
     person_trip("Alice", month);   
     person_credit("Alice", month);
-
 
     if (++month == 13){
       year++;
