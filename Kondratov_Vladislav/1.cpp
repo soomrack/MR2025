@@ -2,7 +2,7 @@
 
 
 typedef int RUB;
-//typedef int USD;
+//typedef int USD; 
 
 
 struct Person {
@@ -13,11 +13,14 @@ struct Person {
     RUB rent;
     RUB car;
     RUB utility_costs;
-    RUB other;
+    RUB other; 
 };
 
 struct Person alice;
 struct Person bob;
+
+//Возможно, имеет смысл отдельно создать функцию с индексацией всех переменных, 
+//и создать функцию для прибавления/вычитания всех переменных.
 
 void alice_income(const int year, const int month)
 {
@@ -34,7 +37,6 @@ void alice_income(const int year, const int month)
 
     alice.bank_account += alice.income;
 }
-
 
 void alice_food(const int month)
 {
@@ -60,7 +62,6 @@ void alice_car(const int year, const int month)
             alice.bank_account -= 3000 * 1000;
             //printf("Alice bought a car in 2030\n");
             //printf("Alice capital = %d RUB\n", alice.bank_account);
-
         }
         else {
             printf("Alice would not buy a car in 2030\n");
@@ -110,7 +111,6 @@ void bob_income(const int year, const int month)
     bob.bank_account += bob.income;
 
 }
-
 
 void bob_food(const int month)
 {
@@ -162,6 +162,15 @@ void bob_utility_costs(const int month)
     bob.bank_account -= bob.utility_costs;
 }
 
+void bob_other(const int month)
+{
+    if (month == 9) {
+        bob.other *= 1.11;
+    }
+
+    bob.bank_account -= bob.other;
+}
+
 void bob_profit()
 {
     bob.bank_account = bob.bank_account * (1 + 0.1 / 12);
@@ -178,15 +187,15 @@ void simulation()
         alice_mortgage();
         alice_car(year, month);
         alice_utility_costs(month);
-        // alice_other(month);
-        // alice_trip();
+        alice_other(month);
+        // alice_trip(); 
         
         bob_income(year, month);
         bob_food(month);
         bob_rent(month);
         bob_car(year, month);
         bob_utility_costs(month);
-        // bob_other(month);
+        bob_other(month);
         // bob_trip();
         bob_profit();
 
@@ -218,6 +227,7 @@ void alice_init()
     alice.mortgage = 80000;
     alice.car = 15000;
     alice.utility_costs = 5000; // коммунальные расходы
+    alice.other = 20000; 
 }
 
 void bob_init()
@@ -228,6 +238,7 @@ void bob_init()
     bob.rent = 40000;
     bob.car = 15000;
     bob.utility_costs = 5000;
+    bob.other = 20000;
 }
 
 int main()
