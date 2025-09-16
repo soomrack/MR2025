@@ -1,0 +1,107 @@
+#include <cstdio> 
+
+typedef int RUB;
+
+//const double INFLATION_RATE = 1.05; // 5% ежегодной инфляции - нужно еще прописать инфляцию
+
+struct Person {
+    RUB bank_account;
+    RUB income;
+    RUB food;
+    RUB mortgage;  // ежемесячный платёж по ипотеке 
+
+    // Начисление доходов с учётом индексации и премий
+    void add_income(int year, int month) {
+        if (month == 10) {
+            income = static_cast<RUB>(income * 1.07);  // Индексация на 7%
+        }
+        if (year == 2030 && month == 3) {
+            income = static_cast<RUB>(income * 1.5);   // Повышение
+        }
+        bank_account += income;
+    }
+
+
+    // Траты на еду
+    void spend_on_food() {
+        bank_account -= food;
+    }
+
+
+    //void clothes()
+    //void lottery()
+    //void bills()
+    //void rent()
+    //void divorce()
+
+
+
+    // Выплаты ипотеки
+    void pay_mortgage() {
+        if (mortgage > 0) {
+            bank_account -= mortgage;
+        }
+    }
+
+
+    // Инициализация 
+    void init(RUB start_capital, RUB start_income, RUB monthly_food, RUB monthly_mortgage = 0) {
+        bank_account = start_capital;
+        income = start_income;
+        food = monthly_food;
+        mortgage = monthly_mortgage;
+    }
+};
+
+
+Person alice;
+Person bob;
+
+
+void simulate() {
+    int year = 2025;
+    int month = 9;
+
+    while (!(year == 2045 && month == 9)) {
+    
+        alice.add_income(year, month);
+        alice.spend_on_food();
+
+        //void clothes()
+        //void lottery()
+        //void bills()
+        //void divorce()
+        //void rent()
+
+        
+        bob.add_income(year, month);
+        bob.spend_on_food();
+        bob.pay_mortgage();  // Боб платит ипотеку каждый месяц
+
+        
+        ++month;
+        if (month == 13) {
+            month = 1;
+            ++year;
+        }
+    }
+}
+
+
+void print_results() {
+    printf("Alice capital = %d RUB\n", alice.bank_account);
+    printf("Bob capital   = %d RUB\n", bob.bank_account);
+}
+
+
+int main() {
+
+    alice.init(1000 * 1000, 200 * 1000, 30000);  // Без ипотеки, (плата по ипотеке = 0)
+    bob.init(1000 * 1000, 200 * 1000, 30000, 50000);  // С ипотекой 50к/мес
+
+    simulate();
+
+    print_results();
+
+    return 0;
+}
