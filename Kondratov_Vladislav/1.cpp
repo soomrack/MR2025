@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 
 
@@ -14,6 +13,7 @@ struct Person {
     RUB rent;
     RUB car;
     RUB utility_costs;
+    //RUB other;
 };
 
 struct Person alice;
@@ -25,7 +25,10 @@ void alice_income(const int year, const int month)
         alice.income = alice.income * 1.07;  // Indexation
     }
 
-    if (year == 2030 && month == 3) {
+    if (year == 2027 && month == 3) {
+        alice.income *= 1.2;  // Promotion
+    }
+    else if (year == 2032 && month == 5) {
         alice.income *= 1.5;  // Promotion
     }
 
@@ -80,6 +83,8 @@ void alice_utility_costs(const int month)
     alice.bank_account -= alice.utility_costs;
 }
 
+//void alice_other
+
 ////////////////////////////////////////////////////////////////////
 
 void bob_income(const int year, const int month)
@@ -88,7 +93,10 @@ void bob_income(const int year, const int month)
         bob.income = bob.income * 1.07;  // Indexation
     }
 
-    if (year == 2030 && month == 3) {
+    if (year == 2027 && month == 3) {
+        bob.income *= 1.2;  // Promotion
+    }
+    else if (year == 2032 && month == 5) {
         bob.income *= 1.5;  // Promotion
     }
 
