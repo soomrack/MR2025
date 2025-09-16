@@ -71,6 +71,7 @@ void Ivan_food()
     Ivan.capital -= Ivan.food * inflation_multiplier;
 }
 
+
 void Ivan_transport()
 {
     Ivan.capital -= Ivan.transport * inflation_multiplier;
@@ -82,10 +83,12 @@ void Ivan_unexpected_expenses()
     Ivan.capital -= Ivan.unexpected_expenses * inflation_multiplier;
 }
 
+
 void Ivan_other_expenses()
 {
     Ivan.capital -= Ivan.other_expenses * inflation_multiplier;
 }
+
 
 void inflation_growth()
 {
@@ -127,10 +130,12 @@ void Ivan_action()
     }
 }
 
+
 void Ivan_show_results()
 {
     printf("Ivan capital = %d\n\n", Ivan.capital);
 }
+
 
 // История Степана
 
@@ -157,6 +162,7 @@ void Stepan_food()
     Stepan.capital -= Stepan.food * inflation_multiplier;
 }
 
+
 void Stepan_transport()
 {
     Stepan.capital -= Stepan.transport * inflation_multiplier;
@@ -167,6 +173,7 @@ void Stepan_unexpected_expenses()
 {
     Stepan.capital -= Stepan.unexpected_expenses * inflation_multiplier;
 }
+
 
 void Stepan_other_expenses()
 {
@@ -224,6 +231,7 @@ void Stepan_action()
     }
 }
 
+
 void Stepan_show_results()
 {
     printf("Stepan capital = %d\n\n", Stepan.capital);
@@ -247,6 +255,7 @@ void conclusion()
         Stepan.capital - Ivan.capital);
 }
 
+
 int main()
 {
     Ivan_start();
@@ -265,3 +274,4 @@ int main()
 
     conclusion();
 }
+
