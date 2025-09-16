@@ -13,7 +13,7 @@ struct Person {
     RUB rent;
     RUB car;
     RUB utility_costs;
-    //RUB other;
+    RUB other;
 };
 
 struct Person alice;
@@ -83,7 +83,14 @@ void alice_utility_costs(const int month)
     alice.bank_account -= alice.utility_costs;
 }
 
-//void alice_other
+void alice_other(const int month)
+{
+    if (month == 9) {
+        alice.other *= 1.11;
+    }
+
+    alice.bank_account -= alice.other;
+}
 
 ////////////////////////////////////////////////////////////////////
 
