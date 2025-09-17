@@ -123,7 +123,7 @@ void apply_inflation(Person *p) {
     p->utilities = (RUB)(p->utilities * (1 + INFLATION_RATE));
     p->rent      = (RUB)(p->rent * (1 + INFLATION_RATE));
 }
-// TODO(): вынести константы инфляции в глобальные параметры
+// TODO(stupid): вынести константы инфляции в глобальные параметры
 //const double INFLATION_RATE   = 0.1; // 10%
 //const int    INFLATION_PERIOD = 5;    // каждые 5 лет
 
