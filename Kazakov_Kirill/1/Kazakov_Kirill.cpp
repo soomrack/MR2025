@@ -14,7 +14,7 @@ typedef int Ruble;
 
 int year = 2025;
 int month = 6;
-const float deposit_percent = 0.1; // процент по вкладу Степана
+float deposit_percent = 0.1; // процент по вкладу Степана
 float inflation = 0.06;
 float inflation_multiplier = 1.0; // коэффициент роста инфляции 
 
@@ -57,9 +57,14 @@ void Ivan_start()
     Ivan.unexpected_expenses = 7000;
     Ivan.mortgage = 49752;
     Ivan.salary = 100000;
+    Ivan.bank_account = 0;
 }
 
-
+void Ivan_deposit_profit()
+{
+    Ivan.bank_account += Ivan.salary - Ivan.food - Ivan.transport - Ivan.other_expenses - Ivan.unexpected_expenses - Ivan.mortgage;
+    Ivan.capital += Ivan.bank_account * deposit_percent / 12;
+}
 void Ivan_mortgage()
 {
     Ivan.capital -= Ivan.mortgage;
@@ -106,21 +111,16 @@ void Ivan_action()
     while (!(year == 2035 && month == 10))
     {
         Ivan_salary();
-
+        Ivan_deposit_profit();
         Ivan_mortgage();
-
         Ivan_food();
-
         Ivan_transport();
-
         Ivan_unexpected_expenses();
-
         Ivan_other_expenses();
-
+            
         inflation_growth();
 
         month++;
-
         if (month == 13)
         {
             month = 1;
@@ -196,6 +196,7 @@ void Stepan_start()
 
 void Stepan_deposit_profit()
 {
+    Stepan.bank_account += Stepan.salary - Stepan.food - Stepan.transport - Stepan.other_expenses - Stepan.unexpected_expenses - Stepan.rent;
     Stepan.capital += Stepan.bank_account * deposit_percent / 12;
 }
 
@@ -205,23 +206,16 @@ void Stepan_action()
     while (!(year == 2035 && month == 10))
     {
         Stepan_salary();
-
         Stepan_deposit_profit();
-
         Stepan_rent();
-
         Stepan_food();
-
         Stepan_transport();
-
         Stepan_unexpected_expenses();
-
         Stepan_other_expenses();
 
         inflation_growth();
-
+        
         month++;
-
         if (month == 13)
         {
             month = 1;
@@ -259,19 +253,16 @@ void conclusion()
 int main()
 {
     Ivan_start();
-
     Ivan_action();
-
     Ivan_show_results();
 
     Data_reset();
 
     Stepan_start();
-
     Stepan_action();
-
     Stepan_show_results();
 
     conclusion();
 }
+
 
