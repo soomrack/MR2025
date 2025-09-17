@@ -14,7 +14,7 @@ typedef int Ruble;
 
 int year = 2025;
 int month = 6;
-float deposit_percent = 0.1; // процент по вкладу Степана
+float deposit_percent = 0.1; // процент по вкладу Степана в месяц
 float inflation = 0.06;
 float inflation_multiplier = 1.0; // коэффициент роста инфляции 
 
@@ -103,6 +103,7 @@ void inflation_growth()
     }
 
     inflation_multiplier = 1 + inflation / 12;
+    deposit_percent = (deposit_percent + inflation) / 12;
 }
 
 
@@ -110,6 +111,8 @@ void Ivan_action()
 {
     while (!(year == 2035 && month == 10))
     {
+        inflation_growth();
+
         Ivan_salary();
         Ivan_deposit_profit();
         Ivan_mortgage();
@@ -117,8 +120,7 @@ void Ivan_action()
         Ivan_transport();
         Ivan_unexpected_expenses();
         Ivan_other_expenses();
-            
-        inflation_growth();
+
 
         month++;
         if (month == 13)
@@ -197,7 +199,7 @@ void Stepan_start()
 void Stepan_deposit_profit()
 {
     Stepan.bank_account += Stepan.salary - Stepan.food - Stepan.transport - Stepan.other_expenses - Stepan.unexpected_expenses - Stepan.rent;
-    Stepan.capital += Stepan.bank_account * deposit_percent / 12;
+    Stepan.capital += Stepan.bank_account * deposit_percent;
 }
 
 
@@ -205,6 +207,8 @@ void Stepan_action()
 {
     while (!(year == 2035 && month == 10))
     {
+        inflation_growth();
+
         Stepan_salary();
         Stepan_deposit_profit();
         Stepan_rent();
@@ -213,8 +217,7 @@ void Stepan_action()
         Stepan_unexpected_expenses();
         Stepan_other_expenses();
 
-        inflation_growth();
-        
+
         month++;
         if (month == 13)
         {
@@ -242,7 +245,7 @@ void Data_reset()
 
 void conclusion()
 {
-    printf("P.s. As a result, Stepan earned %d more than Ivan, but at the\n\n" 
+    printf("P.s. As a result, Stepan earned %d more than Ivan, but at the\n\n"
         "same time, Ivan will own an apartment that may cost more\n\n"
         "than 4 million by 2035 (it is difficult to estimate the growth\n\n"
         "of real estate in Russia over such a long period of time)\n\n",
@@ -264,5 +267,3 @@ int main()
 
     conclusion();
 }
-
-
