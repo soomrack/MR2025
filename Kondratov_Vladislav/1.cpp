@@ -34,7 +34,8 @@ void alice_income(const int year, const int month)
     if (year == 2027 && month == 3) {
         alice.income *= 1.2;  // Promotion
     }
-    else if (year == 2032 && month == 5) {
+    
+    if (year == 2032 && month == 5) {
         alice.income *= 1.5;  // Promotion
     }
 
@@ -47,7 +48,8 @@ void alice_food(const int month)
     if (month == 1) {
         alice.food *= 1.05;
     }
-    else if (month == 9) {
+    
+    if (month == 9) {
         alice.food *= 1.04;
     }
 
@@ -109,6 +111,21 @@ void alice_apartment(const int month)
     }
 }
 
+
+void alice_deposit(const int month)
+{
+    if (alice.bank_account >= 50 * 1000) {
+        alice.deposit = alice.deposit + (alice.bank_account - 50 * 1000);
+        alice.bank_account = 50 * 1000;
+    }
+
+    if (alice.deposit >= 3 * 1000 * 1000) {
+        alice.deposit *= 1. + 0.1 / 12; //дописать процент
+    }
+
+
+}
+
 ////////////////////////////////////////////////////////////////////
 
 void bob_income(const int year, const int month)
@@ -120,7 +137,8 @@ void bob_income(const int year, const int month)
     if (year == 2027 && month == 3) {
         bob.income *= 1.2;  // Promotion
     }
-    else if (year == 2032 && month == 5) {
+    
+    if (year == 2032 && month == 5) {
         bob.income *= 1.5;  // Promotion
     }
 
@@ -134,7 +152,8 @@ void bob_food(const int month)
     if (month == 1) {
         bob.food *= 1.05;
     }
-    else if (month == 9) {
+    
+    if (month == 9) {
         bob.food *= 1.04;
     }
 
@@ -157,11 +176,11 @@ void bob_car(const int year, const int month)
     if (year == 2030 and month == 2) {
         if ((bob.bank_account - (3000 * 1000)) >= 0) {
             bob.bank_account -= 3000 * 1000;
-            printf("Bob bought a new car in 2030\n");
+            printf("Bob bought a new car in 2030\n\n");
             //printf("Bob capital = %d RUB\n", bob.bank_account);
         }
         else {
-            printf("Bob would not buy a new car in 2030\n");
+            printf("Bob would not buy a new car in 2030\n\n");
         }
     }
 
@@ -193,11 +212,7 @@ void bob_other(const int month)
 }
 
 
-void bob_profit()
-{
-    bob.bank_account = bob.bank_account * (1. + 0.1 / 12);
-}
-
+//deposit
 
 void simulation()
 {
@@ -212,7 +227,7 @@ void simulation()
         alice_utility_costs(month);
         alice_other(month);
         alice_apartment(month);
-        //alice_deposit(month);
+        alice_deposit(month);
         // alice_trip(); 
         
         bob_income(year, month);
@@ -221,9 +236,7 @@ void simulation()
         bob_car(year, month);
         bob_utility_costs(month);
         bob_other(month);
-        //alice_deposit(month);
         // bob_trip();
-        bob_profit();
 
 
         ++month;
@@ -237,13 +250,19 @@ void simulation()
     }
 }
 
+
 //вывод и ввод данных
 
 void print_info()
 {
-    printf("Alice capital = %d RUB\n", alice.bank_account + alice.apartment);
+    printf("Alice capital = %d RUB\n\n", alice.bank_account + alice.apartment + alice.deposit);
+    printf("Alice deposit = %d RUB\n", alice.deposit);
+    printf("Alice apartment = %d RUB\n", alice.apartment);
+    printf("Alice bank_account = %d RUB\n\n", alice.bank_account);
 
-    printf("Bob capital = %d RUB\n", bob.bank_account);
+    printf("Bob capital = %d RUB\n", bob.bank_account + bob.deposit);
+    printf("Bob deposit = %d RUB\n", alice.deposit);
+    printf("Bob bank_account = %d RUB\n\n", alice.bank_account);
 }
 
 
@@ -257,6 +276,7 @@ void alice_init()
     alice.utility_costs = 5000; // коммунальные расходы
     alice.other = 20000; 
     alice.apartment = 14 * 1000 * 1000;
+    alice.deposit = 0;
 }
 
 
@@ -269,6 +289,7 @@ void bob_init()
     bob.car = 15000;
     bob.utility_costs = 5000;
     bob.other = 20000;
+    bob.deposit = 0;
 }
 
 
