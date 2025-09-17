@@ -114,7 +114,7 @@ void pay_loan(Person *p) {
 // Блок 5 Инфляция 
 
 void apply_inflation(Person *p) {
-    const double INFLATION_RATE = 0.1; // 5% за период
+    const double INFLATION_RATE = 0.1; // 10% за период
     //const int INFLATION_PERIOD = 5;// 
     // todo придумать что то ещё
 
@@ -123,6 +123,9 @@ void apply_inflation(Person *p) {
     p->utilities = (RUB)(p->utilities * (1 + INFLATION_RATE));
     p->rent      = (RUB)(p->rent * (1 + INFLATION_RATE));
 }
+// TODO(): вынести константы инфляции в глобальные параметры
+//const double INFLATION_RATE   = 0.1; // 10%
+//const int    INFLATION_PERIOD = 5;    // каждые 5 лет
 
 
 // Блок 6 Функции вывода
@@ -134,7 +137,9 @@ void alice_print() {
 void bob_print() {
     printf("Bob   bank account = %lld руб.\n", bob.bank_account);
 }
-// TODO: при сравнении итогов учитывать стоимость квартиры у Alice
+// TODO: учитывать flat_price при сравнении итогов.
+// TODO: добавить переменную для непостоянных активов (машины у Bob) - учитывать при выводе итогов.
+// TODO: добавить наконец сравнение банковский счетов в вывод
 
 // Блок 7 Симуляция 
 
