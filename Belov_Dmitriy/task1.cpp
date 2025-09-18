@@ -69,8 +69,8 @@ void bob_init() {
 
     bob.flat_price = 0; // квартиры нет
 
-    bob.loan       = 1 * 1000 * 1000; // кредит (возможно на машину TODO)
-    bob.loan_years = 10;
+    bob.loan       = 1 * 1000 * 1000; // кредит (возможно на машину TODO)// машина всё равно ведь не считается собственностью, прибавляемой к итогу?
+    bob.loan_years = 20;
     bob.loan_rate  = 0.5;
     bob.monthly_payment = annuity_payment(bob.loan, bob.loan_rate, bob.loan_years);
 }
