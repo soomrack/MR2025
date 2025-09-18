@@ -16,6 +16,7 @@ struct Person {
     RUB other; 
     RUB deposit;
     RUB apartment;
+    RUB deposit_min; //сумма, при которой банки повышают процент по вкладу
 };
 
 struct Person alice;
@@ -115,15 +116,20 @@ void alice_apartment(const int month)
 void alice_deposit(const int month)
 {
     if (alice.bank_account >= 50 * 1000) {
-        alice.deposit = alice.deposit + (alice.bank_account - 50 * 1000);
+        alice.deposit += (alice.bank_account - 50 * 1000);
         alice.bank_account = 50 * 1000;
     }
 
     if (alice.deposit >= 3 * 1000 * 1000) {
-        alice.deposit *= 1. + 0.1 / 12; //дописать процент
+        alice.deposit *= 1. + 0.11 / 12; 
+    }
+    else {
+        alice.deposit *= 1. + 0.1 / 12;
     }
 
-
+    if (month == 1) {
+        alice.deposit_min *= 1.07;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -212,7 +218,25 @@ void bob_other(const int month)
 }
 
 
-//deposit
+void bob_deposit(const int month)
+{
+    if (bob.bank_account >= 50 * 1000) {
+        bob.deposit += (bob.bank_account - 50 * 1000);
+        bob.bank_account = 50 * 1000;
+    }
+
+    if (bob.deposit >= 3 * 1000 * 1000) {
+        bob.deposit *= 1. + 0.11 / 12; 
+    }
+    else {
+        bob.deposit *= 1. + 0.1 / 12;
+    }
+
+    if (month == 1) {
+        bob.deposit_min *= 1.07;
+    }
+}
+
 
 void simulation()
 {
@@ -236,6 +260,7 @@ void simulation()
         bob_car(year, month);
         bob_utility_costs(month);
         bob_other(month);
+        bob_deposit(month);
         // bob_trip();
 
 
@@ -260,9 +285,9 @@ void print_info()
     printf("Alice apartment = %d RUB\n", alice.apartment);
     printf("Alice bank_account = %d RUB\n\n", alice.bank_account);
 
-    printf("Bob capital = %d RUB\n", bob.bank_account + bob.deposit);
-    printf("Bob deposit = %d RUB\n", alice.deposit);
-    printf("Bob bank_account = %d RUB\n\n", alice.bank_account);
+    printf("Bob capital = %d RUB\n\n", bob.bank_account + bob.deposit);
+    printf("Bob deposit = %d RUB\n", bob.deposit);
+    printf("Bob bank_account = %d RUB\n\n", bob.bank_account);
 }
 
 
@@ -277,6 +302,7 @@ void alice_init()
     alice.other = 20000; 
     alice.apartment = 14 * 1000 * 1000;
     alice.deposit = 0;
+    alice.deposit_min = 3 * 1000 * 1000;
 }
 
 
@@ -290,6 +316,7 @@ void bob_init()
     bob.utility_costs = 5000;
     bob.other = 20000;
     bob.deposit = 0;
+    alice.deposit_min = 3 * 1000 * 1000;
 }
 
 
