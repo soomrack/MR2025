@@ -1,0 +1,183 @@
+#include <iostream>
+#include <vector>
+#include <string>
+#include <cmath>
+#include <iomanip>
+
+using namespace std;
+
+typedef long long int RUB;
+
+// Тип покупки (накопления или ипотека)
+enum bankSaving {
+    contribution = 1,
+    mortgage = 2
+};
+
+const RUB first_payment = 2 * 1000 * 1000;                    // Первый взнос
+const RUB appartament_price = 10 * 1000 * 1000;               // Стоимость квартиры
+const double banks_percent = 0.12;                            // Процент в банке (по вкладам и ипотеке)
+const double percent_inflation = 0.005;                       // Процент инфляции
+double inflation = 1;                                         // Коэффициент инфляции
+int clothes_average_price = 4000;                             // Стоимость одежды
+int public_utilities_average_price = 2500;                    // Плата коммунальных услуг
+int food_average_price = 8000;                                // Цены на пропитание
+int car_service_average_price = 5000;                         // Затраты на автомобиль
+int mortgage_month = 20 * 12;                                 // Срок по ипотеке
+
+// Структура - Человек;
+struct Person {
+    const string name;                             // Имя
+    const bankSaving type;                       // Вид покупки
+    const bool isHasCar;                                // Наличие машины
+    RUB payment;                                        // Оплата квартиры (аренда  или ипотека)
+    RUB bank_account;                                   // Текущий счёт
+    RUB income;                                 // Начисления
+    RUB bank_saves;
+
+    Person(string n, bankSaving t, bool car, RUB p, RUB account, RUB inc)
+        : name(n), type(t), isHasCar(car), payment(p), bank_account(account), income(inc)
+    {
+        bank_saves = (type == bankSaving::mortgage ? -appartament_price : 0);
+    }
+};
+
+// Расчёт ежемесячной платы ипотеки
+RUB month_payout(double percent, int sum, int months) {
+    return (sum * (((percent / 12.0) * pow((1 + percent / 12.0), months)) / (pow((1 + percent / 12.0), months) - 1)));
+}
+
+// Итоговый вывод счёта людей
+void person_print(vector<Person>& persons) {
+    for (int i = 0; i < persons.size(); i++)
+    {
+        if ((persons[i].type == bankSaving::contribution) && (persons[i].bank_account + 2 * persons[i].income >= appartament_price))
+            persons[i].bank_account -= (appartament_price);
+        cout << persons[i].name << " bank account = " << persons[i].bank_account << " rub.\n";
+    }
+}
+
+// Начисления людей + повышение
+void person_income(Person& person, const int year, const int month) {
+    if (year == 2030 && month == 10) {
+        person.income *= 1.5; //Promotion
+    }
+    person.bank_account += person.income;
+}
+
+// Затраты на еду
+void person_food(Person& person) {
+    person.bank_account -= food_average_price * inflation;
+}
+
+// Затраты на одежду
+void person_clothes(Person& person) {
+    person.bank_account -= clothes_average_price * inflation;
+}
+
+// Затраты на аренду жилья или ипотеки
+void person_housing(Person& person) {
+    if (person.type == bankSaving::mortgage)
+        person.bank_account -= person.payment;
+    else
+        person.bank_account -= person.payment * inflation;
+}
+
+// Затраты на автомобиль (при его наличии)
+void person_car(Person& person) {
+    if (person.isHasCar)
+        person.bank_account -= car_service_average_price * inflation;
+}
+
+// Затраты на коммунальные услуги
+void person_public_utilities(Person& person) {
+    person.bank_account -= public_utilities_average_price * inflation;
+}
+
+// Симуляция течения времени: начислений и трат
+void simulation(vector<Person>& persons) {
+    int year = 2025;                        // Первоначальный год
+    int month = 9;                          // Первоначальный месяц
+    bool error_handle = 0;                  // Флаг ошибки (при недостаточном количестве средств)
+
+    // Цикл течения времени
+    while (!(year == 2045 && month == 9)) {
+        for (int i = 0; i < persons.size(); i++)
+        {
+            person_income(persons[i], year, month);
+            person_food(persons[i]);
+            person_housing(persons[i]);
+            person_clothes(persons[i]);
+            person_car(persons[i]);
+            person_public_utilities(persons[i]);
+            cout << persons[i].name << " " << persons[i].bank_account << endl;
+            // Вложение на вклад + начисления процентов на него
+            if (persons[i].type == bankSaving::contribution) {
+                persons[i].bank_saves += persons[i].bank_account;
+                persons[i].bank_account = 0;
+                persons[i].bank_saves *= (1 + (banks_percent / 12.0));
+            }
+            if (persons[i].type == bankSaving::mortgage && persons[i].bank_saves > 0)
+            {
+                persons[i].type == bankSaving::contribution;
+            }
+            // Ошибка, при недостаточном количестве средств
+            if (persons[i].bank_account < 0) {
+                cout << persons[i].name << " can\'t handle this life" << endl;
+                error_handle = 1;
+                break;
+            }
+        }
+
+        // + месяц, + инфляция
+        month++;
+        inflation *= (1 + percent_inflation);
+
+        // Смена года
+        if (month == 13) {
+            year++;
+            month = 1;
+            for (int i = 0; i < persons.size(); i++)
+            {
+                persons[i].income *= inflation;
+            }
+        }
+        // Выход из цикла при ошибке
+
+        for (int i = 0; i < persons.size(); i++)
+        {
+            // Снятие средств со вклада
+            if (persons[i].type == bankSaving::contribution) {
+                persons[i].bank_account += persons[i].bank_saves;
+            }
+        }
+        if (error_handle)
+            break;
+    }
+}
+
+int main() {
+    Person alice = Person("Alice", bankSaving::mortgage, true, month_payout(banks_percent, appartament_price, mortgage_month), 0, 135000);
+    Person bob = Person("Bob", bankSaving::mortgage, true, 75000, 0, 100000);
+
+    vector<Person> persons;
+    persons.push_back(alice);
+    persons.push_back(bob);
+
+    simulation(persons);
+
+    person_print(persons);
+
+    // Наибольшее количество денег под конец срока и счётчик (для индекса вектора)
+    RUB most_money = persons[0].bank_account;
+    int counter = 0;
+
+    for (int i = 1; i < persons.size(); i++) {
+        if (persons[i].bank_account > most_money) {
+            most_money = persons[i].bank_account;
+            counter = i;
+        }
+    }
+
+    cout << "\nThe happiest person is " << persons[counter].name << " with " << persons[counter].bank_account << " rubles\n";
+}
