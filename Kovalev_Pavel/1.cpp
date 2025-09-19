@@ -8,7 +8,7 @@ typedef int USDT;
 struct Person {
     RUB bank_account;
     RUB income;
-    RUB food;
+    RUB expenses;
 };
 
 struct Person alice;
@@ -28,9 +28,14 @@ void alice_income(const int year, const int month)
 }
 
 
-void alice_food()
+void alice_expenses(const int year, const int month)
 {
-    alice.bank_account -= alice.food;
+    // coveres common expenses, such as car, trip, food, etc
+    alice.bank_account -= alice.expenses;
+
+    if(month == 9) {
+        alice.expenses = alice.expenses * 1.07;  // Inflation
+    }
 }
 
 
@@ -41,10 +46,8 @@ void simulation()
 
     while( !(year == 2045 && month == 9) ) {
         alice_income(year, month);
-        alice_food();
+        alice_expenses(year, month);
         // alice_mortgage();
-        // alice_car();
-        // alice_trip();
         
         ++month;
         if(month == 13) {
@@ -65,7 +68,7 @@ void alice_init()
 {
     alice.bank_account = 1000 * 1000;
     alice.income = 200 * 1000;
-    alice.food = 30000;
+    alice.expenses = 70 * 1000;
 }
 
 
