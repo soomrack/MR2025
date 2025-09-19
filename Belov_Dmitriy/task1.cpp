@@ -20,25 +20,34 @@ struct Person {
     int loan_years;       
     double loan_rate;     
     RUB monthly_payment; 
+    int loan_months_left; // срок в месяцах 
 };
 
 Person alice;
 Person bob;
 
 
-// Блок 1 Функции расчётов 
+// Блок 1 Константы экономики
 
+const double INFLATION_RATE   = 0.05; // 5%
+const int    INFLATION_PERIOD = 5;    // каждые 5 лет
+
+
+// Блок 2 Функции расчётов 
 
 // Расчёт аннуитетного платежа
 RUB annuity_payment(RUB amount, double annual_rate, int years) {
-    double monthly_rate = annual_rate / 12.0;
     int total_months = years * 12;
-    double numerator   = monthly_rate * pow(1 + monthly_rate, total_months);
-    double denominator = pow(1 + monthly_rate, total_months) - 1;
-    return (RUB)(amount * (numerator / denominator));
+    if (annual_rate <= 0.0) {
+        return amount / total_months; // без процентов
+    }
+    double r = annual_rate / 12.0;
+    double powf = pow(1.0 + r, total_months);
+    double payment = amount * (r * powf) / (powf - 1.0);
+    return (RUB) payment;
 }
 
-//Блок 2 Инициализация персонажей
+//Блок 3 Инициализация персонажей
 
 void alice_init() {
     alice.bank_account = 1000 * 1000;
@@ -49,11 +58,11 @@ void alice_init() {
     alice.utilities = 1 * 1000;
     alice.rent      = 0; // живёт в своей квартире
 
-    alice.flat_price = 6 * 1000 * 1000;
-    alice.loan       = alice.flat_price - 1 * 1000 * 1000; 
+   alice.loan       = alice.flat_price - 1 * 1000 * 1000; 
     alice.loan_years = 20;
-    alice.loan_rate  = 0.18;
+    alice.loan_rate  = 0.05;
     alice.monthly_payment = annuity_payment(alice.loan, alice.loan_rate, alice.loan_years);
+    alice.loan_months_left = alice.loan_years * 12;
 
     alice.bank_account -= 1 * 1000 * 1000; // первый взнос
 }
@@ -69,15 +78,16 @@ void bob_init() {
 
     bob.flat_price = 0; // квартиры нет
 
-    bob.loan       = 1 * 1000 * 1000; // кредит (возможно на машину TODO)// машина всё равно ведь не считается собственностью, прибавляемой к итогу?
+    bob.loan       =    1 * 1000 * 1000; // кредит (например, на машину)
     bob.loan_years = 20;
-    bob.loan_rate  = 0.5;
+    bob.loan_rate  = 0.05;
     bob.monthly_payment = annuity_payment(bob.loan, bob.loan_rate, bob.loan_years);
+    bob.loan_months_left = bob.loan_years * 12;
 }
 
 
 
-// Блок 3 Доходы
+// Блок 4 Доходы
 
 void alice_income(const int year, const int month) {
     if (year == 2030 && month == 10) {
@@ -94,7 +104,7 @@ void bob_income(const int year, const int month) {
 }
 
 
-// Блок 4 Расходы
+// Блок 5 Расходы
 
 
 void monthly_expenses(Person *p) {
@@ -105,43 +115,47 @@ void pay_rent(Person *p) {
     p->bank_account -= p->rent;
 }
 void pay_loan(Person *p) {
-    if (p->loan_years > 0) {
+    if (p->loan_months_left > 0) {
         p->bank_account -= p->monthly_payment;
+        p->loan_months_left--;
+        if (p->loan_months_left == 0) {
+            p->loan = 0;
+            p->monthly_payment = 0;
+        }
     }
 }
 
 
-// Блок 5 Инфляция 
+// Блок 6 Инфляция 
 
 void apply_inflation(Person *p) {
-    const double INFLATION_RATE = 0.1; // 10% за период
-    //const int INFLATION_PERIOD = 5;// 
-    // todo придумать что то ещё
-
     p->food      = (RUB)(p->food * (1 + INFLATION_RATE));
     p->clothes   = (RUB)(p->clothes * (1 + INFLATION_RATE));
     p->utilities = (RUB)(p->utilities * (1 + INFLATION_RATE));
     p->rent      = (RUB)(p->rent * (1 + INFLATION_RATE));
 }
-// TODO(stupid): вынести константы инфляции в глобальные параметры
-//const double INFLATION_RATE   = 0.1; // 10%
-//const int    INFLATION_PERIOD = 5;    // каждые 5 лет
 
 
-// Блок 6 Функции вывода
+// Блок 7 Функции вывода
 
-void alice_print() {
-    printf("Alice bank account = %lld руб.\n", alice.bank_account);
+void results() {
+    RUB alice_total = alice.bank_account + alice.flat_price;
+    RUB bob_total   = bob.bank_account + bob.flat_price; // если появятся активы у Bob
+
+    printf("\n=== Итог через 20 лет ===\n");
+    printf("Alice bank account = %lld руб. (+ квартира %lld)\n", alice.bank_account, alice.flat_price);
+    printf("Bob   bank account = %lld руб. (+ собственность %lld)\n", bob.bank_account, bob.flat_price);
+
+    if (alice_total > bob_total) {
+        printf("Жизнь лучше у Alice.\n");
+    } else if (bob_total > alice_total) {
+        printf("Жизнь лучше у Bob.\n");
+    } else {
+        printf("Жизнь одинаковая.\n");
+    }
 }
 
-void bob_print() {
-    printf("Bob   bank account = %lld руб.\n", bob.bank_account);
-}
-// TODO: учитывать flat_price при сравнении итогов.
-// TODO: добавить переменную для непостоянных активов (машины у Bob) - учитывать при выводе итогов.
-// TODO: добавить наконец сравнение банковский счетов в вывод
-
-// Блок 7 Симуляция 
+// Блок 8 Симуляция 
 
 void simulation() {
     int year = 2025;
@@ -165,9 +179,9 @@ void simulation() {
         pay_loan(&bob);
         
         // инфляция каждые 5 лет
-        if (month == 12 && year % 5 == 0) {
-         apply_inflation(&alice);
-         apply_inflation(&bob);
+        if (month == 12 && year % INFLATION_PERIOD == 0) {
+            apply_inflation(&alice);
+            apply_inflation(&bob);
         }
         // шаг времени
         month++;
