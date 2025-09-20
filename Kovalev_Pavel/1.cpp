@@ -23,7 +23,9 @@ struct Person bob;
 
 void deposit(Person *person /*, const int year, const int month */) {
     // assume person keeps all of money on deposit with 5% yearly interest rate => 12√1,05=0,407% monthly rate
-    person->bank_account *= 1.00407;
+    if (person->bank_account > 0) {
+        person->bank_account *= 1.00407;
+    }
 }
 
 
