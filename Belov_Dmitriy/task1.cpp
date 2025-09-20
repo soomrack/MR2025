@@ -198,9 +198,7 @@ int main() {
     bob_init();
 
     simulation();
-
-    alice_print();
-    bob_print();
+    results();
 
     return 0;
 }
