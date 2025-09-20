@@ -12,6 +12,7 @@ struct Person {
     RUB expenses;
     RUB debt;
     RUB annuity_payment;
+    bool has_flat;
 };
 
 struct Person alice;
@@ -66,6 +67,7 @@ void alice_mortgage(const int year, const int month)
         // first payment
         alice.bank_account -= first_payment;
         alice.debt = flat_price - first_payment;
+        alice.has_flat=true;
 
         const float monthly_interest_rate = interest_rate / 12;
         alice.annuity_payment = (RUB) round ( 
@@ -117,6 +119,7 @@ void alice_init()
     alice.income = 140 * 1000;
     alice.expenses = 40 * 1000;
     alice.debt = 0;
+    alice.has_flat=false;
 }
 
 
@@ -136,6 +139,7 @@ void bob_income(const int year, const int month)
     bob.bank_account += bob.income ;
 }
 
+
 void bob_expenses(const int year, const int month)
 {
     // coveres common expenses, such as car, trip, food, etc
@@ -145,6 +149,30 @@ void bob_expenses(const int year, const int month)
         bob.expenses = bob.expenses * 1.07;  // Inflation
     }
 }
+
+
+void bob_rent(const int year, const int month)
+{
+    if (! bob.has_flat) {
+        bob.bank_account -= 70*1000;
+    }
+}
+
+
+void bob_try_buy_flat(const int year, const int month)
+{
+    if (bob.has_flat) {
+        return;
+    }
+    const RUB flat_price = 20 * 1000 * 1000;
+    if (bob.bank_account >= flat_price + 100*1000)
+    {
+        bob.bank_account -= flat_price;
+        printf("Bob bought flat in year %d\n", year);
+        bob.has_flat=true;
+    }
+}
+
 
 void print_bob_info()
 {   
@@ -168,6 +196,7 @@ void bob_init()
     bob.income = 140 * 1000;
     bob.expenses = 40 * 1000;
     bob.debt = 0;
+    bob.has_flat=false;
 }
 
 
@@ -204,7 +233,8 @@ void simulation()
     while( !(year == 2045 && month == 9) ) {
         bob_income(year, month);
         bob_expenses(year, month);
-        // bob_mortgage(year, month);
+        bob_rent(year, month);
+        bob_try_buy_flat(year, month);
         deposit(&bob);
         
         ++month;
