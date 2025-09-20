@@ -109,6 +109,29 @@ void alice_init()
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
+void bob_income(const int year, const int month)
+{
+    if(month == 10) {
+        bob.income = bob.income * 1.07;  // Indexation
+    }
+        
+    if(year == 2030 && month == 3) {
+        bob.income *= 1.5;  // Promotion
+    }
+    
+    bob.bank_account += bob.income ;
+}
+
+void bob_expenses(const int year, const int month)
+{
+    // coveres common expenses, such as car, trip, food, etc
+    bob.bank_account -= bob.expenses;
+
+    if(month == 9) {
+        bob.expenses = bob.expenses * 1.07;  // Inflation
+    }
+}
+
 void print_bob_info()
 {   
     if (bob.debt==0) {
@@ -162,8 +185,8 @@ void simulation()
 
     print_bob_info_more(year);
     while( !(year == 2045 && month == 9) ) {
-        // bob_income(year, month);
-        // bob_expenses(year, month);
+        bob_income(year, month);
+        bob_expenses(year, month);
         // bob_mortgage(year, month);
         
         ++month;
