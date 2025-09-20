@@ -18,6 +18,15 @@ struct Person alice;
 struct Person bob;
 
 
+//////////////////////////                common functions                //////////////////////////
+
+
+void deposit(Person *person /*, const int year, const int month */) {
+    // assume person keeps all of money on deposit with 5% yearly interest rate => 12√1,05=0,407% monthly rate
+    person->bank_account *= 1.00407;
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
@@ -170,6 +179,7 @@ void simulation()
         alice_income(year, month);
         alice_expenses(year, month);
         alice_mortgage(year, month);
+        deposit(&alice);
         
         ++month;
         if(month == 13) {
@@ -188,6 +198,7 @@ void simulation()
         bob_income(year, month);
         bob_expenses(year, month);
         // bob_mortgage(year, month);
+        deposit(&bob);
         
         ++month;
         if(month == 13) {
