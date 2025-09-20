@@ -74,7 +74,7 @@ void alice_mortgage(const int year, const int month)
             // alice.debt * (monthly_interest_rate * pow(1+monthly_interest_rate, 20*12) ) / ( pow(1+monthly_interest_rate, 20*12) - 1 ) 
             alice.debt * monthly_interest_rate / ( 1 - pow(1+monthly_interest_rate, -20*12) )
         );
-        printf("Annuity payment %d RUB\n", alice.annuity_payment); //dbg
+        // printf("Annuity payment %d RUB\n", alice.annuity_payment); //dbg
     }
     
     // monthly annuity mortgage payment
@@ -208,7 +208,7 @@ void simulation()
     int year = 2025;
     int month = 9;
 
-    print_alice_info_more(year);
+    // print_alice_info_more(year);
     while( !(year == 2045 && month == 9) ) {
         alice_income(year, month);
         alice_expenses(year, month);
@@ -219,17 +219,17 @@ void simulation()
         
         ++month;
         if(month == 13) {
-            print_alice_info_more(year);
+            // print_alice_info_more(year);
             month = 1;
             ++year;
         }
     }
 
-    printf("====\n");
+    // printf("====\n");
     year = 2025;
     month = 9;
 
-    print_bob_info_more(year);
+    // print_bob_info_more(year);
     while( !(year == 2045 && month == 9) ) {
         bob_income(year, month);
         bob_expenses(year, month);
@@ -239,7 +239,7 @@ void simulation()
         
         ++month;
         if(month == 13) {
-            print_bob_info_more(year);
+            // print_bob_info_more(year);
             month = 1;
             ++year;
         }
