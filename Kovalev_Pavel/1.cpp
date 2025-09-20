@@ -49,7 +49,7 @@ void alice_income(const int year, const int month)
 
 void alice_expenses(const int year, const int month)
 {
-    // coveres common expenses, such as car, trip, food, etc
+    // covers common expenses, such as car, trip, food, etc
     alice.bank_account -= alice.expenses;
 
     if(month == 9) {
@@ -142,7 +142,7 @@ void bob_income(const int year, const int month)
 
 void bob_expenses(const int year, const int month)
 {
-    // coveres common expenses, such as car, trip, food, etc
+    // covers common expenses, such as car, trip, food, etc
     bob.bank_account -= bob.expenses;
 
     if(month == 9) {
