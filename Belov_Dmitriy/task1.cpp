@@ -57,8 +57,10 @@ void alice_init() {
     alice.clothes   = 20 * 1000;
     alice.utilities = 1 * 1000;
     alice.rent      = 0; // живёт в своей квартире
+    
+    alice.flat_price = 6 * 1000 * 1000;
 
-   alice.loan       = alice.flat_price - 1 * 1000 * 1000; 
+    alice.loan       = alice.flat_price - 1 * 1000 * 1000; 
     alice.loan_years = 20;
     alice.loan_rate  = 0.05;
     alice.monthly_payment = annuity_payment(alice.loan, alice.loan_rate, alice.loan_years);
