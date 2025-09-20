@@ -15,6 +15,10 @@ struct Person {
 };
 
 struct Person alice;
+struct Person bob;
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
 void alice_income(const int year, const int month)
@@ -78,8 +82,12 @@ void alice_mortgage(const int year, const int month)
 
 
 void print_alice_info()
-{
-    printf("Alice capital = %d RUB\n", alice.bank_account);
+{   
+    if (alice.debt==0) {
+        printf("Alice capital = %d RUB\n", alice.bank_account);
+    } else {
+        printf("Alice capital = %d RUB, debt: %d RUB\n", alice.bank_account, alice.debt);
+    }
 }
 
 
@@ -87,6 +95,46 @@ void print_alice_info_more(const int year)
 {
     printf("%d: Alice capital = %d RUB, debt %d RUB\n", year, alice.bank_account, alice.debt);
 }
+
+
+void alice_init()
+{
+    alice.bank_account = 1000 * 1000;
+    alice.income = 200 * 1000;
+    alice.expenses = 40 * 1000;
+    alice.debt = 0;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+void print_bob_info()
+{   
+    if (bob.debt==0) {
+        printf("Bob capital = %d RUB\n", bob.bank_account);
+    } else {
+        printf("Bob capital = %d RUB, debt: %d RUB\n", bob.bank_account, bob.debt);
+    }
+}
+
+
+void print_bob_info_more(const int year)
+{
+    printf("%d: Bob capital = %d RUB, debt %d RUB\n", year, bob.bank_account, bob.debt);
+}
+
+
+void bob_init()
+{
+    bob.bank_account = 1000 * 1000;
+    bob.income = 200 * 1000;
+    bob.expenses = 40 * 1000;
+    bob.debt = 0;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
 void simulation()
@@ -107,23 +155,35 @@ void simulation()
             ++year;
         }
     }
-}
 
+    printf("====\n");
+    year = 2025;
+    month = 9;
 
-void alice_init()
-{
-    alice.bank_account = 1000 * 1000;
-    alice.income = 200 * 1000;
-    alice.expenses = 40 * 1000;
-    alice.debt = 0;
+    print_bob_info_more(year);
+    while( !(year == 2045 && month == 9) ) {
+        // bob_income(year, month);
+        // bob_expenses(year, month);
+        // bob_mortgage(year, month);
+        
+        ++month;
+        if(month == 13) {
+            print_bob_info_more(year);
+            month = 1;
+            ++year;
+        }
+    }
 }
 
 
 int main()
 {
     alice_init();
+    bob_init();
     
     simulation();
+    printf("====\n");
 
     print_alice_info();
+    print_bob_info();
 }
