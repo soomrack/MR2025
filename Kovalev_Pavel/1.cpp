@@ -35,7 +35,7 @@ void deposit(Person *person /*, const int year, const int month */) {
 void alice_income(const int year, const int month)
 {
     if(month == 10) {
-        alice.income = alice.income * 1.07;  // Indexation
+        alice.income = alice.income * 1.02;  // Indexation
     }
         
     if(year == 2030 && month == 3) {
@@ -58,32 +58,35 @@ void alice_expenses(const int year, const int month)
 
 void alice_mortgage(const int year, const int month)
 {
-    const float interest_rate = 0.10;
+    const float interest_rate = 0.06;
     if ( year == 2025 && month == 9) {
         const RUB flat_price = 20 * 1000 * 1000;
-        const RUB first_payment = (RUB) flat_price * 0.04;
+        const RUB first_payment = 4000 * 1000;
+            // (RUB) flat_price * 0.2;
         // first payment
         alice.bank_account -= first_payment;
         alice.debt = flat_price - first_payment;
 
         const float monthly_interest_rate = interest_rate / 12;
         alice.annuity_payment = (RUB) round ( 
-            alice.debt * (interest_rate * pow(1+monthly_interest_rate, 20*12) ) / ( pow(1+monthly_interest_rate, 20*12) - 1 ) 
+            // alice.debt * (monthly_interest_rate * pow(1+monthly_interest_rate, 20*12) ) / ( pow(1+monthly_interest_rate, 20*12) - 1 ) 
+            alice.debt * monthly_interest_rate / ( 1 - pow(1+monthly_interest_rate, -20*12) )
         );
+        printf("Annuity payment %d RUB\n", alice.annuity_payment); //dbg
     }
-    if (month == 8) {
-        // annuity mortgage payment
-        if (alice.debt > 0) {
-            alice.bank_account -= alice.annuity_payment;
-            alice.debt -= alice.annuity_payment;
-        }
-        if (alice.debt < 100) {
-            // If debt is small, pay the rest of it.
-            // If Alice paid too much (debt < 0), bank would return it.
-            alice.bank_account -= alice.debt;
-            alice.debt = 0;
-        }
+    
+    // monthly annuity mortgage payment
+    if (alice.debt > 0) {
+        alice.bank_account -= alice.annuity_payment;
+        alice.debt -= alice.annuity_payment;
     }
+    if (alice.debt < 100) {
+        // If debt is small, pay the rest of it.
+        // If Alice paid too much (debt < 0), bank would return it.
+        alice.bank_account -= alice.debt;
+        alice.debt = 0;
+    }
+    
     if (month == 9 && year != 2025 && alice.debt != 0) {
         alice.debt = (RUB) round ( 
             alice.debt * (1 + interest_rate)
@@ -110,8 +113,8 @@ void print_alice_info_more(const int year)
 
 void alice_init()
 {
-    alice.bank_account = 1000 * 1000;
-    alice.income = 200 * 1000;
+    alice.bank_account = 5 * 1000 * 1000;
+    alice.income = 140 * 1000;
     alice.expenses = 40 * 1000;
     alice.debt = 0;
 }
@@ -123,7 +126,7 @@ void alice_init()
 void bob_income(const int year, const int month)
 {
     if(month == 10) {
-        bob.income = bob.income * 1.07;  // Indexation
+        bob.income = bob.income * 1.02;  // Indexation
     }
         
     if(year == 2030 && month == 3) {
@@ -161,8 +164,8 @@ void print_bob_info_more(const int year)
 
 void bob_init()
 {
-    bob.bank_account = 1000 * 1000;
-    bob.income = 200 * 1000;
+    bob.bank_account = 5 * 1000 * 1000;
+    bob.income = 140 * 1000;
     bob.expenses = 40 * 1000;
     bob.debt = 0;
 }
@@ -182,6 +185,8 @@ void simulation()
         alice_expenses(year, month);
         alice_mortgage(year, month);
         deposit(&alice);
+
+        // printf("y%d m%d bank %d debt %d\n", year, month, alice.bank_account, alice.debt); //dbg
         
         ++month;
         if(month == 13) {
