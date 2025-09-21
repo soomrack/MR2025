@@ -11,7 +11,7 @@ struct Person {
     RUB trip;
     RUB car_cost;
     RUB car_expense;
-    RUB mortage;
+    RUB mortgage_payment;
     double interest_rate;
     RUB flat_price;
 };
@@ -26,7 +26,7 @@ void bob_init() { // ipoteka
     bob.interest_rate = 0.02;
     bob.food = 20000;
     bob.trip = 50 * 1000;
-    bob.mortage = 115*1000;
+    bob.mortgage_payment = 115*1000;
 
 }
 
@@ -99,9 +99,9 @@ void bob_income(const int year, const int month) {
     bob.bank_account += bob.income;
 }
 
-void bob_mortage(const int year, const int month) {
+void bob_mortgage(const int year, const int month) {
     if (year >= 2025 && year <= 2045) {
-        bob.bank_account -= bob.mortage;
+        bob.bank_account -= bob.mortgage_payment;
     }
 }
 
@@ -146,7 +146,7 @@ void simulation() {
         apply_interest(alice);
 
         bob_income(year, month);
-        bob_mortage(year, month);
+        bob_mortgage(year, month);
         bob_food(year, month);
         bob_trip(year, month);
         apply_interest(bob);
