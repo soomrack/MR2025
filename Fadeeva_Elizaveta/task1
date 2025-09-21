@@ -9,9 +9,10 @@ struct Person {
     RUB trip;
     RUB cartex;
     RUB car;
-    RUB utilitybills;
+    RUB utility_bills;
     RUB rent;
     RUB mortgage;
+    RUB comparison;
 };
 
 Person alice;
@@ -65,7 +66,7 @@ void print_alice_info()
 
 void alice_utility_bills()
 {
-    alice.bank_account -= alice.utilitybills;
+    alice.bank_account -= alice.utility_bills;
 }
 
 Person Bob;
@@ -109,7 +110,7 @@ void Bob_cartex(const int month)
 
 void Bob_utility_bills()
 {
-    Bob.bank_account -= Bob.utilitybills;
+    Bob.bank_account -= Bob.utility_bills;
 }
 
 void Bob_rent()
@@ -122,6 +123,25 @@ void print_Bob_info()
     std::cout << "Bob capital = " << Bob.bank_account << " RUR\n";
 }
 
+void inflation()
+{
+    alice.income = static_cast<RUB>(alice.income * 1.067);
+    alice.food = static_cast<RUB>(alice.food * 1.067);
+    alice.trip = static_cast<RUB>(alice.trip * 1.067);
+    alice.cartex = static_cast<RUB>(alice.cartex * 1.067);
+    alice.car = static_cast<RUB>(alice.car * 1.067);
+    alice.utility_bills = static_cast<RUB>(alice.utility_bills * 1.067);
+    alice.mortgage = static_cast<RUB>(alice.mortgage * 1.067);
+
+    Bob.income = static_cast<RUB>(Bob.income * 1.067);
+    Bob.food = static_cast<RUB>(Bob.food * 1.067);
+    Bob.trip = static_cast<RUB>(Bob.trip * 1.067);
+    Bob.cartex = static_cast<RUB>(Bob.cartex * 1.067);
+    Bob.car = static_cast<RUB>(Bob.car * 1.067);
+    Bob.utility_bills = static_cast<RUB>(Bob.utility_bills * 1.067);
+    Bob.rent = static_cast<RUB>(Bob.rent * 1.067);
+}
+
 void alice_init()
 {
     alice.bank_account = 1000 * 1000;
@@ -130,7 +150,7 @@ void alice_init()
     alice.trip = 80 * 1000;
     alice.cartex = 50 * 100;
     alice.car = 2000;
-    alice.utilitybills = 8000;
+    alice.utility_bills = 8000;
     alice.mortgage = 60 * 1000;
 }
 
@@ -142,9 +162,23 @@ void Bob_init()
     Bob.trip = 90 * 1000;
     Bob.cartex = 70 * 100;
     Bob.car = 2000;
-    Bob.utilitybills = 7000;
-    Bob.rent = 40 * 1000;
+    Bob.utility_bills = 7000;
+    Bob.rent = 30 * 1000;
 }
+
+void comparison()
+{
+    if (Bob.bank_account > alice.bank_account) {
+        std::cout << "Bob is living better\n";
+    }
+    else if (alice.bank_account > Bob.bank_account) {
+        std::cout << "Alice is living better\n";
+    }
+    else {
+        std::cout << "Alice and Bob live equally well\n";
+    }
+}
+
 
 void simulation()
 {
@@ -168,6 +202,8 @@ void simulation()
         Bob_cartex(month);
         Bob_trip(month);
 
+        inflation();
+
         ++month;
         if (month == 13) {
             month = 1;
@@ -188,5 +224,11 @@ int main()
 
     print_Bob_info();
 
+    comparison();
+
     return 0;
 }
+
+// Добавлены выплаты по ипотеке у Элис
+// Добавлено изменение стоимости чего-либо в связи с инфляцией
+// Добавлено сравнение банковских счетов Элис и Боба
