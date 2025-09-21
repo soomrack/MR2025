@@ -1,14 +1,5 @@
 #include <iostream>
-#include <iomanip>
-#include <cmath> 
-#include <CTYPE.H>
-#include <conio.h> 
-#include <cstdlib>
-#include <ctime>
-#include <io.h>
-#include <fcntl.h>
-#include <cstring> 
-#include <string>
+#include <cctype>
 #include <Windows.h>
 
 
@@ -26,8 +17,8 @@ private:
     const YEAR data = {2025, 9};
     YEAR end;
 public:
-    int startcap = 5000000; 
-    int years = 1;
+    int startcap = 2188890; 
+    int years = 20;
     float percent = 15.5f;
     int sum = startcap;
     
@@ -35,15 +26,15 @@ public:
     void show_inf();
 };
 
+
 void expences(const YEAR& start, int Months, int& Sum)
 {
     int exp = 0;
     YEAR current = start;
-    static int salary = 65000;
-    static int foodmonth = 5000;
-    static int monthflat = 35000;
+    static int salary = 220000;
+    static int foodmonth = 30000;
+    static int monthflat = 50000;
     for (int i = 0; i < Months; i++) {
-        
         if (current.month == 10) {
             salary = static_cast<int>(salary * 1.07);
         }
@@ -64,6 +55,7 @@ void expences(const YEAR& start, int Months, int& Sum)
     Sum += exp;
     std::cout << current.year << " : " << current.month << " - Sum = " << Sum << std::endl;
 }
+
 
 void Deposit::incrofmon()     //increase of money
 {
@@ -90,13 +82,8 @@ void Deposit::incrofmon()     //increase of money
             end.month = 1;
             end.year++;
         }
-        
     }
-   
 }
-
-
-
 
 
 void Deposit::show_inf()
@@ -112,6 +99,5 @@ int main()
     setlocale(LC_ALL, "Russian");
     Deposit Maria;
     Maria.incrofmon();
-  
     Maria.show_inf();
 }
