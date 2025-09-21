@@ -1,4 +1,4 @@
-﻿#include <iostream>
+#include <iostream>
 #include <iomanip>
 #include <cmath> 
 #include <CTYPE.H>
@@ -10,71 +10,101 @@
 #include <cstring> 
 #include <string>
 #include <Windows.h>
-using namespace std;
+
+
 struct YEAR
 {
-    int month;
     int year;
+    int month;
 };
-class Deposit                 //вклад в сбере
+
+
+class Deposit                 
 {
 private:
     YEAR countperiod;
+    const YEAR data = {2025, 9};
+    YEAR end;
 public:
-    double startcap = 2188890; //то что мы изначально имеем
-    int years = 20;
+    int startcap = 5000000; 
+    int years = 1;
     float percent = 15.5f;
-    double sum = startcap;
-    float max = (percent + 1.5) / 100;
-    double nontax = 1000000 * max;
-    void incrofmon()     //вклад + траты
-    {
-        countperiod.month = 0;
-        countperiod.year = 0;
-        while (countperiod.year <= years)
-        {
-            YEAR period;
-            period.month = 3;
-            if (countperiod.month % 3 == 0 && countperiod.month != 0)
-            {
-                double sumbef = sum;
-                double quartalpercent = percent / 4.0 / 100.0;
-                double afterpercent = sum * quartalpercent;
-                sum += afterpercent;
-                percent -= 0.1f;
-                double sumaf = sum;
-                double incom = sumaf - sumbef;
-                if (incom > nontax)
-                {
-                    sum -= 0.13 * nontax;
-                }
-            }
-            
-            countperiod.month ++;
-            if (countperiod.month >= 12)
-                {
-                countperiod.month = 0;
-                countperiod.year++;
-                }
-        }
-    }
-    void expences()
-    {
-        double exp = 0;
-        for (int monthex = 0; monthex < (years * 12); monthex ++)
-        {
-            int salary = 220000; //зарплата
-            int foodmonth = 30000;     //в месяц траты иные
-            int montapp = 50000;    //на квартиру в месяц
-            exp += salary - foodmonth - montapp;
-        }
-        sum += exp;
-    }
-    void get_inf()
-    {
-        cout << "общий доход со вклада за " << years << " лет составил " << setw(10) << fixed << setprecision(2) << sum << " рублей" << endl;
-    }
+    int sum = startcap;
+    
+    void incrofmon();
+    void show_inf();
 };
+
+void expences(const YEAR& start, int Months, int& Sum)
+{
+    int exp = 0;
+    YEAR current = start;
+    static int salary = 65000;
+    static int foodmonth = 5000;
+    static int monthflat = 35000;
+    for (int i = 0; i < Months; i++) {
+        
+        if (current.month == 10) {
+            salary = static_cast<int>(salary * 1.07);
+        }
+        if (current.year % 2 == 0 && current.month == 9) {
+            foodmonth = static_cast<int>(foodmonth * 1.13);
+        }
+        if (current.year % 3 == 0 && current.month == 9 && current.year != 2025) {
+            monthflat = static_cast<int>(monthflat * 1.33);
+        }
+        exp += salary - foodmonth - monthflat;
+        std::cout << current.year << " : " << current.month << " - exp = " << exp << std::endl;
+        current.month++;
+        if (current.month > 12) {
+            current.month = 1;
+            current.year++;
+        }
+    }
+    Sum += exp;
+    std::cout << current.year << " : " << current.month << " - Sum = " << Sum << std::endl;
+}
+
+void Deposit::incrofmon()     //increase of money
+{
+    end.month = data.month;
+    end.year = data.year;
+    while (!(end.year == (data.year + years) && end.month == data.month)){
+        YEAR period;
+        period.month = 3;
+        if (end.month % 3 == 0 && (end.month != 0)){
+            double quartalpercent = percent / 4.0 / 100.0;
+            int afterpercent = sum * quartalpercent;
+            sum += afterpercent;
+            float cbrate = (percent + 1.5) / 100; //central bank rate
+            int nontax = 1000000 * cbrate;
+            if (afterpercent > nontax){
+                sum = static_cast<int>(sum - 0.13 * (afterpercent - nontax));
+            }
+            percent -= 0.1f;
+            std::cout << end.year << " : " << end.month << " - " << sum << std::endl;
+            expences(end, 3, sum);
+        }
+        end.month++;
+        if (end.month > 12){
+            end.month = 1;
+            end.year++;
+        }
+        
+    }
+   
+}
+
+
+
+
+
+void Deposit::show_inf()
+{
+    std::cout << "общий доход со вклада за " << years << " лет составил " << sum << " рублей" << std::endl;
+}
+
+
 int main()
 {
     SetConsoleCP(1251);
@@ -82,6 +112,6 @@ int main()
     setlocale(LC_ALL, "Russian");
     Deposit Maria;
     Maria.incrofmon();
-    Maria.expences();
-    Maria.get_inf();
+  
+    Maria.show_inf();
 }
