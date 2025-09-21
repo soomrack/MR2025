@@ -13,6 +13,8 @@ struct Simulation
 	int actual_month = 0;
     int credit_mought = 180; // кредит на пятнадцать лет
 	float key_bid = 0.18;
+    float inflation_coefficient = 1.01;
+    float salary_indexation = 1.008;
     
 }properties;
 
@@ -39,7 +41,7 @@ void alice_init()
 {
     RUB food = 30000;
     RUB clothes = 10000; // среднеднии траты на одежду в месяц;
-    RUB different = 10000; // иные траты
+    RUB different = 6000; // иные траты
 
 
 
@@ -50,7 +52,7 @@ void alice_init()
 }
 
 
-void Alice_bank()
+void alice_bank()
 {
     double monght_bid = properties.key_bid / 12;
     
@@ -61,6 +63,29 @@ void Alice_bank()
     alice.bank_account -= alice.live_cost;
 
 	cout << alice.bank_account<< "       " << properties.debit_part << endl;
+
+}
+
+void events ()
+{
+
+    switch (properties.actual_month)
+    {
+    case 15:
+
+        alice.bank_account -= 50000; // пример любого случайного события, сломанный холодильник
+        bob.bank_account -= 50000;
+
+        break;
+    case 30:
+
+        alice.salary = 250 * 1000; // пример любого случайного события, повышения зарплаты
+        bob.salary = 250 * 1000;
+
+        break;
+    default:
+        break;
+    }
 
 }
 
@@ -76,7 +101,11 @@ void timeline()
 		
 
         
-		Alice_bank();
+		alice_bank();
+        events();
+        
+        alice.live_cost *= properties.inflation_coefficient; //влияние инфляции/индексации
+        bob.live_cost *= properties.inflation_coefficient;
 
 		properties.actual_month++;
 	}
