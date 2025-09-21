@@ -1,4 +1,5 @@
 #include <iostream>
+#include <math.h>
 using namespace std;
 
 typedef long int RUB;
@@ -6,90 +7,85 @@ typedef long int RUB;
 
 struct Simulation
 {
-	RUB home_cost = 0;
-	RUB initial_deposit = 900 * 1000;
-	RUB payments = 50 * 1000; // Долговая часть в месяц от тела долга 
-	RUB debit_part = 0; // Долговая часть для обслуживания долга
-	int month = 0;
-	int key_bid = 18;
-
+	RUB home_cost = 10 * 1000 * 1000;
+	RUB initial_deposit = 1000 * 1000;
+	RUB debit_part = 0; 
+	int actual_month = 0;
+    int credit_mought = 180; // кредит на пятнадцать лет
+	float key_bid = 0.18;
+    
 }properties;
 
-void sinulation_properties_init()
-{
-	//cout << "Введите стоимость дома: ";
-	//cin >> properties.home_cost;
-
-	properties.home_cost = 10 * 1000 * 1000;
-}
 
 struct Person
 {
-	RUB bank_account;
+    RUB bank_account;
 	RUB salary;
 	RUB debt;
+    RUB live_cost;
 };
 
 struct Person bob;
 struct Person alice;
 
 
-void bob_start()
+void bob_init()
 {
-	bob.bank_account = 1000 * 1000;
-	bob.salary = 150 * 1000;
+    bob.bank_account = 1000 * 1000;
+	bob.salary = 200 * 1000;
 }
 
-void alice_start()
+void alice_init()
 {
-	alice.bank_account = 1000 * 1000;
-	alice.salary = 150 * 1000;
-	alice.debt = properties.home_cost;
+    RUB food = 30000;
+    RUB clothes = 10000; // среднеднии траты на одежду в месяц;
+    RUB different = 10000; // иные траты
+
+
+
+    alice.bank_account = 1000 * 1000;
+	alice.salary = 200 * 1000;
+	alice.debt = properties.home_cost - properties.initial_deposit;
+    alice.live_cost = food + clothes + different;
 }
 
 
 void Alice_bank()
 {
+    double monght_bid = properties.key_bid / 12;
+    
+    
+    alice.bank_account += alice.salary;
+    properties.debit_part = alice.debt * (monght_bid / ( 1 - pow((1 + monght_bid), (-1 * (properties.credit_mought - 1)) )));
+    alice.bank_account -= properties.debit_part;
+    alice.bank_account -= alice.live_cost;
 
-	if (properties.month == 0)
-	{
-		alice.bank_account = alice.bank_account - properties.initial_deposit;
-		properties.debit_part = ((alice.debt * properties.key_bid) / 100) / 12;
-	}
-	else if (properties.month % 12 == 0)
-	{
-		properties.debit_part = ((alice.debt * properties.key_bid) / 100) / 12;
-	}
-
-	alice.bank_account = alice.bank_account - (properties.payments + properties.debit_part);
-	alice.debt = alice.debt - properties.payments;
-
-
-	cout << properties.debit_part << endl;
+	cout << alice.bank_account<< "       " << properties.debit_part << endl;
 
 }
 
 
 void timeline()
 {
+    alice.bank_account -= properties.initial_deposit;
 
-	while (properties.debit_part >= 0)
+	while (properties.actual_month < properties.credit_mought)
 	{
 
 		//bob.bank_account += bob.salary;
-		alice.bank_account += alice.salary;
+		
 
-
+        
 		Alice_bank();
 
-		properties.month++;
+		properties.actual_month++;
 	}
 
 }
 
 void Output()
 {
-	cout << properties.month;
+	cout << properties.actual_month;
 }
 
 
@@ -97,10 +93,10 @@ int main() {
 
 	setlocale(LC_ALL, "Rus");
 
-	sinulation_properties_init();
 
-	alice_start();
-	bob_start();
+
+	alice_init();
+	bob_init();
 
 	timeline();
 
