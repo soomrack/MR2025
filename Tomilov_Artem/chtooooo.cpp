@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <cmath>
 
 typedef long long int RUB;
 
@@ -8,19 +9,25 @@ struct Person {
     RUB rent;
     RUB food;
     RUB trip;
-    RUB car_cost, car_expense;
+    RUB car_cost;
+    RUB car_expense;
     RUB mortage;
+    float interest_rate;
+    RUB flat_price;
 };
 
 struct Person alice;
 struct Person bob;
 
 void bob_init() { // ipoteka
-    bob.bank_account = 2500 * 1000; //первоначальный взнос
-    bob.income = 200 * 1000; // зпка
-    bob.mortage = 130*1000;
+    bob.bank_account = 1000 * 1000; //первоначальный взнос 
+    bob.income = 199 * 1000; // зпка
+    bob.flat_price = 25000*1000;
+    bob.interest_rate = 0.02;
     bob.food = 20000;
     bob.trip = 50 * 1000;
+    bob.mortage = 115*1000;
+
 }
 
 void bob_print() {
@@ -30,11 +37,12 @@ void bob_print() {
 void alice_init() {
     alice.bank_account = 1000 * 1000; //первоначальный взнос
     alice.income = 200 * 1000; // зпка
-    alice.rent = 45000;
-    alice.food = 20000;
-    alice.trip = 100 * 1000;
-    alice.car_cost = 3000 * 1000; // стоимость машины
-    alice.car_expense = 13 * 1000; // траты на машину
+    alice.rent = 100*1000;
+    alice.food = 30000;
+    alice.trip = 150 * 1000;
+    alice.car_cost = 5000 * 1000; // стоимость машины
+    alice.car_expense = 20 * 1000; // траты на машину
+    alice.interest_rate = 0.02;
 }
 
 void alice_print() {
@@ -49,7 +57,7 @@ void alice_income(const int year, const int month) {
 
 }
 
-void alice_spending(const int year, const int month) {
+void alice_rent(const int year, const int month) {
     if (year > 2025 && month == 1) {
         alice.rent = alice.rent* 1.05;
     }
@@ -75,12 +83,14 @@ void alice_car(const int year, const int month) {
         alice.bank_account -= alice.car_cost; 
     }
 
-    if (year > 2034 || (year > 2034 && month > 5) ) {
+    if (year > 2034 || (year == 2034 && month > 5) ) {
         alice.bank_account -= alice.car_expense; 
     }  
 }
 
-////////////////////////////////////////////////////////////////////////////// bobik
+/*
+------------------------------------------------------------------------------------
+*/
 
 void bob_income(const int year, const int month) {
     if (year == 2030 && month == 10) {
@@ -89,8 +99,8 @@ void bob_income(const int year, const int month) {
     bob.bank_account += bob.income;
 }
 
-void bob_spending(const int year, const int month) {
-    if (year >= 2025 && year < 2045) {
+void bob_mortage(const int year, const int month) {
+    if (year >= 2025 && year <= 2045) {
         bob.bank_account -= bob.mortage;
     }
 }
@@ -109,22 +119,45 @@ void bob_trip(const int year, const int month) {
     }
 }
 
+
+/*
+--------------------------------------------------------------------------------------
+*/
+
+void apply_interest(Person &p) {
+    double monthly_rate = p.interest_rate / 12;
+    p.bank_account += static_cast<RUB>(p.bank_account * monthly_rate);
+}
+
+/*
+--------------------------------------------------------------------------------------
+*/
+
 void simulation() {
     int year = 2025;
     int month = 9;
 
     while( !(year == 2045 && month == 9)){
         alice_income(year, month);
-        // alice_mortage();
-        alice_spending(year, month);
+        alice_rent(year, month);
         alice_food(year, month);
         alice_car(year, month);
         alice_trip(year, month);
+        apply_interest(alice);
 
         bob_income(year, month);
-        bob_spending(year, month);
+        bob_mortage(year, month);
         bob_food(year, month);
         bob_trip(year, month);
+        apply_interest(bob);
+
+        if (month == 12) {
+            printf("=== year %d ===\n", year);
+            printf("Alice bank account: %lld \n", alice.bank_account);
+            printf("Bob bank account: %lld \n", bob.bank_account);
+            printf("Bob mortage: %lld \n",(bob.flat_price - bob.bank_account > 0) ? (bob.flat_price - bob.bank_account) : 0);
+
+        } // debug
 
         month++;
         if (month == 13) {
