@@ -7,6 +7,8 @@ typedef long long int RUB;
 struct Person {
     RUB bank_account;
     RUB income;
+    RUB cash;
+    RUB pocket_cash;
     RUB spending;
     RUB car_spending;
     RUB food_spending;
@@ -26,6 +28,8 @@ struct Person bob;
 void alice_init() {
     alice.bank_account = 3 * 1000 * 1000;
     alice.income = 200 * 1000;
+    alice.cash = 0;
+    alice.pocket_cash = 5000;
     alice.spending = 50000;
     alice.car_spending = 40000;
     alice.food_spending = 40000;
@@ -37,7 +41,9 @@ void alice_init() {
 
 void bob_init() { 
     bob.bank_account = 3 * 1000 * 1000;
-    bob.income = 200 * 1000;
+    bob.income = 220 * 1000;
+    bob.cash = 0;
+    bob.pocket_cash = 5000;
     bob.spending = 50000;
     bob.car_spending = 40000;
     bob.food_spending = 40000;
@@ -58,7 +64,7 @@ void alice_income(const int year, const int month) {
     if (year == 2030 && month == 10) {
         alice.income *= 1.5; // Alice promotion
     }
-    alice.bank_account += alice.income;
+    alice.cash += alice.income;
 
 }
 
@@ -69,7 +75,7 @@ void alice_mortgage(const int year, const int month) {
             alice.bank_account -= 2 * 1000 * 1000; // Alice initial payment
         }
         else {
-            alice.bank_account -= alice.mortgage_spending;
+            alice.cash -= alice.mortgage_spending;
         }
         if (year == 2045 && month == 9) {
             alice.mortgage_closed = true;
@@ -89,17 +95,17 @@ void alice_spending(const int month) {  // Alice out-of-pocket expenses
     if (month == 8) {
         spending += 2 * 1000;
     }
-    alice.bank_account -= spending;
+    alice.cash -= spending;
 }
 
 
 void alice_food() {
-    alice.bank_account -= alice.food_spending;
+    alice.cash -= alice.food_spending;
 }
 
 
 void alice_car() {
-        alice.bank_account -= alice.car_spending;
+        alice.cash -= alice.car_spending;
 }
 
 
@@ -110,6 +116,12 @@ void alice_trip(const int month) {    // Alice annual trip
 }
 
 
+void alice_deposit() {
+    alice.bank_account += alice.cash - alice.pocket_cash;
+    alice.cash = alice.pocket_cash;
+}
+
+
 ///////////////////////////////////////////////////////////////////
 
 
@@ -117,7 +129,7 @@ void bob_income(const int year, const int month) {
     if (year == 2027 && month == 7) {
         bob.income *= 1.3; // Bob promotion
     }
-    bob.bank_account += bob.income;
+    bob.cash += bob.income;
 }
 
 
@@ -126,7 +138,7 @@ void bob_rent(const int year, const int month) {
         bob.bank_account -= bob.house_cost;  // Bob buy a house
     }
     else {
-        bob.bank_account -= bob.rent_spending;
+        bob.cash -= bob.rent_spending;
     }
 }
 
@@ -142,12 +154,12 @@ void bob_spending(const int month) {  // Bob out-of-pocket expenses
     if (month == 8) {
         spending += 2 * 1000;
     }
-    bob.bank_account -= spending;
+    bob.cash -= spending;
 }
 
 
 void bob_food() {
-    bob.bank_account -= bob.food_spending;
+    bob.cash -= bob.food_spending;
 }
 
 
@@ -155,7 +167,7 @@ void bob_car(const int year, const int month) {
     if (year == 2034 && month == 7) {
         bob.bank_account -= bob.car_accident_cost; // Bob's car accident
     }
-    bob.bank_account -= bob.car_spending;
+    bob.cash -= bob.car_spending;
 }
 
 
@@ -163,6 +175,18 @@ void bob_trip(const int month) {  // Bob's annual trip
     if (month == 7) {
         bob.bank_account -= bob.trip_spending;
     }
+}
+
+
+void bob_deposit() {
+    bob.bank_account += bob.cash - bob.pocket_cash;
+    bob.cash = bob.pocket_cash;
+}
+
+
+void deposit_interest() {
+    alice.bank_account *= 1.08;
+    bob.bank_account *= 1.08;
 }
 
 
@@ -177,6 +201,7 @@ void simulation() {
         alice_food();
         alice_car();
         alice_trip(month);
+        alice_deposit();
 
         bob_income(year, month);
         bob_rent(year, month);
@@ -184,14 +209,17 @@ void simulation() {
         bob_food();
         bob_car(year, month);
         bob_trip(month);
+        bob_deposit();
 
         month++;
         if (month == 13) {
+            deposit_interest();
             year++;
             month = 1;
         }
     }
 }
+
 
 int main() {
     alice_init();
