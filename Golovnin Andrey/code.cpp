@@ -33,8 +33,15 @@ struct Person alice;
 
 void bob_init()
 {
+    RUB food = 30000;
+    RUB clothes = 10000; // среднеднии траты на одежду в месяц;
+    RUB different = 6000; // иные траты
+
     bob.bank_account = 1000 * 1000;
 	bob.salary = 200 * 1000;
+    bob.debt = properties.home_cost - properties.initial_deposit;
+    bob.live_cost = food + clothes + different;
+
 }
 
 void alice_init()
@@ -62,9 +69,25 @@ void alice_bank()
     alice.bank_account -= properties.debit_part;
     alice.bank_account -= alice.live_cost;
 
-	cout << alice.bank_account<< "       " << properties.debit_part << endl;
+}
+
+
+void bob_bank()
+{
+    
+    bob.bank_account += bob.salary;
+    bob.bank_account -= bob.live_cost;
+    
+    bob.bank_account += bob.bank_account * (properties.key_bid / 12); // дипозит на остаток по счёту
+
+    if (bob.bank_account >= properties.home_cost)
+    {
+        bob.bank_account -= properties.home_cost;
+    }
+    
 
 }
+
 
 void events ()
 {
@@ -97,17 +120,17 @@ void timeline()
 	while (properties.actual_month < properties.credit_mought)
 	{
 
-		//bob.bank_account += bob.salary;
-		
-
-        
+        bob_bank();
 		alice_bank();
         events();
         
-        alice.live_cost *= properties.inflation_coefficient; //влияние инфляции/индексации
+        properties.home_cost *= properties.inflation_coefficient; //влияние инфляции/индексации
+        alice.live_cost *= properties.inflation_coefficient;
         bob.live_cost *= properties.inflation_coefficient;
 
 		properties.actual_month++;
+        cout << alice.bank_account<< "       " << properties.debit_part << "       " 
+             << bob.bank_account <<"       " << properties.home_cost << endl;
 	}
 
 }
