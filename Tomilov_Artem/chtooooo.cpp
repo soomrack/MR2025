@@ -12,7 +12,7 @@ struct Person {
     RUB car_cost;
     RUB car_expense;
     RUB mortage;
-    float interest_rate;
+    double interest_rate;
     RUB flat_price;
 };
 
