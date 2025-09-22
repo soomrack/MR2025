@@ -100,8 +100,13 @@ void alice_debt() {
     }
 }
 
+void alice_costs(const int car) {
+    alice.car = 10000;
+    alice.costs = alice.income - alice.car;
+}
+
 void bob_income(const int year, const int month) {
-    if ((year == 2029 && month == 1) || (year == 2031 && month == 1) || (year == 2039 && month == 1)) {
+    if ((year == 2030 && month == 1) || (year == 2035 && month == 1) || (year == 2040 && month == 1)) {
         bob.income = bob.income * 1.5; // Повышение
     }
     bob.bank_account += bob.income;
@@ -122,6 +127,8 @@ void bob_costs(const int car) {
     bob.car = 10000;
     bob.costs = bob.income- bob.car;
 }
+
+
 
 void simulation() {
     int year = 2025;
