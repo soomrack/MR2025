@@ -31,8 +31,8 @@ Person bob;
 
 // Блок 1 Константы экономики
 
-const double INFLATION_RATE   = 0.05; // 5%
-const int    INFLATION_PERIOD = 5;    // каждые 5 лет
+const double INFLATION_RATE   = 0.05; 
+const int    INFLATION_PERIOD = 5;
 
 
 // Блок 2 Функции расчётов 
@@ -47,8 +47,8 @@ RUB annuity_payment(RUB amount, double annual_rate, int years) {
     if (annual_rate <= 0.0) { 
         return amount / total_months; // если ставка 0% - равномерное деление суммы
     }
-    double r = annual_rate / 12.0; // месячная ставка
-    double powf = pow(1.0 + r, total_months);  // (1 + r)^n
+    double r       = annual_rate / 12.0; // месячная ставка
+    double powf    = pow(1.0 + r, total_months);  // (1 + r)^n
     double payment = amount * (r * powf) / (powf - 1.0);//P = S * (r * (1 + r)^n) / ((1 + r)^n - 1)
     return (RUB) payment;  // округление вниз до целого RUB
 }
@@ -109,7 +109,7 @@ void alice_income(const int year, const int month) {
 
 void bob_income(const int year, const int month) {
     if (year == 2032 && month == 5) {
-        bob.income *= 1.3;
+        bob.income *= 1.5;
     }
     bob.bank_account += bob.income;
 }
@@ -153,11 +153,11 @@ void pay_repairs(Person *p, int year, int month) {
 // Блок 6 Инфляция 
 
 void apply_inflation(Person *p) {
-    p->food      = (RUB)(p->food * (1 + INFLATION_RATE));
-    p->clothes   = (RUB)(p->clothes * (1 + INFLATION_RATE));
-    p->utilities = (RUB)(p->utilities * (1 + INFLATION_RATE));
-    p->rent      = (RUB)(p->rent * (1 + INFLATION_RATE));
-    p->car_expenses =(RUB)(p->car_expenses * (1 + INFLATION_RATE));
+    p->food             = (RUB)(p->food * (1 + INFLATION_RATE));
+    p->clothes          = (RUB)(p->clothes * (1 + INFLATION_RATE));
+    p->utilities        = (RUB)(p->utilities * (1 + INFLATION_RATE));
+    p->rent             = (RUB)(p->rent * (1 + INFLATION_RATE));
+    p->car_expenses     =(RUB)(p->car_expenses * (1 + INFLATION_RATE));
     p->repairs_expenses = (RUB)(p->repairs_expenses * (1 + INFLATION_RATE));
 }
 
@@ -169,8 +169,10 @@ void results() {
     RUB bob_total   = bob.bank_account + bob.flat_price; // если появятся активы у Bob( и чтобы показать что их нет)
 
     printf("\n=== Итог через 20 лет ===\n");
-    printf("Alice bank account = %lld руб. (+ квартира %lld)\n", alice.bank_account, alice.flat_price);
-    printf("Bob   bank account = %lld руб. (+ собственность %lld)\n", bob.bank_account, bob.flat_price);
+    printf("Alice bank account = %lld руб. (+ квартира %lld)\n", 
+           alice.bank_account, alice.flat_price);
+    printf("Bob   bank account = %lld руб. (+ собственность %lld)\n", 
+           bob.bank_account, bob.flat_price);
 
     if (alice_total > bob_total) {
         printf("Жизнь лучше у Alice.\n");
