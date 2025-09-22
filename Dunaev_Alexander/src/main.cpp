@@ -1,11 +1,8 @@
-#include <iostream>
-
-#define nums_of_persons 2
+#include <stdio.h>
 
 typedef long long int RUB;
 
 struct Person{
-    std::string name;
     RUB bank_account;
     RUB income;
     RUB food;
@@ -13,127 +10,110 @@ struct Person{
     RUB car;
     RUB trip;
     RUB credit;
+    RUB nedviga;
+    RUB first_payment;
 };
 
-struct Person persons[nums_of_persons];
+
+struct Person Alice;
+struct Person Bob;
 
 
-void struct_ini(int name1, std::string name2);
-void struct_print(std::string name2);
-void delta_print(std::string name1, std::string name2);
-void person_income(std::string name2, const int year, const int month);
-void person_food(const std::string name2, const int month);
-void person_car(const std::string name2);
-void person_arenda(const std::string name2, const int month);
-void person_credit(const std::string name2, const int month);
-void simulation(void);
 
-void Bob_ini(int name1, std::string name2);
-void Alice_ini(int name1, std::string name2);
-
-
-int main(void){
-
-  Bob_ini(0, "Bob");
-  Alice_ini(1, "Alice");
-
-  simulation();
-
-  struct_print("Bob");
-  struct_print("Alice");
-  delta_print("Bob", "Alice");
+void Bob_init(void){
+  Bob.bank_account = 1000*1000;
+  Bob.income = 200*1000;
+  Bob.food = 40*1000;
+  Bob.car = 20*1000;
+  Bob.arenda = 80*1000;
 }
 
 
-int _get_id_from_name(std::string name2){
-  for(int i={nums_of_persons-1}; i>=0; i--){
-    if(persons[i].name == name2){return i;}
-  }
-  return -1;
+void Alice_init(void){
+  Alice.bank_account = 1000*1000;
+  Alice.income = 200*1000;
+  Alice.food = 40*1000;
+  Alice.car = 20*1000;
+  Alice.credit = 90*1000;
+  Alice.nedviga = 10*1000*1000;
+  Alice.first_payment = 1000 *1000;
 }
 
 
-void Bob_ini(int name1, std::string name2){
-  persons[name1].name = name2;
-  persons[name1].bank_account = 1000*1000;
-  persons[name1].income = 200*1000;
-  persons[name1].food = 40*1000;
-  persons[name1].car = 20*1000;
-  persons[name1].arenda = 80*1000;
+void Bob_print(void){
+  printf("Bob.bank_account = %lld\n", Bob.bank_account);
 }
 
 
-void Alice_ini(int name1, std::string name2){
-  persons[name1].name = name2;
-  persons[name1].bank_account = 1000*1000;
-  persons[name1].income = 200*1000;
-  persons[name1].food = 40*1000;
-  persons[name1].car = 20*1000;
-  persons[name1].credit = 75*1000;
+void Alice_print(void){
+  printf("Alice.bank_account = %lld\n", Alice.bank_account+Alice.nedviga);
 }
 
 
-void struct_print(std::string name2){
-  int name1 = _get_id_from_name(name2);
-  std::cout << persons[name1].name;
-  std::cout << " bank account = ";
-  std::cout << persons[name1].bank_account << " RUB" << std::endl;
-}
-
-void delta_print(std::string name1, std::string name2){
-  int name3= _get_id_from_name(name1);
-  int name4 = _get_id_from_name(name2);
-  std::cout << persons[name3].bank_account - persons[name4].bank_account;
-  std::cout << std::endl;
-}
-
-void person_income(std::string name2, const int year, const int month){
-  int name1 = _get_id_from_name(name2);
-  if(year == 2030 && month == 10){
-    persons[name1].income *= 1.5;
-  }
-  persons[name1].bank_account += persons[name1].income;
+void Bob_income(const int year, const int month){
+  if(year == 2030 && month == 10) Bob.income *= 1.5;
+  Bob.bank_account += Bob.income;
 }
 
 
-void person_food(const std::string name2, const int month){
-  int name1 = _get_id_from_name(name2);
-  persons[name1].bank_account -= persons[name1].food;
-  if ( month == 12){persons[name1].bank_account -= persons[name1].food;}
+void Alice_income(const int year, const int month){
+  if(year == 2030 && month == 10) Alice.income *= 1.5;
+  Alice.bank_account += Alice.income;
 }
 
 
-void person_car(const std::string name2){
-  int name1 = _get_id_from_name(name2);
-  persons[name1].bank_account -= persons[name1].car;
+void Bob_food(const int month){
+  Bob.bank_account -= Bob.food;
 }
 
 
-void person_arenda(const std::string name2, const int month){
-  int name1 = _get_id_from_name(name2);
-  if(month == 7){persons[name1].arenda*=1.02;}
-  persons[name1].bank_account -= persons[name1].arenda;
-
+void Alice_food(const int month){
+  Alice.bank_account -= Alice.food;
 }
 
 
-void person_trip(std::string name2, const int month){
-  int name1 = _get_id_from_name(name2);
-  persons[name1].bank_account -= persons[name1].trip;
-  if(month == 2){
-    persons[name1].bank_account -= persons[name1].trip;
-  }
+void Bob_car(void){
+  Bob.bank_account -= Bob.car;
 }
 
 
-void person_credit(const std::string name2, const int month){
-  static int flag = 0;
-  int name1 = _get_id_from_name(name2);
-  if(flag == 0){
-    persons[name1].bank_account -= 2.5*1000*1000;
-    flag += 1;
-  }
-  persons[name1].bank_account -= persons[name1].credit;
+void Alice_car(void){
+  Alice.bank_account -= Alice.car;
+}
+
+
+void Bob_trip(void){
+  Bob.bank_account -= Bob.trip;
+}
+
+
+void Alice_trip(void){
+  Alice.bank_account -= Alice.trip;
+}
+
+void Bob_arenda(void){
+  Bob.bank_account -= Bob.arenda;
+}
+
+
+void Alice_credit(void){
+  Alice.bank_account -= Alice.credit;
+}
+
+
+
+void inflation(const float percent){
+  Bob.food *= percent;
+  Bob.trip *= percent;
+  Bob.car *= percent;
+  Bob.arenda *= percent;
+  Bob.income *= percent;
+
+
+  Alice.food *= percent;
+  Alice.trip *= percent;
+  Alice.car *= percent;
+  Alice.income *= percent;
 }
 
 
@@ -141,22 +121,37 @@ void simulation(void){
   int year={2025};
   int month={9};
 
-  while (!(year==2045 && month ==9)){
-    person_income("Bob",year,month);
-    person_food("Bob",month);
-    person_car("Bob");
-    person_trip("Bob", month);
-    person_arenda("Bob", month);
+  Alice.bank_account -= Alice.first_payment;
 
-    person_income("Alice",year,month);
-    person_food("Alice",month);
-    person_car("Alice");
-    person_trip("Alice", month);   
-    person_credit("Alice", month);
+  while (!(year==2045 && month ==9)){
+    Bob_income(year, month);
+    Bob_food(month);
+    Bob_car();
+    Bob_trip();
+    Bob_arenda();
+
+
+    Alice_income(year, month);
+    Alice_food(month);
+    Alice_car();
+    Alice_trip();
+    Alice_credit();
+
 
     if (++month == 13){
+      inflation(1.05);
       year++;
       month = 1;
     }
   }
+}
+
+int main(void){
+  Bob_init();
+  Alice_init();
+
+  simulation();
+
+  Bob_print();
+  Alice_print();
 }
