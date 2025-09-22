@@ -147,7 +147,7 @@ void simulation() {
         person_public_utilities();
         //std::cout << human[1].bank_account << "- 4" << std::endl;     // Debug
 
-        
+        appartament_price *= 1 + percent_inflation;
         
         for (int i = 0; i < human.size(); i++)
         {

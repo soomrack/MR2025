@@ -12,21 +12,24 @@ struct Person {
     RUB mortage;
     RUB mortgage_balance;     // Остаток долга по ипотеке
     double mortgage_rate;     // Годовая процентная ставка
-    int mortage_term;        // Срок ипотеки в месяцах
-    RUB monthly_payment;      // Ежемесячный платеж
-    int mortgage_start_year;  // Год начала ипотеки
-    int mortgage_start_month;
+          
+    RUB monthly_payment;      
+    RUB costs; //затраты
+    RUB car;
 };
 
 struct Person alice;
 struct Person bob;
 
 void alice_init() {
-    cout << "Введите начальный счет Алис: " << "\n";
-    cin >> alice.bank_account;
-
-    cout << "Введите ежемесячный доход Алис: " << "\n";
-    cin >> alice.income;
+    alice.bank_account = 2000000;
+    cout << "Введите начальный счет Алис: " << alice.bank_account << "\n";
+   // cin >> alice.bank_account;
+    
+    alice.income = 100000;
+    cout << "Введите ежемесячный доход Алис: " << alice.income<< "\n";
+    //cin >> alice.income;
+    
 
     cout << "Введите cумму, взятую в ипотеку Алис: " << "\n";
     cin >> alice.mortage;
@@ -46,6 +49,7 @@ void bob_init() {
 }
 
 void alice_print() {
+   // alice.bank_account = -alice.mortage;
     cout << "Банковский счет Алис = " << alice.bank_account << " руб.\n";
     cout << "ЗП Алис к концу периода = " << alice.income << " руб.\n";
     if (alice.mortgage_balance > 0) {
@@ -62,20 +66,24 @@ void bob_print() {
 }
 
 void alice_income(const int year, const int month) {
-    if (year == 2030 && month == 10) {
+    if ((year == 2030 && month == 10) || (year == 2035 && month == 1) || (year == 2040 && month == 1)) {
         alice.income = alice.income * 1.5; // Повышение
     }
     alice.bank_account += alice.income;
 }
 
 
-void alice_mortage(const int year, const int month) {
+void alice_mortage(const int year, const int month, const int monthly_payment) {
     if (alice.mortgage_balance <= 0) {
-        return; // Ипотека уже погашена
+        return; 
     }
 
+    RUB payment = alice.monthly_payment;
 
-    RUB payment = 100000;
+    // Если остаток долга меньше фиксированного платежа, платим только остаток
+    if (alice.mortgage_balance < payment) {
+        payment = alice.mortgage_balance;
+    }
 
     alice.bank_account -= payment;
 
@@ -92,8 +100,13 @@ void alice_debt() {
     }
 }
 
+void alice_costs(const int car) {
+    alice.car = 10000;
+    alice.costs = alice.income - alice.car;
+}
+
 void bob_income(const int year, const int month) {
-    if (year == 2029 && month == 1) {
+    if ((year == 2030 && month == 1) || (year == 2035 && month == 1) || (year == 2040 && month == 1)) {
         bob.income = bob.income * 1.5; // Повышение
     }
     bob.bank_account += bob.income;
@@ -101,25 +114,35 @@ void bob_income(const int year, const int month) {
 
 
 void bob_rent(const int year, const int month) {
-    float rent_payment = 60000;
+    int rent_payment = 60000;
 
-    if (year >= 2040) {
-        rent_payment *= 1.6;
+    if (year >= 2030) {
+        rent_payment *= 1.1;
     }
 
     bob.bank_account -= rent_payment;
 }
 
+void bob_costs(const int car) {
+    bob.car = 10000;
+    bob.costs = bob.income- bob.car;
+}
+
+
+
 void simulation() {
     int year = 2025;
     int month = 9;
-
+    int monthly_payment = 50000;
+   
     while (!(year == 2045 && month == 9)) {
         alice_income(year, month);
         bob_income(year, month);
 
-        alice_mortage(year, month);
-        bob_rent(year, month);      
+        alice_mortage(year, month, monthly_payment);
+
+        bob_rent(year, month);   
+        bob_costs(bob.car);
 
         month++;
         if (month == 13) {

@@ -18,15 +18,18 @@ struct Person {
 struct Person alice;
 struct Person bob;
 
-
-//////////////////////////                common functions                //////////////////////////
+// TODO: обрезать, примерно 80 символов
+// common functions ////////////////////////////////////////////////////////////
 
 
 void deposit(Person *person /*, const int year, const int month */) {
+    // TODO: не указатель, а ссылка
     // assume person keeps all of money on deposit with 5% yearly interest rate => 12√1,05=0,407% monthly rate
     if (person->bank_account > 0) {
         person->bank_account *= 1.00407;
     }
+    // TODO: сделать как отдельный счёт и мин остаток
+    // TODO: разные депозиты, или условие: ставка +1% если 3 млн0
 }
 
 
@@ -152,6 +155,7 @@ void bob_expenses(const int year, const int month)
 
 
 void bob_rent(const int year, const int month)
+// TODO: учесть инфляцию
 {
     if (! bob.has_flat) {
         bob.bank_account -= 70*1000;
@@ -161,15 +165,15 @@ void bob_rent(const int year, const int month)
 
 void bob_try_buy_flat(const int year, const int month)
 {
-    if (bob.has_flat) {
+    if (bob.has_flat) { // TODO: в 1 строку
         return;
     }
-    const RUB flat_price = 20 * 1000 * 1000;
-    if (bob.bank_account >= flat_price + 100*1000)
+    const RUB flat_price = 20 * 1000 * 1000; // TODO: учесть инфляцию
+    if (bob.bank_account >= flat_price + 100*1000) // TODO: фигурную на той же строчке
     {
         bob.bank_account -= flat_price;
-        printf("Bob bought flat in year %d\n", year);
-        bob.has_flat=true;
+        printf("Bob bought flat in year %d\n", year); // TODO: мб убрать: dbg
+        bob.has_flat=true; // TODO: пробелы
     }
 }
 
@@ -211,7 +215,8 @@ void simulation()
     // print_alice_info_more(year);
     while( !(year == 2045 && month == 9) ) {
         alice_income(year, month);
-        alice_expenses(year, month);
+        alice_expenses(year, month); // TODO: коммент о том, какие расходы
+        // TODO: добавить одному человеку расходны на кота/собаку (с одного до другого года)
         alice_mortgage(year, month);
         deposit(&alice);
 
@@ -230,6 +235,7 @@ void simulation()
     month = 9;
 
     // print_bob_info_more(year);
+    // TODO: 1 цикл
     while( !(year == 2045 && month == 9) ) {
         bob_income(year, month);
         bob_expenses(year, month);
@@ -253,7 +259,8 @@ int main()
     bob_init();
     
     simulation();
-    printf("====\n");
+
+    printf("====\n"); // TODO: внутрь функций
 
     print_alice_info();
     print_bob_info();
