@@ -6,11 +6,11 @@ struct Person{
     RUB bank_account;
     RUB income;
     RUB food;
-    RUB arenda;
+    RUB rent;
     RUB car;
     RUB trip;
     RUB credit;
-    RUB nedviga;
+    RUB house;
     RUB first_payment;
 };
 
@@ -21,22 +21,22 @@ struct Person Bob;
 
 
 void Bob_init(void){
-  Bob.bank_account = 1000*1000;
-  Bob.income = 200*1000;
-  Bob.food = 40*1000;
-  Bob.car = 20*1000;
-  Bob.arenda = 80*1000;
+  Bob.bank_account = 1000 * 1000;
+  Bob.income = 200 * 1000;
+  Bob.food = 40 * 1000;
+  Bob.car = 20 * 1000;
+  Bob.rent = 80 * 1000;
 }
 
 
 void Alice_init(void){
-  Alice.bank_account = 1000*1000;
-  Alice.income = 200*1000;
-  Alice.food = 40*1000;
-  Alice.car = 20*1000;
-  Alice.credit = 90*1000;
-  Alice.nedviga = 10*1000*1000;
-  Alice.first_payment = 1000 *1000;
+  Alice.bank_account = 1000 * 1000;
+  Alice.income = 200 * 1000;
+  Alice.food = 40 * 1000;
+  Alice.car = 20 * 1000;
+  Alice.credit = 90 * 1000;
+  Alice.house= 10 * 1000 * 1000;
+  Alice.first_payment = 1000 * 1000;
 }
 
 
@@ -46,7 +46,7 @@ void Bob_print(void){
 
 
 void Alice_print(void){
-  printf("Alice.bank_account = %lld\n", Alice.bank_account+Alice.nedviga);
+  printf("Alice.bank_account = %lld\n", Alice.bank_account+Alice.house);
 }
 
 
@@ -62,12 +62,12 @@ void Alice_income(const int year, const int month){
 }
 
 
-void Bob_food(const int month){
+void Bob_food(void){
   Bob.bank_account -= Bob.food;
 }
 
 
-void Alice_food(const int month){
+void Alice_food(void){
   Alice.bank_account -= Alice.food;
 }
 
@@ -91,8 +91,8 @@ void Alice_trip(void){
   Alice.bank_account -= Alice.trip;
 }
 
-void Bob_arenda(void){
-  Bob.bank_account -= Bob.arenda;
+void Bob_rent(void){
+  Bob.bank_account -= Bob.rent;
 }
 
 
@@ -106,7 +106,7 @@ void inflation(const float percent){
   Bob.food *= percent;
   Bob.trip *= percent;
   Bob.car *= percent;
-  Bob.arenda *= percent;
+  Bob.rent *= percent;
   Bob.income *= percent;
 
 
@@ -125,14 +125,14 @@ void simulation(void){
 
   while (!(year==2045 && month ==9)){
     Bob_income(year, month);
-    Bob_food(month);
+    Bob_food();
     Bob_car();
     Bob_trip();
-    Bob_arenda();
+    Bob_rent();
 
 
     Alice_income(year, month);
-    Alice_food(month);
+    Alice_food();
     Alice_car();
     Alice_trip();
     Alice_credit();
@@ -140,6 +140,8 @@ void simulation(void){
 
     if (++month == 13){
       inflation(1.05);
+      Bob_print();
+      Alice_print();
       year++;
       month = 1;
     }
