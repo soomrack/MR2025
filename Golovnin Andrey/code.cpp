@@ -34,13 +34,14 @@ struct Person alice;
 void bob_init()
 {
     RUB food = 30000;
+    RUB rent = 40000; //арендная плата
     RUB clothes = 10000; // среднеднии траты на одежду в месяц;
     RUB different = 6000; // иные траты
 
     bob.bank_account = 1000 * 1000;
 	bob.salary = 200 * 1000;
     bob.debt = properties.home_cost - properties.initial_deposit;
-    bob.live_cost = food + clothes + different;
+    bob.live_cost = food + clothes + different + rent;
 
 }
 
@@ -83,6 +84,8 @@ void bob_bank()
     if (bob.bank_account >= properties.home_cost)
     {
         bob.bank_account -= properties.home_cost;
+        
+        cout << "___________bob buy house___________" << endl;
     }
     
 
@@ -102,8 +105,8 @@ void events ()
         break;
     case 30:
 
-        alice.salary = 250 * 1000; // пример любого случайного события, повышения зарплаты
-        bob.salary = 250 * 1000;
+        alice.salary += 50 * 1000; // пример любого случайного события, повышения зарплаты
+        bob.salary += 50 * 1000;
 
         break;
     default:
@@ -127,10 +130,11 @@ void timeline()
         properties.home_cost *= properties.inflation_coefficient; //влияние инфляции/индексации
         alice.live_cost *= properties.inflation_coefficient;
         bob.live_cost *= properties.inflation_coefficient;
+        alice.salary *= properties.salary_indexation;
+        bob.salary *= properties.salary_indexation;
 
 		properties.actual_month++;
-        cout << alice.bank_account<< "       " << properties.debit_part << "       " 
-             << bob.bank_account <<"       " << properties.home_cost << endl;
+        cout << alice.bank_account<< "       "  << bob.bank_account << endl;
 	}
 
 }
