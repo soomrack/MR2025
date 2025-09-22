@@ -17,6 +17,8 @@ struct Person {
     RUB house_cost;
     RUB trip_spending;
     RUB car_accident_cost;
+    float annual_percent;
+    bool has_percent_increase;
     bool mortgage_closed;
 };
 
@@ -35,6 +37,8 @@ void alice_init() {
     alice.food_spending = 40000;
     alice.mortgage_spending = 100 * 1000;
     alice.trip_spending = 60000;
+    alice.annual_percent = 0.08;
+    alice.has_percent_increase = false;
     alice.mortgage_closed = false;
 }
 
@@ -51,6 +55,8 @@ void bob_init() {
     bob.house_cost = 12 * 1000 * 1000;
     bob.trip_spending = 60000;
     bob.car_accident_cost = 100 * 1000;
+    bob.annual_percent = 0.08;
+    bob.has_percent_increase = false;
 }
 
 
@@ -117,6 +123,15 @@ void alice_trip(const int month) {    // Alice annual trip
 
 
 void alice_deposit() {
+    if (!(alice.has_percent_increase) && alice.bank_account > 3 * 1000 * 1000) {
+        alice.annual_percent += 0.005;
+        alice.has_percent_increase = true;
+    }
+    else if (alice.has_percent_increase && alice.bank_account < 3 * 1000 * 1000) {
+        alice.annual_percent -= 0.005;
+        alice.has_percent_increase = false;
+    }
+    alice.bank_account *= (1 + alice.annual_percent / 12);
     alice.bank_account += alice.cash - alice.pocket_cash;
     alice.cash = alice.pocket_cash;
 }
@@ -179,14 +194,17 @@ void bob_trip(const int month) {  // Bob's annual trip
 
 
 void bob_deposit() {
+    if (!(bob.has_percent_increase) && bob.bank_account > 3 * 1000 * 1000) {
+        bob.annual_percent += 0.005;
+        bob.has_percent_increase = true;
+    }
+    else if (bob.has_percent_increase && bob.bank_account < 3 * 1000 * 1000) {
+        bob.annual_percent -= 0.005;
+        bob.has_percent_increase = false;
+    }
+    bob.bank_account *= (1 + bob.annual_percent / 12);
     bob.bank_account += bob.cash - bob.pocket_cash;
     bob.cash = bob.pocket_cash;
-}
-
-
-void deposit_interest() {
-    alice.bank_account *= 1.08;
-    bob.bank_account *= 1.08;
 }
 
 
@@ -213,7 +231,6 @@ void simulation() {
 
         month++;
         if (month == 13) {
-            deposit_interest();
             year++;
             month = 1;
         }
