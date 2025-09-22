@@ -5,6 +5,10 @@ typedef long int RUB;
 typedef unsigned int Year;
 typedef unsigned char Month;
 
+// Задаваемые параметры
+#define START_YEAR 2025
+#define START_MONTH 9
+#define COUNT_YEARS 20
 
 struct Person {
     RUB income = 0;
@@ -42,12 +46,12 @@ void alice_print_status() {
 }
 
 
-RUB food(const Year count_years, const Month month) {
+RUB alice_food(const Year count_years, const Month month) {
     return alice_expenses.food;
 }
 
 
-RUB dress(const Year count_years, const Month month) {
+RUB alice_dress(const Year count_years, const Month month) {
     RUB expens = 0;
     if (count_years % 2 == 0 && month == 8) {
         expens = alice_expenses.dress;
@@ -56,7 +60,7 @@ RUB dress(const Year count_years, const Month month) {
 }
 
 
-RUB trip(const Year count_years, const Month month) {
+RUB alice_trip(const Year count_years, const Month month) {
     RUB expens = 0;
     if (count_years % 4 == 0 && month == 7) {
         expens = alice_expenses.trip;
@@ -65,13 +69,16 @@ RUB trip(const Year count_years, const Month month) {
 }
 
 
-RUB rent() {
+RUB alice_rent() {
     return alice_expenses.rent;
 }
 
 
-RUB HCS(Year count_years, Month month, float seasonal_tariffs[4]) {
+RUB alice_HCS(Year count_years, Month month) {
     RUB expens = alice_expenses.standart_HCS;
+    float seasonal_tariffs[4] = { 2, 1.2, 1, 1.5 };
+    enum Seasons {JAN=1, FEB, MAR, APR, MAY, JUN, JUL, AUG, SEP, OCT, NOV, DEC};
+    Seasons this_season = static_cast<Seasons>(month);
     switch (month) {
         // winter
         case 1:
@@ -102,19 +109,6 @@ RUB HCS(Year count_years, Month month, float seasonal_tariffs[4]) {
 }
 
 
-RUB alice_calculate_expenses(const Year count_years, const Month month) {
-    RUB expens = 0;
-    float seasonal_tariffs[4] = { 2, 1.2, 1, 1.5 };
-
-    expens += food(count_years, month);
-    expens += dress(count_years, month);
-    expens += trip(count_years, month);
-    expens += HCS(count_years, month, seasonal_tariffs);
-    expens += rent();
-
-    return expens;
-}
-
 
 RUB alice_income(const Year count_years, const Month month) {
     if (count_years == 5 && month == 3) {
@@ -134,7 +128,11 @@ void simulation(Year start_year, Month start_month, Year years_to_end) {
 
         alice.bank_account += alice_income(year - start_year, month);
 
-        alice.bank_account -= alice_calculate_expenses(year - start_year, month);
+        alice.bank_account -= alice_food(year - start_year, month);
+        alice.bank_account -= alice_dress(year - start_year, month);
+        alice.bank_account -= alice_trip(year - start_year, month);
+        alice.bank_account -= alice_HCS(year - start_year, month);
+        alice.bank_account -= alice_rent();
         
         month++;
         if (month > 12) {
@@ -151,7 +149,7 @@ int main()
 
     alice_init();
 
-    simulation(2025, 9, 20);
+    simulation(START_YEAR, START_MONTH, COUNT_YEARS);
 
     alice_print_status();
 }
