@@ -32,7 +32,6 @@ Person bob;
 // Блок 1 Константы экономики
 
 const double INFLATION_RATE   = 0.05; 
-const int    INFLATION_PERIOD = 5;
 
 
 // Блок 2 Функции расчётов 
@@ -100,7 +99,11 @@ void bob_init() {
 
 // Блок 4 Доходы
 
+
 void alice_income(const int year, const int month) {
+    if (month == 9) {
+        alice.income *= 1.07; // индексация раз в год
+    }
     if (year == 2030 && month == 10) {
         alice.income *= 1.5; 
     }
@@ -108,6 +111,9 @@ void alice_income(const int year, const int month) {
 }
 
 void bob_income(const int year, const int month) {
+    if (month == 9) {
+        bob.income *= 1.07;
+    }
     if (year == 2032 && month == 5) {
         bob.income *= 1.5;
     }
@@ -118,47 +124,48 @@ void bob_income(const int year, const int month) {
 // Блок 5 Расходы
 
 
-void monthly_expenses(Person *p) { // для расходов, не имеющих особых функций и не связанных с собственностью
-    p->bank_account -= (p->food + p->clothes + p->utilities + p->car_expenses);
+void pay_food(Person &p) {
+    p.bank_account -= p.food;
+    p.food *= (1 + INFLATION_RATE/12.0);
 }
 
-
-void pay_rent(Person *p) {
-    p->bank_account -= p->rent;
+void pay_clothes(Person &p) {
+    p.bank_account -= p.clothes;
+    p.clothes *= (1 + INFLATION_RATE/12.0);
 }
 
+void pay_utilities(Person &p) {
+    p.bank_account -= p.utilities;
+    p.utilities *= (1 + INFLATION_RATE/12.0);
+}
 
-void pay_loan(Person *p) {
-    if (p->loan_months_left > 0) {
-        p->bank_account -= p->monthly_payment;
-        p->loan_months_left--;
-        if (p->loan_months_left == 0) {
-            p->loan = 0;
-            p->monthly_payment = 0;
-        }
+void pay_rent(Person &p) {
+    p.bank_account -= p.rent;
+    p.rent *= (1 + INFLATION_RATE/12.0);
+}
+
+void pay_car(Person &p) {
+    if (p.car_expenses > 0) {
+        p.bank_account -= p.car_expenses;
+        p.car_expenses *= (1 + INFLATION_RATE/12.0);
+    }
+}
+
+void pay_loan(Person &p) {
+    if (p.loan_months_left > 0) {
+        p.bank_account -= p.monthly_payment;
+        p.loan_months_left--;
     }
 }
 
 
-void pay_repairs(Person *p, int year, int month) {
+void pay_repairs(Person &p, int year, int month) {
     const int START_YEAR = 2030;
     const int END_YEAR   = 2033; 
-
     if (year >= START_YEAR && year < END_YEAR) {
-        p->bank_account -= p->repairs_expenses; 
+        p.bank_account -= p.repairs_expenses;
+        p.repairs_expenses *= (1 + INFLATION_RATE/12.0);
     }
-}
-
-
-// Блок 6 Инфляция 
-
-void apply_inflation(Person *p) {
-    p->food             = (RUB)(p->food * (1 + INFLATION_RATE));
-    p->clothes          = (RUB)(p->clothes * (1 + INFLATION_RATE));
-    p->utilities        = (RUB)(p->utilities * (1 + INFLATION_RATE));
-    p->rent             = (RUB)(p->rent * (1 + INFLATION_RATE));
-    p->car_expenses     =(RUB)(p->car_expenses * (1 + INFLATION_RATE));
-    p->repairs_expenses = (RUB)(p->repairs_expenses * (1 + INFLATION_RATE));
 }
 
 
@@ -190,32 +197,26 @@ void simulation() {
     int month = 9;
 
     while (!(year == 2045 && month == 9)) {
-
-        // доходы
+        
         alice_income(year, month);
+        
+        pay_food(alice);
+        pay_clothes(alice);
+        pay_utilities(alice);
+        pay_car(alice);
+        pay_repairs(alice, year, month);
+        pay_loan(alice);
+
+
         bob_income(year, month);
 
-        // расходы
-        monthly_expenses(&alice);
-        monthly_expenses(&bob);
+        pay_food(bob);
+        pay_clothes(bob);
+        pay_utilities(bob);
+        pay_rent(bob);
+        pay_car(bob);
+        pay_loan(bob);
 
-        // аренда 
-        pay_rent(&bob);
-
-        // ипотека/кредит
-        pay_loan(&alice);
-        pay_loan(&bob);
-        
-        // инфляция 
-        if (month == 12 && year % INFLATION_PERIOD == 0) {
-            apply_inflation(&alice);
-            apply_inflation(&bob);
-        }
-
-        // ремонт (только у Alice, ограниченный период)
-        pay_repairs(&alice, year, month);
-
-        // шаг времени
         month++;
         if (month == 13) {
             year++;
@@ -230,6 +231,7 @@ int main() {
     bob_init();
 
     simulation();
+
     results();
 
     return 0;
