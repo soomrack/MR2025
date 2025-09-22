@@ -6,10 +6,11 @@ typedef long int RUB;
 typedef unsigned int Year;
 typedef unsigned char Month;
 
-// Задаваемые параметры
+// Simulation user-defined parameters
 #define START_YEAR 2025
 #define START_MONTH 9
 #define COUNT_YEARS 20
+
 
 struct Person {
     RUB income = 0;
