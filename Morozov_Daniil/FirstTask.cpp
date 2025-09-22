@@ -3,6 +3,7 @@
 
 typedef long long int RUB;
 
+
 struct Person {
     RUB bank_account;
     RUB income;
@@ -14,8 +15,10 @@ struct Person {
     RUB rent;
 };
 
+
 struct Person alice;
 struct Person bob;
+
 
 RUB calc_mortgage_payment(RUB principal, double annual_rate, int years) {
     int months_in_year = 12;
@@ -28,6 +31,7 @@ RUB calc_mortgage_payment(RUB principal, double annual_rate, int years) {
     return (RUB)A;
 }
 
+
 void alice_init() {
     alice.bank_account = 1000 * 1000;
     alice.income = 130 * 1000;
@@ -38,6 +42,7 @@ void alice_init() {
     alice.trip_price = 200 * 1000;
 }
 
+
 void bob_init() {
     bob.bank_account = 500 * 1000;
     bob.income = 105 * 1000;
@@ -47,6 +52,7 @@ void bob_init() {
     bob.car_price = 700 * 1000;
     bob.trip_price = 100 * 1000;
 }
+
 
 double inflation_rate = 0.1; // 10% годовая инфляция
 
@@ -59,13 +65,16 @@ void apply_inflation(struct Person *p) {
     p->rent = (RUB)(p->rent * (1 + inflation_rate));
 }
 
+
 void alice_print() {
     printf("Alice bank account = %lld руб.\n", alice.bank_account);
 }
 
+
 void bob_print() {
     printf("Bob bank account = %lld руб.\n", bob.bank_account);
 }
+
 
 void alice_income(const int month) {
     if (month == 10) {
@@ -74,6 +83,7 @@ void alice_income(const int month) {
     alice.bank_account += alice.income;
 }
 
+
 void bob_income(const int month) {
     if (month == 10) {
         bob.income *= 1.05; //Indexation
@@ -81,13 +91,16 @@ void bob_income(const int month) {
     bob.bank_account += bob.income;
 }
 
+
 void alice_mortage() {
     alice.bank_account -= alice.mortgage;
 }
 
+
 void alice_spending() {
     alice.bank_account -= alice.spending;
 }
+
 
 void bob_spending() {
     bob.bank_account -= bob.spending;
@@ -100,12 +113,14 @@ void alice_food(const int year, const int month) {
     alice.bank_account -= alice.food;
 }
 
+
 void bob_food(const int year, const int month) {
     if (year == 2035 && month == 1) {
         bob.food *= 1.5; //Crisis
     }
     bob.bank_account -= bob.food;
 }
+
 
 void alice_car() {
     static int car_months = 0;
@@ -116,6 +131,7 @@ void alice_car() {
     }
 }
 
+
 void bob_car() {
     static int car_months = 0;
     car_months++;
@@ -124,6 +140,7 @@ void bob_car() {
         car_months = 0;
     }
 }
+
 
 void alice_trip() {
     static int months_after_trip_counter = 0;
@@ -134,6 +151,7 @@ void alice_trip() {
     }
 }
 
+
 void bob_trip() {
     static int months_after_trip_counter = 0;
     months_after_trip_counter++;
@@ -143,9 +161,11 @@ void bob_trip() {
     }
 }
 
+
 void bob_rent() {
     bob.bank_account -= bob.rent;
 }
+
 
 void comparision() {
     if (alice.bank_account > bob.bank_account) {
@@ -156,6 +176,7 @@ void comparision() {
         printf("Alice and Bob have the same amount of money.\n");
     }
 }
+
 
 void simulation() {
     int year = 2025;
@@ -190,6 +211,7 @@ void simulation() {
    
     }
 }
+
 
 int main() {
     alice_init();
