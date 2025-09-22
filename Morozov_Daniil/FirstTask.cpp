@@ -18,8 +18,9 @@ struct Person alice;
 struct Person bob;
 
 RUB calc_mortgage_payment(RUB principal, double annual_rate, int years) {
-    int n = years * 12;                        // срок в месяцах
-    double r = annual_rate / 12.0 / 100.0;     // месячная ставка
+    int months_in_year = 12;
+    int n = years * months_in_year;                        // срок в месяцах
+    double r = annual_rate / (double) months_in_year / 100.0;     // месячная ставка
 
     // формула аннуитетного платежа
     double A = principal * (r * pow(1 + r, n)) / (pow(1 + r, n) - 1);
