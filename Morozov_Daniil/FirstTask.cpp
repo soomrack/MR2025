@@ -8,7 +8,7 @@ struct Person {
     RUB income;
     RUB spending;
     RUB food;
-    RUB mortage;
+    RUB mortgage;
     RUB car_price;
     RUB trip_price;
     RUB rent;
@@ -33,7 +33,7 @@ void alice_init() {
     alice.income = 130 * 1000;
     alice.food = 20 * 1000;
     alice.spending = 50 * 1000;
-    alice.mortage = calc_mortgage_payment(5 * 1000 * 1000, 10, 20); //5M, 10%, 20 years
+    alice.mortgage = calc_mortgage_payment(5 * 1000 * 1000, 10, 20); //5M, 10%, 20 years
     alice.car_price = 1 * 1000 * 1000;
     alice.trip_price = 200 * 1000;
 }
@@ -82,7 +82,7 @@ void bob_income(const int month) {
 }
 
 void alice_mortage() {
-    alice.bank_account -= alice.mortage;
+    alice.bank_account -= alice.mortgage;
 }
 
 void alice_spending() {
