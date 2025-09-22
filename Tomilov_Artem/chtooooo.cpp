@@ -14,6 +14,7 @@ struct Person {
     RUB mortgage_payment;
     double interest_rate;
     RUB flat_price;
+    // кешбек все расходы у боба когда 3 лям на счету
 };
 
 struct Person alice;
@@ -129,6 +130,8 @@ void apply_interest(Person &p) {
     p.bank_account += static_cast<RUB>(p.bank_account * monthly_rate);
 }
 
+
+// перенос вклада в другой банк, два разных банка на каждую персону
 /*
 --------------------------------------------------------------------------------------
 */
