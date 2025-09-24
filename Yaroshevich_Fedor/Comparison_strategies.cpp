@@ -1,5 +1,7 @@
 ﻿#include <stdio.h>
 
+//получил исправления на паре, исправляю код
+
 typedef int RUB;
 
 struct Person {
@@ -124,5 +126,6 @@ int main()
 	simulation();
 	print_walter_info();
 }
+
 
 
