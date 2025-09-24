@@ -31,7 +31,6 @@ struct Name {
     Ruble mortgage;
     Ruble salary;
     Ruble all_expenses;
-    Ruble last_salary;  // зарплата степы перед увольнением
 };
 
 
@@ -167,15 +166,16 @@ void Ivan_print_results()
 
 void Stepan_salary()
 {
+    static Ruble last_salary = 0;
     if (year == 2030 && month == 3)
     {
-        Stepan.last_salary = Stepan.salary;
+        last_salary = Stepan.salary;
         Stepan.salary = 0;
     }
 
     if (year == 2030 && month == 9)
     {
-        Stepan.salary = Stepan.last_salary;
+        Stepan.salary = last_salary;
         Stepan.salary *= 1.5;
     }
 
@@ -236,7 +236,6 @@ void Stepan_start()
     Stepan.salary = 100000;
     Stepan.bank_account_deposit = 1000000;
     Stepan.bank_account_transaction = 0;
-    Stepan.last_salary = 0;
 }
 
 
@@ -326,6 +325,7 @@ int main()
     Stepan_start();
     Stepan_action();
     Stepan_print_results();
+
 
     print_conclusion();
 }
