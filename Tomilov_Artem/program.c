@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <cmath>
 
 typedef long long int RUB;
 
@@ -125,9 +124,9 @@ void bob_trip(const int year, const int month) {
 --------------------------------------------------------------------------------------
 */
 
-void apply_interest(Person &p) {
-    double monthly_rate = p.interest_rate / 12;
-    p.bank_account += static_cast<RUB>(p.bank_account * monthly_rate);
+void apply_interest(struct Person *p) {
+    double monthly_rate = p->interest_rate / 12;
+    p->bank_account += (RUB)(p->bank_account * monthly_rate);
 }
 
 
@@ -146,13 +145,13 @@ void simulation() {
         alice_food(year, month);
         alice_car(year, month);
         alice_trip(year, month);
-        apply_interest(alice);
+        apply_interest(&alice);
 
         bob_income(year, month);
         bob_mortgage(year, month);
         bob_food(year, month);
         bob_trip(year, month);
-        apply_interest(bob);
+        apply_interest(&bob);
 
         if (month == 12) {
             printf("=== year %d ===\n", year);
