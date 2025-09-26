@@ -13,6 +13,7 @@ struct Person {
     RUB debt;
     RUB annuity_payment;
     RUB rent;
+    RUB min_balance; // minimal balance during month for depositing
     bool has_flat;
 };
 
@@ -28,16 +29,16 @@ RUB inflated_flat_price = 20 * 1000 * 1000; // this price will later be inflated
 
 void deposit(Person &person /*, const int year, const int month */) {
     // assume person keeps all of money on deposit
-    float interest_rate = 1.05;
+    float interest_rate = 0.05;
     if (person.bank_account > 3 * 1000 * 1000) { // increase interest rate if person has a lot of money
         interest_rate += 0.01;
     }
-    float monthly_interest_rate = pow(interest_rate, 1.0/12);
+    float monthly_interest_rate = pow(1+interest_rate, 1.0/12) - 1; // e.g. 5% yearly will result in 0.00407 monthly
 
-    if (person.bank_account > 0) {
-        person.bank_account *= monthly_interest_rate;
+    if (person.min_balance > 0) {
+        person.bank_account += person.min_balance * monthly_interest_rate;
+        // person.bank_account *= 1.0+monthly_interest_rate;
     }
-    // TODO: сделать как отдельный счёт и мин остаток
 }
 
 
@@ -62,6 +63,7 @@ void alice_expenses(const int year, const int month)
 {
     // covers common expenses, such as car, trip, food, etc
     alice.bank_account -= alice.expenses;
+    alice.min_balance -= alice.expenses;
 
     if(month == 9) {
         alice.expenses = alice.expenses * 1.07;  // Inflation
@@ -99,6 +101,7 @@ void alice_mortgage(const int year, const int month)
         alice.bank_account -= alice.debt;
         alice.debt = 0;
     }
+    alice.min_balance -= alice.annuity_payment;
     
     if (month == 9 && year != 2025 && alice.debt != 0) {
         alice.debt = (RUB) round ( 
@@ -156,6 +159,7 @@ void bob_expenses(const int year, const int month)
 {
     // covers common expenses, such as car, trip, food, etc
     bob.bank_account -= bob.expenses;
+    bob.min_balance -= bob.expenses;
 
     if(month == 9) {
         bob.expenses = bob.expenses * 1.07;  // Inflation
@@ -170,6 +174,7 @@ void bob_rent(const int year, const int month)
     }
     if (! bob.has_flat) {
         bob.bank_account -= bob.rent;
+        bob.min_balance -= bob.rent;
     }
 }
 
@@ -182,6 +187,7 @@ void bob_try_buy_flat(const int year, const int month)
     }
     if (bob.bank_account >= inflated_flat_price + 100*1000) {
         bob.bank_account -= inflated_flat_price;
+        bob.min_balance -= inflated_flat_price;
         // printf("Bob bought flat in year %d\n", year); // dbg
         bob.has_flat = true;
     }
@@ -230,6 +236,7 @@ void simulation()
 
     // print_alice_info_more(year);
     while( !(year == 2045 && month == 9) ) {
+        alice.min_balance = alice.bank_account;
         alice_income(year, month);
         alice_expenses(year, month); // common expenses, such as car, trip, food, etc
         // TODO: добавить одному человеку расходны на кота/собаку (с одного до другого года)
@@ -238,6 +245,7 @@ void simulation()
 
         // printf("y%d m%d bank %d debt %d\n", year, month, alice.bank_account, alice.debt); //dbg
 
+        bob.min_balance = bob.bank_account;
         bob_income(year, month);
         bob_expenses(year, month);
         bob_rent(year, month);
