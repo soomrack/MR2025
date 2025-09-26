@@ -70,6 +70,17 @@ void alice_expenses(const int year, const int month)
     }
 }
 
+
+void alice_cat(const int year, const int month)
+{
+    if ((year == 2026 && month >= 4) || (year == 2035 && month <=2) || (2026 < year && year < 2035)) {
+        const RUB cat_expenses = 5000;
+        alice.bank_account -= cat_expenses;
+        alice.min_balance -= cat_expenses;
+    }
+}
+
+
 void alice_mortgage(const int year, const int month)
 {
     const float interest_rate = 0.06;
@@ -239,7 +250,7 @@ void simulation()
         alice.min_balance = alice.bank_account;
         alice_income(year, month);
         alice_expenses(year, month); // common expenses, such as car, trip, food, etc
-        // TODO: добавить одному человеку расходны на кота/собаку (с одного до другого года)
+        alice_cat(year, month);
         alice_mortgage(year, month);
         deposit(alice);
 
