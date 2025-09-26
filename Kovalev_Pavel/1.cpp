@@ -12,6 +12,7 @@ struct Person {
     RUB expenses;
     RUB debt;
     RUB annuity_payment;
+    RUB rent;
     bool has_flat;
 };
 
@@ -19,16 +20,24 @@ struct Person alice;
 struct Person bob;
 
 
+RUB inflated_flat_price = 20 * 1000 * 1000; // this price will later be inflated
+
+
 // common functions ////////////////////////////////////////////////////////////
 
 
 void deposit(Person &person /*, const int year, const int month */) {
-    // assume person keeps all of money on deposit with 5% yearly interest rate => 12√1,05=0,407% monthly rate
+    // assume person keeps all of money on deposit
+    float interest_rate = 1.05;
+    if (person.bank_account > 3 * 1000 * 1000) { // increase interest rate if person has a lot of money
+        interest_rate += 0.01;
+    }
+    float monthly_interest_rate = pow(interest_rate, 1.0/12);
+
     if (person.bank_account > 0) {
-        person.bank_account *= 1.00407;
+        person.bank_account *= monthly_interest_rate;
     }
     // TODO: сделать как отдельный счёт и мин остаток
-    // TODO: разные депозиты, или условие: ставка +1% если 3 млн0
 }
 
 
@@ -121,6 +130,7 @@ void alice_init()
     alice.income = 140 * 1000;
     alice.expenses = 40 * 1000;
     alice.debt = 0;
+    alice.rent = 0;
     alice.has_flat = false;
 }
 
@@ -154,10 +164,12 @@ void bob_expenses(const int year, const int month)
 
 
 void bob_rent(const int year, const int month)
-// TODO: учесть инфляцию
 {
+    if(month == 9) {
+        bob.rent *= 1.05;  // Inflation
+    }
     if (! bob.has_flat) {
-        bob.bank_account -= 70*1000;
+        bob.bank_account -= bob.rent;
     }
 }
 
@@ -165,9 +177,11 @@ void bob_rent(const int year, const int month)
 void bob_try_buy_flat(const int year, const int month)
 {
     if (bob.has_flat) return;
-    const RUB flat_price = 20 * 1000 * 1000; // TODO: учесть инфляцию
-    if (bob.bank_account >= flat_price + 100*1000) {
-        bob.bank_account -= flat_price;
+    if(month == 9) {
+        inflated_flat_price *= 1.02;  // Inflation
+    }
+    if (bob.bank_account >= inflated_flat_price + 100*1000) {
+        bob.bank_account -= inflated_flat_price;
         // printf("Bob bought flat in year %d\n", year); // dbg
         bob.has_flat = true;
     }
@@ -189,6 +203,11 @@ void print_bob_info_more(const int year)
     printf("%d: Bob capital = %d RUB, debt %d RUB\n", year, bob.bank_account, bob.debt);
 }
 
+void print_if_bob_no_flat()
+{
+    if (! bob.has_flat) printf("Bob could not buy a flat for %d RUB", inflated_flat_price);
+}
+
 
 void bob_init()
 {
@@ -196,6 +215,7 @@ void bob_init()
     bob.income = 140 * 1000;
     bob.expenses = 40 * 1000;
     bob.debt = 0;
+    bob.rent = 70 * 1000;
     bob.has_flat = false;
 }
 
@@ -246,4 +266,5 @@ int main()
 
     print_alice_info();
     print_bob_info();
+    print_if_bob_no_flat();
 }
