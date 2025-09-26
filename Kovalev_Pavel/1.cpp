@@ -220,6 +220,7 @@ void print_bob_info_more(const int year)
     printf("%d: Bob capital = %d RUB, debt %d RUB\n", year, bob.bank_account, bob.debt);
 }
 
+
 void print_if_bob_no_flat()
 {
     if (! bob.has_flat) printf("Bob could not buy a flat for %d RUB", inflated_flat_price);
