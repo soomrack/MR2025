@@ -18,22 +18,21 @@ struct Person {
 struct Person alice;
 struct Person bob;
 
-// TODO: обрезать, примерно 80 символов
+
 // common functions ////////////////////////////////////////////////////////////
 
 
-void deposit(Person *person /*, const int year, const int month */) {
-    // TODO: не указатель, а ссылка
+void deposit(Person &person /*, const int year, const int month */) {
     // assume person keeps all of money on deposit with 5% yearly interest rate => 12√1,05=0,407% monthly rate
-    if (person->bank_account > 0) {
-        person->bank_account *= 1.00407;
+    if (person.bank_account > 0) {
+        person.bank_account *= 1.00407;
     }
     // TODO: сделать как отдельный счёт и мин остаток
     // TODO: разные депозиты, или условие: ставка +1% если 3 млн0
 }
 
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 
 void alice_income(const int year, const int month)
@@ -70,7 +69,7 @@ void alice_mortgage(const int year, const int month)
         // first payment
         alice.bank_account -= first_payment;
         alice.debt = flat_price - first_payment;
-        alice.has_flat=true;
+        alice.has_flat = true;
 
         const float monthly_interest_rate = interest_rate / 12;
         alice.annuity_payment = (RUB) round ( 
@@ -102,7 +101,7 @@ void alice_mortgage(const int year, const int month)
 
 void print_alice_info()
 {   
-    if (alice.debt==0) {
+    if (alice.debt == 0) {
         printf("Alice capital = %d RUB\n", alice.bank_account);
     } else {
         printf("Alice capital = %d RUB, debt: %d RUB\n", alice.bank_account, alice.debt);
@@ -122,11 +121,11 @@ void alice_init()
     alice.income = 140 * 1000;
     alice.expenses = 40 * 1000;
     alice.debt = 0;
-    alice.has_flat=false;
+    alice.has_flat = false;
 }
 
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 
 void bob_income(const int year, const int month)
@@ -165,22 +164,19 @@ void bob_rent(const int year, const int month)
 
 void bob_try_buy_flat(const int year, const int month)
 {
-    if (bob.has_flat) { // TODO: в 1 строку
-        return;
-    }
+    if (bob.has_flat) return;
     const RUB flat_price = 20 * 1000 * 1000; // TODO: учесть инфляцию
-    if (bob.bank_account >= flat_price + 100*1000) // TODO: фигурную на той же строчке
-    {
+    if (bob.bank_account >= flat_price + 100*1000) {
         bob.bank_account -= flat_price;
-        printf("Bob bought flat in year %d\n", year); // TODO: мб убрать: dbg
-        bob.has_flat=true; // TODO: пробелы
+        // printf("Bob bought flat in year %d\n", year); // dbg
+        bob.has_flat = true;
     }
 }
 
 
 void print_bob_info()
 {   
-    if (bob.debt==0) {
+    if (bob.debt == 0) {
         printf("Bob capital = %d RUB\n", bob.bank_account);
     } else {
         printf("Bob capital = %d RUB, debt: %d RUB\n", bob.bank_account, bob.debt);
@@ -200,11 +196,11 @@ void bob_init()
     bob.income = 140 * 1000;
     bob.expenses = 40 * 1000;
     bob.debt = 0;
-    bob.has_flat=false;
+    bob.has_flat = false;
 }
 
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 
 void simulation()
@@ -215,36 +211,22 @@ void simulation()
     // print_alice_info_more(year);
     while( !(year == 2045 && month == 9) ) {
         alice_income(year, month);
-        alice_expenses(year, month); // TODO: коммент о том, какие расходы
+        alice_expenses(year, month); // common expenses, such as car, trip, food, etc
         // TODO: добавить одному человеку расходны на кота/собаку (с одного до другого года)
         alice_mortgage(year, month);
-        deposit(&alice);
+        deposit(alice);
 
         // printf("y%d m%d bank %d debt %d\n", year, month, alice.bank_account, alice.debt); //dbg
-        
-        ++month;
-        if(month == 13) {
-            // print_alice_info_more(year);
-            month = 1;
-            ++year;
-        }
-    }
 
-    // printf("====\n");
-    year = 2025;
-    month = 9;
-
-    // print_bob_info_more(year);
-    // TODO: 1 цикл
-    while( !(year == 2045 && month == 9) ) {
         bob_income(year, month);
         bob_expenses(year, month);
         bob_rent(year, month);
         bob_try_buy_flat(year, month);
-        deposit(&bob);
+        deposit(bob);
         
         ++month;
         if(month == 13) {
+            // print_alice_info_more(year);
             // print_bob_info_more(year);
             month = 1;
             ++year;
@@ -260,7 +242,7 @@ int main()
     
     simulation();
 
-    printf("====\n"); // TODO: внутрь функций
+    // printf("====\n");
 
     print_alice_info();
     print_bob_info();
