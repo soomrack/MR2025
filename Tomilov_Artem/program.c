@@ -161,15 +161,15 @@ void simulation() {
         alice_trip(year, month);
 
         // перевод на вклад, только если остаются деньги
-        RUB min_alice = 0;
-        RUB alice_deposit = (RUB)(alice.income * 0.3);
-        if (alice.money - alice_deposit < min_alice) {
+        //RUB min_alice = 0;
+        RUB alice_deposit = (RUB)(alice.income * 0.2);
+        /*if (alice.money - alice_deposit < min_alice) {
             if (alice.money > min_alice) {
                 alice_deposit = alice.money - min_alice;
             } else {
                 alice_deposit = 0;
             }
-        } // не работает оно правда... грустнааа
+        }*/
         alice.money -= alice_deposit;
         sber.bank_balance += alice_deposit;
         apply_bank_interest(&sber);
@@ -180,26 +180,26 @@ void simulation() {
         bob_food(year, month);
         bob_trip(year, month);
 
-        RUB min_bob = 0;
-        RUB bob_deposit = (RUB)(bob.income * 0.1);
-        if (bob.money - bob_deposit < min_bob) {
+        //RUB min_bob = 0;
+        RUB bob_deposit = (RUB)(bob.income * 0.2);
+        /*if (bob.money - bob_deposit < min_bob) {
             if (bob.money > min_bob) {
                 bob_deposit = bob.money - min_bob;
             } else {
                 bob_deposit = 0;
             }
-        }
+        }*/
         bob.money -= bob_deposit;
         tinkoff.bank_balance += bob_deposit;
         apply_bank_interest(&tinkoff);
 
-        /* DEBUG
+        // DEBUG
         if (month == 12) {
             printf("=== Year %d ===\n", year);
             printf("Alice money: %lld руб., Sber deposit: %lld руб.\n", alice.money, sber.bank_balance);
             printf("Bob money:   %lld руб., Tinkoff deposit: %lld руб., Mortgage remaining: %lld руб.\n",
                    bob.money, tinkoff.bank_balance, bob.flat_price_mortgage);
-        } */
+        }
 
         month++;
         if (month == 13) {
