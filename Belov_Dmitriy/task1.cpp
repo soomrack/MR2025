@@ -15,6 +15,7 @@ struct Person {
     RUB rent;      // аренда жилья (только у Bob)
     RUB medical_expense;   // медицина (раз в год)
     RUB vacation_expense;  // отпуск (раз в год)
+    RUB repairs_expenses;  // расходы на ремонт квартиры
 
     // Машина
     RUB car_price;         // покупка
@@ -23,13 +24,13 @@ struct Person {
     RUB tire_replacement;  // замена шин (сезонная)
     RUB insurance;         // страховка (раз в год)
     RUB fine_amount;       // штраф (по вероятности)
-
     // Сбережения
-    RUB deposit;
+    RUB deposit; 
+    int deposit_years;    // срок депозита в годах
+    int deposit_start;    // год, когда вклад был открыт
+    bool deposit_active;  // активен ли вклад сейчас
 
-    RUB repairs_expenses;  // расходы на ремонт квартиры
     RUB flat_price;
-
     // Займ
     RUB loan;              // основная сумма займа 
    int loan_years;        // общий срок кредита в годах
@@ -81,18 +82,20 @@ void alice_init() {
     alice.clothes = 20000;
     alice.utilities = 10000;
     alice.rent = 0;
+    alice.medical_expense  = 100000;
+    alice.vacation_expense = 150000;
 
     alice.car_price = 1500 * 1000; 
     alice.fuel = 12000;     
     alice.car_amortization = 30000;     
     alice.tire_replacement = 15000;       // только летняя смена    
-    alice.insurance = 25000;     
-
-    alice.medical_expense  = 100000;
-    alice.vacation_expense = 150000;
-    alice.fine_amount      = 10000;
-
+    alice.insurance = 25000;
+    alice.fine_amount  = 10000;
+    
     alice.deposit = 0;
+    alice.deposit_years = 15;  // вклад на 15 лет
+    alice.deposit_start = 2025;
+    alice.deposit_active = true;
 
     alice.repairs_expenses = 20000;
     alice.flat_price = 6 * 1000 * 1000;
@@ -116,18 +119,21 @@ void bob_init() {
     bob.clothes = 10000;
     bob.utilities = 15000;
     bob.rent = 20000;
+    bob.medical_expense  = 120000;
+    bob.vacation_expense = 100000;
 
     bob.car_price = 1500 * 1000; 
     bob.fuel = 18000;      // больший расход
     bob.car_amortization = 40000; // ТО дороже
     bob.tire_replacement = 15000;  // два раза в год
     bob.insurance = 30000;    // страховка дороже
-
-    bob.medical_expense  = 120000;
-    bob.vacation_expense = 100000;
     bob.fine_amount      = 15000;
-
+    
     bob.deposit = 0;
+    bob.deposit_years = 15;  // вклад на 15 лет
+    bob.deposit_start = 2025;
+    bob.deposit_active = true;
+
     bob.flat_price = 0;
 
     bob.loan = 1 * 1000 * 1000; 
@@ -257,13 +263,26 @@ void pay_fine(Person &p, int month) {
     }
 }
 
-// Вклады
-void manage_deposit(Person &p) {
-    if (p.bank_account > 0) {
-        p.deposit += p.bank_account; // всё свободное переводится на депозит
+// Управление вкладом
+void manage_deposit(Person &p, int year, int month) {
+    if (!p.deposit_active) return; // если вклад закрыт, ничего не делаем
+
+    if (p.bank_account > 0) { // только при положительном балансе
+        p.deposit += p.bank_account; 
+        p.bank_account = 0;
     }
-    p.deposit *= (1 + DEPOSIT_RATE/12.0);
-}// TODO придумать что то получше, нельзя класть на вклад деньги, которых нужны сейчас
+
+    // ежемесячная капитализация
+    p.deposit *= (1 + DEPOSIT_RATE / 12.0);
+
+    // проверка срока вклада
+    if (year >= p.deposit_start + p.deposit_years) {
+        p.bank_account += p.deposit; // деньги возвращаются в банк после окончания срока
+        p.deposit = 0;
+        p.deposit_active = false;
+    }
+}
+
 
 
 void pay_repairs(Person &p, int year, int month) {
@@ -321,7 +340,7 @@ void simulation() {
         pay_vacation(alice, month);
         pay_fine(alice, month);
         pay_loan(alice);
-        manage_deposit(alice);
+        manage_deposit(alice, year, month);
 
        
         bob_income(year, month);
@@ -339,7 +358,7 @@ void simulation() {
         pay_vacation(bob, month);
         pay_fine(bob, month);
         pay_loan(bob);
-        manage_deposit(bob);
+        manage_deposit(bob, year, month);
 
         month++;
         if (month == 13) { month = 1; year++; }
