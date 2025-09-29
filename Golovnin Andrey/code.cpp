@@ -7,14 +7,14 @@ typedef long int RUB;
 
 struct Simulation
 {
-	RUB home_cost = 10 * 1000 * 1000;
-	RUB initial_deposit = 1000 * 1000;
+	RUB home_cost = 10 * 1000 * 1000; // начальная стоимость дома
+	RUB initial_deposit = 1000 * 1000; // стартовый дипосит
 	RUB debit_part = 0; 
-	int actual_month = 0;
+	int actual_month = 0; // текущий месяц
     int credit_mought = 180; // кредит на пятнадцать лет
-	float key_bid = 0.18;
-    float inflation_coefficient = 1.01;
-    float salary_indexation = 1.008;
+	float key_bid = 0.18;  // ключивая ставка
+    float inflation_coefficient = 1.01; // коэффиценнт инфляции
+    float salary_indexation = 1.008; // коэффицент индексации
     
 }properties;
 
@@ -25,138 +25,137 @@ struct Person
 	RUB salary;
 	RUB debt;
     RUB live_cost;
+    RUB contribution;
+    int home_quantity;
 };
 
 struct Person bob;
 struct Person alice;
-
 
 void bob_init()
 {
     RUB food = 30000;
     RUB rent = 40000; //арендная плата
     RUB clothes = 10000; // среднеднии траты на одежду в месяц;
+    RUB car = 8000; // средние траты на автомобиль в месяц;
     RUB different = 6000; // иные траты
+    RUB contribution = 0; //сберегательный счёт
 
+    bob.home_quantity = 0;
     bob.bank_account = 1000 * 1000;
 	bob.salary = 200 * 1000;
     bob.debt = properties.home_cost - properties.initial_deposit;
-    bob.live_cost = food + clothes + different + rent;
-
+    bob.live_cost = food + clothes + different + rent + car;
+    
 }
 
 void alice_init()
 {
-    RUB food = 30000;
+    RUB food = 30000; // траты на еду
     RUB clothes = 10000; // среднеднии траты на одежду в месяц;
+    RUB car = 8000; // средние траты на автомобиль в месяц;
     RUB different = 6000; // иные траты
+    RUB contribution = 0; //сберегательный счёт
 
-
-
+    alice.home_quantity = 1;
     alice.bank_account = 1000 * 1000;
 	alice.salary = 200 * 1000;
 	alice.debt = properties.home_cost - properties.initial_deposit;
-    alice.live_cost = food + clothes + different;
+    properties.debit_part = alice.debt * (((properties.key_bid / 12)) / ( 1 - pow((1 + (properties.key_bid / 12)), (-1 * (properties.credit_mought - 1)) )));
+    alice.bank_account -= properties.initial_deposit;
+    alice.live_cost = food + clothes + car + different;
 }
 
 
 void alice_bank()
 {
-    double monght_bid = properties.key_bid / 12;
+    alice.bank_account += alice.contribution * (properties.key_bid / 12); // дипозит на остаток по счёту
+    alice.bank_account += alice.salary; // начисление зарплаты
+    alice.bank_account -= properties.debit_part; //оплата ипотеки
+    alice.bank_account -= alice.live_cost; // остальные траты
+    alice.contribution += alice.bank_account; 
+    alice.bank_account = 0;
     
-    
-    alice.bank_account += alice.salary;
-    properties.debit_part = alice.debt * (monght_bid / ( 1 - pow((1 + monght_bid), (-1 * (properties.credit_mought - 1)) )));
-    alice.bank_account -= properties.debit_part;
-    alice.bank_account -= alice.live_cost;
+    alice.live_cost *= properties.inflation_coefficient; //влияние роста инфляции на траты
+    alice.salary *= properties.salary_indexation; // индексация зарплаты
 
+    if (properties.actual_month % 48 == 0)  // повышение зарплаты раз в 4 года
+    {
+        alice.salary += 20 * 1000;
+    }
 }
-
 
 void bob_bank()
-{
+{ 
+    bob.bank_account += bob.salary;  // начисление зарплаты
+    bob.bank_account += bob.contribution * (properties.key_bid / 12); // дипозит на остаток по счёту
+    bob.bank_account -= bob.live_cost; // остальные траты
     
-    bob.bank_account += bob.salary;
-    bob.bank_account -= bob.live_cost;
     
-    bob.bank_account += bob.bank_account * (properties.key_bid / 12); // дипозит на остаток по счёту
-
-    if (bob.bank_account >= properties.home_cost)
+    if (bob.contribution >= properties.home_cost) // условие покупки дома
     {
-        bob.bank_account -= properties.home_cost;
-        
-        cout << "___________bob buy house___________" << endl;
+        bob.contribution -= properties.home_cost;
     }
     
+    bob.contribution += bob.bank_account; 
+    bob.bank_account = 0;
 
+    properties.home_cost *= properties.inflation_coefficient; // влияние инфляции на стоимость дома
+    
+    bob.live_cost *= properties.inflation_coefficient; // внияние инфляции на траты
+    bob.salary *= properties.salary_indexation; // индексация зарплаты
+
+    if (properties.actual_month % 48 == 0) // повышение зарплаты раз в 4 года
+    {
+        bob.salary += 20 * 1000;
+    }
 }
-
 
 void events ()
 {
-
     switch (properties.actual_month)
     {
     case 15:
-
         alice.bank_account -= 50000; // пример любого случайного события, сломанный холодильник
         bob.bank_account -= 50000;
-
-        break;
-    case 30:
-
-        alice.salary += 50 * 1000; // пример любого случайного события, повышения зарплаты
-        bob.salary += 50 * 1000;
-
         break;
     default:
         break;
     }
-
+    
 }
 
-
-void timeline()
+void simulation()
 {
-    alice.bank_account -= properties.initial_deposit;
-
-	while (properties.actual_month < properties.credit_mought)
+    while (properties.actual_month < properties.credit_mought)
 	{
-
+        events();
         bob_bank();
 		alice_bank();
-        events();
         
-        properties.home_cost *= properties.inflation_coefficient; //влияние инфляции/индексации
-        alice.live_cost *= properties.inflation_coefficient;
-        bob.live_cost *= properties.inflation_coefficient;
-        alice.salary *= properties.salary_indexation;
-        bob.salary *= properties.salary_indexation;
-
 		properties.actual_month++;
-        cout << alice.bank_account<< "       "  << bob.bank_account << endl;
 	}
-
 }
+
 
 void Output()
 {
-	cout << properties.actual_month;
+    RUB bob_sum = bob.bank_account + bob.contribution + bob.home_quantity * properties.home_cost; 
+    RUB alice_sum =alice.bank_account + alice.contribution + alice.home_quantity * properties.home_cost;
+
+    cout << "Alice:  " << alice_sum << "       " << "Bob:  " << bob_sum << endl;
 }
 
 
 int main() {
-
-	setlocale(LC_ALL, "Rus");
-
-
-
+    
+    setlocale(LC_ALL, "Rus");
+    
 	alice_init();
 	bob_init();
-
-	timeline();
-
-	Output();
-
+    
+	simulation();
+    Output();
+    
 	return 0;
 }
