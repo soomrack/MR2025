@@ -2,6 +2,7 @@
 #include <stdio.h>
 
 //TODO добавить reverse строки перед for
+// и убрать лишние символы перед выводом строки
 
 void print_dots(const int number){
     char str[20];
