@@ -24,6 +24,7 @@ struct Person {
     RUB tire_replacement;  // замена шин (сезонная)
     RUB insurance;         // страховка (раз в год)
     RUB fine_amount;       // штраф (по вероятности)
+    bool winter_driver;    // замена шин зимой
     // Сбережения
     RUB deposit; 
     int deposit_years;    // срок депозита в годах
@@ -90,6 +91,7 @@ void alice_init() {
     alice.tire_replacement = 15000;       // только летняя смена    
     alice.insurance = 25000;
     alice.fine_amount  = 10000;
+    alice.winter_driver = false;
     
     alice.deposit = 0;
     alice.deposit_years = 15;  // вклад на 15 лет
@@ -126,7 +128,8 @@ void bob_init() {
     bob.car_amortization = 40000; // ТО дороже
     bob.tire_replacement = 15000;  // два раза в год
     bob.insurance = 30000;    // страховка дороже
-    bob.fine_amount      = 15000;
+    bob.fine_amount      = 15000;// больший штраф, неаккуратное вожение машины
+    bob.winter_driver = true;
     
     bob.deposit = 0;
     bob.deposit_years = 15;  // вклад на 15 лет
@@ -228,41 +231,41 @@ void pay_repairs(Person &p, int year, int month) {//затраты на ремо
 //============================================================================================
 
 // Расходы по машине 
-void buy_car(Person &p, int year, int month) {
+void buy_car(Person &p, int year, int month) {// покупка машины в самом начале симуляции
     if (month == 9 && year == 2025) {
         p.bank_account -= p.car_price;
     }
 }
 
-void pay_fuel(Person &p, int year, int month) {
-    if (year >= 2028 && year <= 2030 && month == 1) {
-        p.fuel *= 1.05; 
+void pay_fuel(Person &p, int year, int month) {// траты на топливо
+    if (year >= 2028 && year <= 2030 && month == 1) {// резкое повышение цены на бензин
+        p.fuel *= 1.2; 
     } else {
-        p.fuel *= (1 + INFLATION_RATE/12.0); 
+        p.fuel *= (1 + INFLATION_RATE/12.0); // обычная инфляция
     }
     p.bank_account -= p.fuel;
 }
 
-void pay_insurance(Person &p, int month) {
+void pay_insurance(Person &p, int month) {// ежегодные траты на страховку
     if (month == 4) {
         p.bank_account -= p.insurance;
         p.insurance *= (1 + INFLATION_RATE);
     }
 }
 
-void pay_car_amortization(Person &p, int month) {
+void pay_car_amortization(Person &p, int month) {// ежегодные траты на ТО
     if (month == 6) {
         p.bank_account -= p.car_amortization;
         p.car_amortization *= (1 + INFLATION_RATE);
     }
 }
 
-void pay_tires(Person &p, int month, bool winter_driver) {
-    if (month == 10 && winter_driver) {
+void pay_tires(Person &p, int month, bool winter_driver) {// затраты на замену шин
+    if (month == 10 && winter_driver) {// зимняя смена
         p.bank_account -= p.tire_replacement;
         p.tire_replacement *= (1 + INFLATION_RATE);
     }
-    if (month == 4) {
+    if (month == 4) {// осенняя смена
         p.bank_account -= p.tire_replacement;
     }
 }
@@ -374,7 +377,7 @@ void simulation() {
 
 int main() {
     srand(time(0));// для случайных результатов
-    //srand(42)// для отключения случайности
+    //srand(42);// для отключения случайности
     alice_init();
     bob_init();
 
