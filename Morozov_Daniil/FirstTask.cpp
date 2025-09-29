@@ -58,6 +58,7 @@ void bob_init() {
     bob.gasoline = 7 * 1000;
 }
 
+
 void alice_print() {
     printf("Alice bank account = %lld руб.\n", alice.savings_account);
 }
@@ -119,12 +120,14 @@ void bob_food(const int year, const int month) {
     bob.bank_account -= bob.food;
 }
 
+
 void alice_transfer_money_to_savings_account() {
     if (alice.bank_account > 0) {
         alice.savings_account += alice.bank_account;
         alice.bank_account = 0;
     }
 }
+
 
 void bob_transfer_money_to_savings_account() {
     if (bob.bank_account > 0) {
@@ -137,9 +140,11 @@ void alice_accrual_to_savings_account() {
     alice.savings_account *= 1.0065;
 }
 
+
 void bob_accrual_to_savings_account() {
     bob.savings_account *= 1.0065;
 }
+
 
 void alice_car(const int year, const int month) {
     static bool can_buy_car;
