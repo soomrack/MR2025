@@ -7,6 +7,7 @@ typedef int USDT;
 
 
 struct Person {
+    // TODO: отдельная структура Home home, туда аренду, ипотеку и расходы. Машина, долг аналогично.
     RUB bank_account;
     RUB income;
     RUB expenses;
@@ -68,13 +69,15 @@ void alice_expenses(const int year, const int month)
     if(month == 9) {
         alice.expenses = alice.expenses * 1.07;  // Inflation
     }
+
+    // TODO: разделить расходы: машина (стоимость (падает), бензин, налог (ежегодно)), путешествия отдельно. В конце добавить машину к капиталу.
 }
 
 
 void alice_cat(const int year, const int month)
 {
     if ((year == 2026 && month >= 4) || (year == 2035 && month <=2) || (2026 < year && year < 2035)) {
-        const RUB cat_expenses = 5000;
+        const RUB cat_expenses = 5000; // TODO: инфляция
         alice.bank_account -= cat_expenses;
         alice.min_balance -= cat_expenses;
     }
@@ -102,6 +105,7 @@ void alice_mortgage(const int year, const int month)
     }
     
     // monthly annuity mortgage payment
+    // TODO: не до 0, а ежемесячно
     if (alice.debt > 0) {
         alice.bank_account -= alice.annuity_payment;
         alice.debt -= alice.annuity_payment;
@@ -112,10 +116,10 @@ void alice_mortgage(const int year, const int month)
         alice.bank_account -= alice.debt;
         alice.debt = 0;
     }
-    alice.min_balance -= alice.annuity_payment;
+    alice.min_balance -= alice.annuity_payment; // TODO: не учёл если сначала зачислили + отдельная функция на снятие средств
     
     if (month == 9 && year != 2025 && alice.debt != 0) {
-        alice.debt = (RUB) round ( 
+        alice.debt = (RUB) round ( // TODO: убрать долг, т.к. просто аннуитент
             alice.debt * (1 + interest_rate)
         );
     }
@@ -200,7 +204,7 @@ void bob_try_buy_flat(const int year, const int month)
         bob.bank_account -= inflated_flat_price;
         bob.min_balance -= inflated_flat_price;
         // printf("Bob bought flat in year %d\n", year); // dbg
-        bob.has_flat = true;
+        bob.has_flat = true; // TODO: вместо этого rent = 0
     }
 }
 
