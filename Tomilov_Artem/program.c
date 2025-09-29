@@ -104,7 +104,6 @@ void refill_pocket_money(struct Person *p)
     p->pocket_money += refill;
 }
 
-
 /*
 ----PRINT--------------------------------------------------------------------------------------------------
 */
@@ -129,17 +128,18 @@ void alice_print()
     printf("============\n");
 }
 
-
 void comparing_print()
 {
     bob.total_capital = bob.money + bob.tinkoff_balance + bob.sber_balance + bob.flat_price_mortgage;
     alice.total_capital = alice.money + alice.tinkoff_balance + alice.sber_balance + alice.car_cost;
     printf("Bob's total capital: %lld rub.\n", bob.total_capital);
     printf("Alice's total capital: %lld rub.\n", alice.total_capital);
-    if (alice.total_capital > bob.total_capital) {
+    if (alice.total_capital > bob.total_capital)
+    {
         printf("Alice has a better life!");
     }
-    else {
+    else
+    {
         printf("Bob has a better life!");
     }
 }
