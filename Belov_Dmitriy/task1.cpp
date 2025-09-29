@@ -33,16 +33,14 @@ struct Person {
     RUB flat_price;
     // Займ
     RUB loan;              // основная сумма займа 
-   int loan_years;        // общий срок кредита в годах
-   double loan_rate;      // годовая процентная ставка 
-   RUB monthly_payment;   // фиксированный ежемесячный платёж (аннуитетный)
-   int loan_months_left;  // количество оставшихся месяцев выплат
+    int loan_years;        // общий срок кредита в годах
+    double loan_rate;      // годовая процентная ставка 
+    RUB monthly_payment;   // фиксированный ежемесячный платёж (аннуитетный)
+    int loan_months_left;  // количество оставшихся месяцев выплат
 };
 
 
-
-
-//=====================================================================================================
+//============================================================================================
 
 //  Константы экономики
 
@@ -68,7 +66,8 @@ RUB annuity_payment(RUB amount, double annual_rate, int years) {
     return (RUB) payment;  // округление вниз до целого RUB
 }
 
-//=======================================================================================================
+
+//============================================================================================
 
 // Инициализация персонажей
 
@@ -143,7 +142,7 @@ void bob_init() {
     bob.loan_months_left = bob.loan_years * 12;
 }
 
-//========================================================================================
+//============================================================================================
 
 // Доходы
 void alice_income(const int year, const int month) {
@@ -166,7 +165,9 @@ void bob_income(const int year, const int month) {
     bob.bank_account += bob.income;
 }
 
-//=====================================================================================
+
+
+//============================================================================================
 
 // Расходы
 
@@ -213,9 +214,20 @@ void pay_loan(Person &p) {
     }
 }
 
-//================================================================================
+void pay_repairs(Person &p, int year, int month) {//затраты на ремонт
+    const int START_YEAR = 2030;
+    const int END_YEAR   = 2033; 
+    if (year >= START_YEAR && year < END_YEAR) {
+        p.bank_account -= p.repairs_expenses;
+        p.repairs_expenses *= (1 + INFLATION_RATE/12.0);
+    }
+}
 
-// Машина 
+
+
+//============================================================================================
+
+// Расходы по машине 
 void buy_car(Person &p, int year, int month) {
     if (month == 9 && year == 2025) {
         p.bank_account -= p.car_price;
@@ -263,6 +275,9 @@ void pay_fine(Person &p, int month) {
     }
 }
 
+
+//============================================================================================
+
 // Управление вкладом
 void manage_deposit(Person &p, int year, int month) {
     if (!p.deposit_active) return; // если вклад закрыт, ничего не делаем
@@ -283,16 +298,6 @@ void manage_deposit(Person &p, int year, int month) {
     }
 }
 
-
-
-void pay_repairs(Person &p, int year, int month) {
-    const int START_YEAR = 2030;
-    const int END_YEAR   = 2033; 
-    if (year >= START_YEAR && year < END_YEAR) {
-        p.bank_account -= p.repairs_expenses;
-        p.repairs_expenses *= (1 + INFLATION_RATE/12.0);
-    }
-}
 
 //============================================================================================
 
@@ -369,6 +374,7 @@ void simulation() {
 
 int main() {
     srand(time(0));// для случайных результатов
+    //srand(42)// для отключения случайности
     alice_init();
     bob_init();
 
