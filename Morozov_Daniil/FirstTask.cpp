@@ -9,7 +9,7 @@ struct Person {
     RUB income;
     RUB spending;
     RUB food;
-    RUB mortgage;
+    RUB mortgage; // Ежемесячный платеж по ипотеке
     RUB car_price;
     RUB trip_price;
     RUB rent;
@@ -20,9 +20,6 @@ struct Person {
 
 struct Person alice;
 struct Person bob;
-
-double inflation_rate = 0.1; // 10%-ая годовая инфляция
-
 
 RUB calc_mortgage_payment(RUB principal, double annual_rate, int years) {
     int months_in_year = 12;
@@ -60,6 +57,7 @@ void bob_init() {
     bob.trip_price = 100 * 1000;
     bob.gasoline = 7 * 1000;
 }
+
 
 void alice_print() {
     printf("Alice bank account = %lld руб.\n", alice.savings_account);
@@ -122,12 +120,14 @@ void bob_food(const int year, const int month) {
     bob.bank_account -= bob.food;
 }
 
+
 void alice_transfer_money_to_savings_account() {
     if (alice.bank_account > 0) {
         alice.savings_account += alice.bank_account;
         alice.bank_account = 0;
     }
 }
+
 
 void bob_transfer_money_to_savings_account() {
     if (bob.bank_account > 0) {
@@ -140,9 +140,11 @@ void alice_accrual_to_savings_account() {
     alice.savings_account *= 1.0065;
 }
 
+
 void bob_accrual_to_savings_account() {
     bob.savings_account *= 1.0065;
 }
+
 
 void alice_car(const int year, const int month) {
     static bool can_buy_car;
@@ -237,12 +239,10 @@ void bob_rent(const int year) {
 
 
 void comparision() {
-    if (alice.bank_account > bob.bank_account) {
+    if (alice.bank_account + alice.car_price + (RUB) 5000000 * 3.87 > bob.bank_account + bob.car_price) {
         printf("Alice has more money than Bob.\n");
-    } else if (alice.bank_account < bob.bank_account) {
-        printf("Bob has more money than Alice.\n");
     } else {
-        printf("Alice and Bob have the same amount of money.\n");
+        printf("Bob has more money than Alice.\n");
     }
 }
 
