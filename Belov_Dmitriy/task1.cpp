@@ -112,7 +112,7 @@ Person bob;
 
 void bob_init() {
     bob.bank_account = 1000 * 1000;
-    bob.income = 80000;
+    bob.income = 100000;
 
     bob.food = 20000;
     bob.clothes = 10000;
