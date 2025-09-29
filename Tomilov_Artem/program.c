@@ -38,7 +38,7 @@ void bob_init()
     bob.trip = 150000;
     bob.mortgage_payment = 115000;
 
-    bob.pocket_money = 50 * 1000;
+    bob.pocket_money = 0;
     bob.sber_balance = 0;
     bob.tinkoff_balance = 0;
 }
@@ -53,7 +53,7 @@ void alice_init()
     alice.car_cost = 5000 * 1000;
     alice.car_expense = 20 * 1000;
 
-    alice.pocket_money = 50 * 1000;
+    alice.pocket_money = 0;
     alice.sber_balance = 0;
     alice.tinkoff_balance = 0;
 }
@@ -94,6 +94,16 @@ void random_medical_expense(struct Person *p)
         p->medical_expense = 0;
     }
 }
+
+void refill_pocket_money(struct Person *p)
+{
+    RUB refill = p->income * 0.01;
+    if (refill > p->money)
+        refill = p->money;
+    p->money -= refill;
+    p->pocket_money += refill;
+}
+
 
 /*
 ----PRINT--------------------------------------------------------------------------------------------------
@@ -240,6 +250,7 @@ void simulation()
         alice_food(year, month);
         alice_car(year, month);
         alice_trip(year, month);
+        refill_pocket_money(&alice);
         random_pocket_spend(&alice);
         random_medical_expense(&alice);
         deposit_to_bank(&alice, alice.income * 0.1, 0);
@@ -252,6 +263,7 @@ void simulation()
         bob_mortgage(year, month);
         bob_food(year, month);
         bob_trip(year, month);
+        refill_pocket_money(&bob);
         random_pocket_spend(&bob);
         random_medical_expense(&bob);
         deposit_to_bank(&bob, bob.income * 0.2, 0);
