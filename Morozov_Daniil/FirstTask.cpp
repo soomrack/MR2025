@@ -21,9 +21,6 @@ struct Person {
 struct Person alice;
 struct Person bob;
 
-double inflation_rate = 0.1; // 10%-ая годовая инфляция
-
-
 RUB calc_mortgage_payment(RUB principal, double annual_rate, int years) {
     int months_in_year = 12;
     int n = years * months_in_year;                        // срок в месяцах
@@ -237,12 +234,10 @@ void bob_rent(const int year) {
 
 
 void comparision() {
-    if (alice.bank_account > bob.bank_account) {
+    if (alice.bank_account + alice.car_price + (RUB) 5000000 * 3.87 > bob.bank_account + bob.car_price) {
         printf("Alice has more money than Bob.\n");
-    } else if (alice.bank_account < bob.bank_account) {
-        printf("Bob has more money than Alice.\n");
     } else {
-        printf("Alice and Bob have the same amount of money.\n");
+        printf("Bob has more money than Alice.\n");
     }
 }
 
