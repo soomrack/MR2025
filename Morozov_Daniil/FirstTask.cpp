@@ -9,7 +9,7 @@ struct Person {
     RUB income;
     RUB spending;
     RUB food;
-    RUB mortgage;
+    RUB mortgage; // Ежемесячный платеж по ипотеке
     RUB car_price;
     RUB trip_price;
     RUB rent;
