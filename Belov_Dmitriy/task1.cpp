@@ -76,7 +76,7 @@ Person alice;
 
 void alice_init() {
     alice.bank_account = 1000 * 1000;
-    alice.income = 80000;
+    alice.income = 100000;
 
     alice.food = 40000;
     alice.clothes = 20000;
