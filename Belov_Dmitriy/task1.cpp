@@ -5,39 +5,57 @@
 
 typedef long long int RUB;
 
+//============================================================================================
+// Структуры
+
+// Машина
+struct Car {
+    RUB price;            // покупка
+    RUB fuel;             // бензин (ежемесячный)
+    RUB amortization;     // ТО (раз в год)
+    RUB tires;            // замена шин (сезонная)
+    RUB insurance;        // страховка (раз в год)
+    RUB fine_amount;      // штраф (по вероятности)
+    bool chance_of_fine;  // вероятность штрафа
+    bool winter_driver;   // меняет шины зимой?
+};
+
+// Депозит
+struct Deposit {
+    RUB amount;           // сумма на вкладе
+    int years;            // срок депозита в годах
+    int start_year;       // год, когда вклад был открыт
+    bool active;          // активен ли вклад
+};
+
+// Квартира
+struct Flat {
+    RUB price;            // стоимость квартиры
+    RUB repairs;          // ремонт (ежемесячные траты на период)
+};
+
+// Человек
 struct Person {
-    RUB bank_account;  // банковский счет
-    RUB income;// доходы
+    RUB bank_account;     // банковский счет
+    RUB income;           // доходы
 
-    RUB food;
-    RUB clothes;   // траты на одежду
-    RUB utilities; // оплата ЖКХ
-    RUB rent;      // аренда жилья (только у Bob)
-    RUB medical_expense;   // медицина (раз в год)
-    RUB vacation_expense;  // отпуск (раз в год)
-    RUB repairs_expenses;  // расходы на ремонт квартиры
+    RUB food;             // еда
+    RUB clothes;          // траты на одежду
+    RUB utilities;        // оплата ЖКХ
+    RUB rent;             // аренда жилья (только у Bob)
+    RUB medical_expense;  // медицина (раз в год)
+    RUB vacation_expense; // отпуск (раз в год)
 
-    // Машина
-    RUB car_price;         // покупка
-    RUB fuel;              // бензин (ежемесячный)
-    RUB car_amortization;  // ТО (раз в год)
-    RUB tire_replacement;  // замена шин (сезонная)
-    RUB insurance;         // страховка (раз в год)
-    RUB fine_amount;       // штраф (по вероятности)
-    bool winter_driver;    // замена шин зимой
-    // Сбережения
-    RUB deposit; 
-    int deposit_years;    // срок депозита в годах
-    int deposit_start;    // год, когда вклад был открыт
-    bool deposit_active;  // активен ли вклад сейчас
+    Car car;              // расходы на машину
+    Deposit deposit;      // сбережения
+    Flat flat;            // недвижимость
 
-    RUB flat_price;
     // Займ
-    RUB loan;              // основная сумма займа 
-    int loan_years;        // общий срок кредита в годах
-    double loan_rate;      // годовая процентная ставка 
-    RUB monthly_payment;   // фиксированный ежемесячный платёж (аннуитетный)
-    int loan_months_left;  // количество оставшихся месяцев выплат
+    RUB loan;             
+    int loan_years;       
+    double loan_rate;     
+    RUB monthly_payment; 
+    int loan_months_left; 
 };
 
 
@@ -74,6 +92,12 @@ RUB annuity_payment(RUB amount, double annual_rate, int years) {
 
 Person alice;
 
+//============================================================================================
+// Инициализация персонажей
+
+Person alice;
+
+
 void alice_init() {
     alice.bank_account = 1000 * 1000;
     alice.income = 100000;
@@ -85,29 +109,30 @@ void alice_init() {
     alice.medical_expense  = 100000;
     alice.vacation_expense = 150000;
 
-    alice.car_price = 1500 * 1000; 
-    alice.fuel = 12000;     
-    alice.car_amortization = 30000;     
-    alice.tire_replacement = 15000;       // только летняя смена    
-    alice.insurance = 25000;
-    alice.fine_amount  = 10000;
-    alice.winter_driver = false;
+    alice.car.price = 1500 * 1000; 
+    alice.car.fuel = 12000;     
+    alice.car.amortization = 30000;     
+    alice.car.tires = 15000;       // только летняя смена    
+    alice.car.insurance = 25000;
+    alice.car.fine_amount = 10000;
+    alice.car.winter_driver = false;
+    alice.car.chance_of_fine = 10;
     
-    alice.deposit = 0;
-    alice.deposit_years = 15;  // вклад на 15 лет
-    alice.deposit_start = 2025;
-    alice.deposit_active = true;
+    alice.deposit.amount = 0;
+    alice.deposit.years = 15;  
+    alice.deposit.start_year = 2025;
+    alice.deposit.active = true;
 
-    alice.repairs_expenses = 20000;
-    alice.flat_price = 6 * 1000 * 1000;
+    alice.flat.price = 6 * 1000 * 1000;
+    alice.flat.repairs = 20000;
 
-    alice.loan = alice.flat_price - 1 * 1000 * 1000; 
+    alice.loan = alice.flat.price - 1 * 1000 * 1000; 
     alice.loan_years = 20;
     alice.loan_rate = 0.05;
     alice.monthly_payment = annuity_payment(alice.loan, alice.loan_rate, alice.loan_years);
     alice.loan_months_left = alice.loan_years * 12;
 
-    alice.bank_account -= 1 * 1000 * 1000; 
+    alice.bank_account -= 1 * 1000 * 1000; // первый взнос
 }
 
 Person bob;
@@ -123,20 +148,21 @@ void bob_init() {
     bob.medical_expense  = 120000;
     bob.vacation_expense = 100000;
 
-    bob.car_price = 1500 * 1000; 
-    bob.fuel = 18000;      // больший расход
-    bob.car_amortization = 40000; // ТО дороже
-    bob.tire_replacement = 15000;  // два раза в год
-    bob.insurance = 30000;    // страховка дороже
-    bob.fine_amount      = 15000;// больший штраф, неаккуратное вожение машины
-    bob.winter_driver = true;
-    
-    bob.deposit = 0;
-    bob.deposit_years = 15;  // вклад на 15 лет
-    bob.deposit_start = 2025;
-    bob.deposit_active = true;
+    bob.car.price = 1500 * 1000; 
+    bob.car.fuel = 18000;  // больший расход   
+    bob.car.amortization = 40000; // ТО дороже
+    bob.car.tires = 15000;     // два раза в год
+    bob.car.insurance = 30000;   // страховка дороже
+    bob.car.fine_amount = 15000;// больший штраф, неаккуратное вожение машины
+    bob.car.winter_driver = true;
+    bob.car.chance_of_fine = 8;
 
-    bob.flat_price = 0;
+    bob.deposit.amount = 0;
+    bob.deposit.years = 15;  
+    bob.deposit.start_year = 2025;
+    bob.deposit.active = true;
+
+    bob.flat.price = 0;
 
     bob.loan = 1 * 1000 * 1000; 
     bob.loan_years = alice.loan_years;
@@ -146,8 +172,8 @@ void bob_init() {
 }
 
 //============================================================================================
-
 // Доходы
+
 void alice_income(const int year, const int month) {
     if (month == 9) {
         alice.income *= 1.07; // индексация раз в год
@@ -173,6 +199,9 @@ void bob_income(const int year, const int month) {
 //============================================================================================
 
 // Расходы
+
+//============================================================================================
+// Базовые расходы
 
 void pay_food(Person &p) {
     p.bank_account -= p.food;
@@ -212,17 +241,17 @@ void pay_vacation(Person &p, int month) {
 
 void pay_loan(Person &p) {
     if (p.loan_months_left > 0) {
-        p.bank_account -= p.monthly_payment;   // аннуитетный платеж по кредиту/ипотеке
-        p.loan_months_left--;  // уменьшение срока
+        p.bank_account -= p.monthly_payment;   // аннуитетный платеж
+        p.loan_months_left--;  
     }
 }
 
-void pay_repairs(Person &p, int year, int month) {//затраты на ремонт
+void pay_repairs(Person &p, int year, int month) {
     const int START_YEAR = 2030;
     const int END_YEAR   = 2033; 
     if (year >= START_YEAR && year < END_YEAR) {
-        p.bank_account -= p.repairs_expenses;
-        p.repairs_expenses *= (1 + INFLATION_RATE/12.0);
+        p.bank_account -= p.flat.repairs;
+        p.flat.repairs *= (1 + INFLATION_RATE/12.0);
     }
 }
 
@@ -230,43 +259,47 @@ void pay_repairs(Person &p, int year, int month) {//затраты на ремо
 
 //============================================================================================
 
-// Расходы по машине 
-void buy_car(Person &p, int year, int month) {// покупка машины в самом начале симуляции
+//============================================================================================
+// Общая функция расходов по машине
+
+void car_expenses(Person &p, int year, int month) {
+    // покупка машины в начале симуляции
     if (month == 9 && year == 2025) {
-        p.bank_account -= p.car_price;
+        p.bank_account -= p.car.price;
     }
-}
 
-void pay_fuel(Person &p, int year, int month) {// траты на топливо
-    if (year >= 2028 && year <= 2030 && month == 1) {// резкое повышение цены на бензин
-        p.fuel *= 1.2; 
+    // топливо (с топливным кризисом)
+    if (year >= 2028 && year <= 2030 && month == 1) {
+        p.car.fuel *= 1.2; 
     } else {
-        p.fuel *= (1 + INFLATION_RATE/12.0); // обычная инфляция
+        p.car.fuel *= (1 + INFLATION_RATE/12.0); 
     }
-    p.bank_account -= p.fuel;
-}
+    p.bank_account -= p.car.fuel;
 
-void pay_insurance(Person &p, int month) {// ежегодные траты на страховку
+    // страховка
     if (month == 4) {
-        p.bank_account -= p.insurance;
-        p.insurance *= (1 + INFLATION_RATE);
+        p.bank_account -= p.car.insurance;
+        p.car.insurance *= (1 + INFLATION_RATE);
     }
-}
 
-void pay_car_amortization(Person &p, int month) {// ежегодные траты на ТО
+    // ТО
     if (month == 6) {
-        p.bank_account -= p.car_amortization;
-        p.car_amortization *= (1 + INFLATION_RATE);
+        p.bank_account -= p.car.amortization;
+        p.car.amortization *= (1 + INFLATION_RATE);
     }
-}
 
-void pay_tires(Person &p, int month, bool winter_driver) {// затраты на замену шин
-    if (month == 10 && winter_driver) {// зимняя смена
-        p.bank_account -= p.tire_replacement;
-        p.tire_replacement *= (1 + INFLATION_RATE);
+    // шины
+    if (month == 10 && p.car.winter_driver) {
+        p.bank_account -= p.car.tires;
+        p.car.tires *= (1 + INFLATION_RATE);
     }
-    if (month == 4) {// осенняя смена
-        p.bank_account -= p.tire_replacement;
+    if (month == 4) {
+        p.bank_account -= p.car.tires;
+    }
+
+    // штрафы
+    if ((rand() % 100) < p.car.chance_of_fine) { // 10% и 8%  шанс
+        p.bank_account -= p.car.fine_amount;
     }
 }
 
@@ -278,42 +311,40 @@ void pay_fine(Person &p, int month) {
     }
 }
 
-
 //============================================================================================
-
 // Управление вкладом
-void manage_deposit(Person &p, int year, int month) {
-    if (!p.deposit_active) return; // если вклад закрыт, ничего не делаем
 
-    if (p.bank_account > 0) { // только при положительном балансе
-        p.deposit += p.bank_account; 
+void manage_deposit(Person &p, int year, int month) {
+    if (!p.deposit.active) return;
+
+    if (p.bank_account > 0) { 
+        p.deposit.amount += p.bank_account; 
         p.bank_account = 0;
     }
 
     // ежемесячная капитализация
-    p.deposit *= (1 + DEPOSIT_RATE / 12.0);
+    p.deposit.amount *= (1 + DEPOSIT_RATE / 12.0);
 
     // проверка срока вклада
-    if (year >= p.deposit_start + p.deposit_years) {
-        p.bank_account += p.deposit; // деньги возвращаются в банк после окончания срока
-        p.deposit = 0;
-        p.deposit_active = false;
+    if (year >= p.deposit.start_year + p.deposit.years) {
+        p.bank_account += p.deposit.amount; 
+        p.deposit.amount = 0;
+        p.deposit.active = false;
     }
 }
-
 
 //============================================================================================
 
 // Итоги
 void results() {
-    RUB alice_total = alice.bank_account + alice.deposit + alice.flat_price;
-    RUB bob_total   = bob.bank_account + bob.deposit + bob.flat_price;
+    RUB alice_total = alice.bank_account + alice.deposit.amount + alice.flat.price;
+    RUB bob_total   = bob.bank_account + bob.deposit.amount + bob.flat.price;
 
     printf("\n=== Итог через 20 лет ===\n");
     printf("Alice bank = %lld руб. (+ квартира %lld)\n", 
-           alice.bank_account, alice.flat_price);
+           alice.bank_account, alice.flat.price);
     printf("Bob   bank = %lld руб. (+ собственность %lld)\n", 
-           bob.bank_account, bob.flat_price);
+           bob.bank_account, bob.flat.price);
 
     if (alice_total > bob_total) {
         printf("Жизнь лучше у Alice.\n");
@@ -338,33 +369,22 @@ void simulation() {
         pay_clothes(alice);
         pay_utilities(alice);
         pay_rent(alice);
-        buy_car(alice, year, month);
-        pay_fuel(alice, year, month);
-        pay_insurance(alice, month);
-        pay_car_amortization(alice, month);
-        pay_tires(alice, month, false);
+        car_expenses(alice, year, month);
         pay_repairs(alice, year, month);
         pay_medical(alice, month);
         pay_vacation(alice, month);
-        pay_fine(alice, month);
         pay_loan(alice);
         manage_deposit(alice, year, month);
 
-       
         bob_income(year, month);
         pay_food(bob);
         pay_clothes(bob);
         pay_utilities(bob);
         pay_rent(bob);
-        buy_car(bob, year, month);
-        pay_fuel(bob, year, month);
-        pay_insurance(bob, month);
-        pay_car_amortization(bob, month);
-        pay_tires(bob, month, true);
+        car_expenses(bob, year, month);
         pay_repairs(bob, year, month);
         pay_medical(bob, month);
         pay_vacation(bob, month);
-        pay_fine(bob, month);
         pay_loan(bob);
         manage_deposit(bob, year, month);
 
