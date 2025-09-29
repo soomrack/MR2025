@@ -12,6 +12,8 @@ struct Person {
     RUB mortgage;
     RUB rent;
     RUB car;
+    RUB car_amortization;
+    RUB car_petrol;
     RUB utility_costs;
     RUB other; 
     RUB deposit;
@@ -67,8 +69,8 @@ void alice_mortgage()
 void alice_car(const int year, const int month)
 {
     if (year == 2030 and month == 2) {
-        if ((alice.bank_account - (3000 * 1000)) >= 0) {
-            alice.bank_account -= 3000 * 1000;
+        if ((alice.bank_account - alice.car) >= 0) {
+            alice.bank_account -= alice.car;
             printf("Alice bought a new car in 2030\n");
             //printf("Alice capital = %d RUB\n", alice.bank_account);
         }
@@ -78,10 +80,13 @@ void alice_car(const int year, const int month)
     }
 
     if (month == 1) {
-        alice.car *= 1.05;
+        alice.car *= 1.03;
+        alice.car_amortization *= 1.07;
+        alice.car_petrol *= 1.1;
     }
     
-    alice.bank_account -= alice.car;
+    alice.bank_account -= alice.car_amortization;
+    alice.bank_account -= alice.car_petrol;
 }
 
 
@@ -180,21 +185,24 @@ void bob_rent(const int month)
 void bob_car(const int year, const int month)
 {
     if (year == 2030 and month == 2) {
-        if ((bob.bank_account - (3000 * 1000)) >= 0) {
-            bob.bank_account -= 3000 * 1000;
-            printf("Bob bought a new car in 2030\n\n");
-            //printf("Bob capital = %d RUB\n", bob.bank_account);
+        if ((bob.bank_account - bob.car) >= 0) {
+            bob.bank_account -= bob.car;
+            printf("bob bought a new car in 2030\n");
+            //printf("bob capital = %d RUB\n", bob.bank_account);
         }
         else {
-            printf("Bob would not buy a new car in 2030\n\n");
+            printf("bob would not buy a new car in 2030\n");
         }
     }
 
     if (month == 1) {
-        bob.car *= 1.05;
+        bob.car *= 1.03;
+        bob.car_amortization *= 1.07;
+        bob.car_petrol *= 1.1;
     }
-
-    bob.bank_account -= bob.car;
+    
+    bob.bank_account -= bob.car_amortization;
+    bob.bank_account -= bob.car_petrol;
 }
 
 
@@ -280,13 +288,16 @@ void simulation()
 
 void print_info()
 {
-    printf("Alice capital = %d RUB\n\n", alice.bank_account + alice.apartment + alice.deposit);
+    printf("Alice capital = %d RUB\n\n", alice.bank_account + alice.apartment + alice.deposit + alice.car);
     printf("Alice deposit = %d RUB\n", alice.deposit);
     printf("Alice apartment = %d RUB\n", alice.apartment);
+    printf("Alice car = %d RUB\n", alice.car);
     printf("Alice bank_account = %d RUB\n\n", alice.bank_account);
 
-    printf("Bob capital = %d RUB\n\n", bob.bank_account + bob.deposit);
+
+    printf("Bob capital = %d RUB\n\n", bob.bank_account + bob.deposit + bob.car);
     printf("Bob deposit = %d RUB\n", bob.deposit);
+    printf("Bob car = %d RUB\n", bob.car);
     printf("Bob bank_account = %d RUB\n\n", bob.bank_account);
 }
 
@@ -297,7 +308,9 @@ void alice_init()
     alice.income = 200 * 1000;
     alice.food = 40000;
     alice.mortgage = 80000;
-    alice.car = 15000;
+    alice.car = 3 * 1000 * 1000;
+    alice.car_petrol = 15000;
+    alice.car_amortization = 1250;
     alice.utility_costs = 5000; // коммунальные расходы
     alice.other = 20000; 
     alice.apartment = 14 * 1000 * 1000;
@@ -312,11 +325,13 @@ void bob_init()
     bob.income = 200 * 1000;
     bob.food = 40000;
     bob.rent = 40000;
-    bob.car = 15000;
+    bob.car = 3 * 1000 * 1000;
+    bob.car_petrol = 15000;
+    bob.car_amortization = 1250;
     bob.utility_costs = 5000;
     bob.other = 20000;
     bob.deposit = 0;
-    alice.deposit_min = 3 * 1000 * 1000;
+    bob.deposit_min = 3 * 1000 * 1000;
 }
 
 

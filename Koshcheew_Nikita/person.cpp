@@ -1,51 +1,79 @@
 #include "Person.h"
+#include <format>
 
-Person::Person(RUB income, RUB deposit, RUB credit)
-	: m_income{ income }, m_deposit{ deposit }, m_credit{ credit } {
+Person::Person(RUB income)
+	: m_income{ income } {
 }
 
-
-void Person::printInfo()
+void Person::get_dep_percent(int inflation)
 {
-	std::cout << m_income << " " << m_credit << " " << m_deposit <<'\n';
+	m_deposit *= ((100 + static_cast<double>(inflation) * 2) / 100);
 }
 
-
-void Person::setCreditRate(int rate)
+void Person::increase_salary(int inflation)
 {
-	m_creditRate = rate;
+	m_income *= ((105 + static_cast<double>(inflation))/100);
 }
 
-
-void Person::increaseCredit()
+void Person::set_food_spending(RUB prices)
 {
-	if (m_credit > 0) m_credit = m_credit * (100 + m_creditRate) / 100;
+	m_food = prices;
 }
 
-
-void Person::increaseDeposit(int percent)
+void Person::set_rent(RUB rent)
 {
-	if (m_deposit > 0) m_deposit = m_deposit * (100 + percent) / 100;
+	m_rent = rent;
 }
 
-
-void Person::increaseSalary(int inflation)
+void Person::set_mortgage_pay(RUB pay)
 {
-	m_income = m_income * (105 + inflation) / 100;
+	m_mortgage_pay = pay;
 }
 
-
-void Person::getAndSpendMoney(RUB regularSpend, RUB rent)
+void Person::income()
 {
-	if (m_credit > 0) {
-		m_credit -= (m_income - regularSpend);
-
-		if (m_credit < 0) {
-			m_deposit = -m_credit;
-			m_credit = 0;
-		}
-	}
-	else {
-		m_deposit += (m_income - regularSpend - rent);
-	}
+	m_deposit += m_income;
 }
+
+void Person::buy_food()
+{
+	m_deposit -= m_food;
+}
+
+void Person::pay_rent()
+{
+	m_deposit -= m_rent;
+}
+
+void Person::pay_mortgage()
+{
+	m_deposit -= m_mortgage_pay;
+}
+
+void Person::increase_prices(int inflation)
+{
+	increase_food_spending(inflation);
+	increase_rent(inflation);
+}
+
+void Person::print_info()
+{
+	std::cout << std::format("deposit - {}\n", m_deposit);
+}
+
+void Person::buy_flat(RUB cost_of_flat)
+{
+	m_deposit -= cost_of_flat;
+}
+
+void Person::increase_food_spending(int inflation)
+{
+	m_food *= ((100 + static_cast<double>(inflation))/100);
+}
+
+void Person::increase_rent(int inflation)
+{
+	m_rent *= ((100 + static_cast<double>(inflation)) / 100);
+}
+
+

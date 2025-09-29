@@ -1,20 +1,7 @@
 #include <iostream>
 #include "Person.h"
 #include <random>
-
-
-struct CostOfLife {
-    RUB CostOfFood;
-    RUB CostOfRent;
-    RUB CostOfCommunal;
-    RUB CostOfFlat;
-};
-
-
-struct Rates {
-    int CreditRate;
-    int DepositPercentage;
-};
+#include <format>
 
 
 struct Date {
@@ -23,74 +10,82 @@ struct Date {
 };
 
 
-void setRandomInflation(int& inflation) {
+void set_random_inflation(int& inflation) {
     static std::random_device rd;
     static std::mt19937 gen(rd());
     static std::uniform_int_distribution<> distrib(1, 9);
     inflation = distrib(gen);
+    std::cout << inflation << '\n';
 }
 
 
-void increasePrices(CostOfLife& prices, int inflation) {
-    prices.CostOfCommunal = prices.CostOfCommunal * (100 + inflation) / 100;
-    prices.CostOfFood = prices.CostOfFood * (100 + inflation) / 100;
-    prices.CostOfRent = prices.CostOfRent * (100 + inflation) / 100;
-    prices.CostOfFlat = prices.CostOfFlat * (100 + inflation) / 100;
+RUB get_mortgage_pay(RUB cost_of_flat, int inflation, int years) {
+    double credit_rate = (static_cast<double>(inflation) * 2 + 3) / (12 * 100);
+
+    double coefficient = credit_rate * pow(1 + credit_rate, years * 12) / (pow(1 + credit_rate, years * 12) - 1);
+    RUB mortgage_pay = cost_of_flat * coefficient;
+    return mortgage_pay;
 }
 
-
-void printPrices(CostOfLife& prices) {
-    std::cout << prices.CostOfCommunal << " ";
-    std::cout << prices.CostOfFood << " ";
-    std::cout << prices.CostOfRent << " ";
-    std::cout << prices.CostOfFlat << "\n";
-}
-
-void simulation(Person& personWithCredit, Person& personWithoutCredit, int startingInflation) {
+void simulation(Person& alice, Person& bob, int startingInflation) {
     int inflation{ startingInflation };
-    CostOfLife prices{30000, 55000, 10000, 12500000};
-    Rates rates{ (inflation * 2) + 3, (inflation * 2) - 2 };
+    RUB cost_of_flat{ 12500000 };
+    RUB mortgage_pay = get_mortgage_pay(cost_of_flat, inflation, 20);
+    alice.set_mortgage_pay(mortgage_pay);
+    
     Date date{ 2025, 9 };
 
-    personWithCredit.setCreditRate(rates.CreditRate);
+    alice.set_food_spending(30000);
+    bob.set_food_spending(30000);
 
-    while (!(date.year == 2045 && date.month == 9)) {
-        personWithCredit.getAndSpendMoney(prices.CostOfCommunal + prices.CostOfFood);
-        personWithoutCredit.getAndSpendMoney(prices.CostOfCommunal + prices.CostOfFood, prices.CostOfRent);
+    bob.set_rent(45000);
 
-        if (date.month == 12) {
-            personWithCredit.increaseCredit();
-            personWithCredit.increaseDeposit(rates.DepositPercentage);
-            personWithoutCredit.increaseDeposit(rates.DepositPercentage);
-            personWithCredit.increaseSalary(inflation);
-            personWithoutCredit.increaseSalary(inflation);
-            increasePrices(prices, inflation);
-        }
+    while (!(date.year == 2045 && date.month == 8)) {
+        alice.income();
+        bob.income();
 
-        date.month++;
+        alice.buy_food();
+        bob.buy_food();
+        alice.pay_mortgage();
+        bob.pay_rent();
+
+        alice.get_dep_percent(inflation);
+        bob.get_dep_percent(inflation);
+
+        date.month += 1;
+
         if (date.month == 13) {
-            date.year++;
             date.month = 1;
-            setRandomInflation(inflation);
-            std::cout << date.year << " " << inflation << "\n";
+            date.year += 1;
+            
+            alice.increase_prices(inflation);
+            bob.increase_prices(inflation);
+            cost_of_flat *= ((100 + static_cast<double>(inflation)) / 100);
+
+            alice.increase_salary(inflation);
+            bob.increase_salary(inflation);
+
+            set_random_inflation(inflation);
         }
     }
 
-    printPrices(prices);
+    bob.buy_flat(cost_of_flat);
 }
 
 int main() {
-    Person Alice(200000, 0, 12500000);
-    Person Bob(200000, 0);
+    Person Alice(200000);
+    Person Bob(200000);
 
     int startingInflation;
     std::cin >> startingInflation;
 
     simulation(Alice, Bob, startingInflation);
 
-    Alice.printInfo();
-    Bob.printInfo();
+    Alice.print_info();
+    Bob.print_info();
 
     return 0;
 }
+
+
 

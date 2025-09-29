@@ -12,7 +12,7 @@
 
 typedef int Ruble;
 
-int apartment = 3300000;
+int apartment_cost = 3300000;
 int year = 2025;
 int month = 6;
 float deposit_percent = 0.1; // процент по вкладу Степана в месяц
@@ -20,7 +20,7 @@ float inflation = 0.06;
 float inflation_multiplier = 1.0; // коэффициент роста инфляции 
 
 struct Name {
-    Ruble bank_account_rest;
+    Ruble bank_account_transaction;
     Ruble bank_account_deposit;
     Ruble bank_account;
     Ruble food;
@@ -38,10 +38,9 @@ Name Ivan, Stepan;
 
 //  сперва рассмотрим функции, описывающие жизнь Ивана, потом Степана, а после сравним их 
 
-
-void Ivan_apartment_price()
+void Ivan_apartment_cost()
 {
-    apartment *= inflation_multiplier;
+    apartment_cost *= inflation_multiplier;
 }
 
 
@@ -66,20 +65,25 @@ void Ivan_start()
     Ivan.mortgage = 49752;
     Ivan.salary = 100000;
     Ivan.bank_account_deposit = 0;
-    Ivan.bank_account_rest = 0;
+    Ivan.bank_account_transaction = 0;
 }
+
 
 void Ivan_deposit()
 {
     Ivan.bank_account_deposit += Ivan.bank_account_deposit * deposit_percent / 12;
+
     if (Ivan.bank_account > 50000)
     {
-        Ivan.bank_account_rest = Ivan.bank_account - 50000;
-        Ivan.bank_account_deposit += Ivan.bank_account_rest;
-        Ivan.bank_account -= Ivan.bank_account_rest;
-   }
+        Ivan.bank_account_transaction = Ivan.bank_account - 50000;
+        Ivan.bank_account_deposit += Ivan.bank_account_transaction;
+        Ivan.bank_account -= Ivan.bank_account_transaction;
+    }
+    
     deposit_percent = inflation + 0.05;
 }
+
+
 void Ivan_mortgage()
 {
     Ivan.bank_account -= Ivan.mortgage;
@@ -94,7 +98,7 @@ void Ivan_food()
 
 void Ivan_transport()
 {
-    Ivan.bank_account-= Ivan.transport * inflation_multiplier;
+    Ivan.bank_account -= Ivan.transport * inflation_multiplier;
 }
 
 
@@ -112,6 +116,7 @@ void Ivan_other_expenses()
 
 void inflation_growth()
 {
+
     if (month == 4)
     {
         inflation += 0.002;
@@ -123,6 +128,7 @@ void inflation_growth()
 
 void Ivan_action()
 {
+
     while (!(year == 2035 && month == 10))
     {
 
@@ -134,7 +140,7 @@ void Ivan_action()
         Ivan_other_expenses();
         Ivan_deposit();
 
-        Ivan_apartment_price();
+        Ivan_apartment_cost();
 
         inflation_growth();
 
@@ -149,7 +155,7 @@ void Ivan_action()
 }
 
 
-void Ivan_show_results()
+void Ivan_print_results()
 {
     printf("Ivan capital = %d\n\n", Ivan.bank_account_deposit);
 }
@@ -160,21 +166,37 @@ void Ivan_show_results()
 
 void Stepan_salary()
 {
+    static Ruble last_salary = 0;
+    if (year == 2030 && month == 3)
+    {
+        last_salary = Stepan.salary;
+        Stepan.salary = 0;
+    }
+
+    if (year == 2030 && month == 9)
+    {
+        Stepan.salary = last_salary;
+        Stepan.salary *= 1.5;
+    }
+
     if (month == 10)
     {
         Stepan.salary *= 1.05;
     }
 
     Stepan.bank_account += Stepan.salary;
+
 }
 
 
 void Stepan_rent()
 {
+
     if (month == 1)
     {
         Stepan.rent += inflation_multiplier;
     }
+
     Stepan.bank_account -= Stepan.rent;
 }
 
@@ -213,24 +235,28 @@ void Stepan_start()
     Stepan.rent = 30000;
     Stepan.salary = 100000;
     Stepan.bank_account_deposit = 1000000;
-    Stepan.bank_account_rest = 0;
+    Stepan.bank_account_transaction = 0;
 }
 
 
 void Stepan_deposit_profit()
 {
+
     if (Stepan.bank_account > 50000)
     {
-        Stepan.bank_account_rest = Stepan.bank_account - 50000;
-        Stepan.bank_account_deposit += Stepan.bank_account_rest;
-        Stepan.bank_account -= Stepan.bank_account_rest;
+        Stepan.bank_account_transaction = Stepan.bank_account - 50000;
+        Stepan.bank_account_deposit += Stepan.bank_account_transaction;
+        Stepan.bank_account -= Stepan.bank_account_transaction;
     }
+
     Stepan.bank_account_deposit += Stepan.bank_account_deposit * deposit_percent / 12;
     deposit_percent = inflation + 0.05;
 }
 
+
 void Stepan_action()
 {
+
     while (!(year == 2035 && month == 10))
     {
         inflation_growth();
@@ -243,7 +269,6 @@ void Stepan_action()
         Stepan_unexpected_expenses();
         Stepan_other_expenses();
 
-
         month++;
         if (month == 13)
         {
@@ -255,13 +280,13 @@ void Stepan_action()
 }
 
 
-void Stepan_show_results()
+void Stepan_print_results()
 {
     printf("Stepan capital = %d\n\n", Stepan.bank_account_deposit);
 }
 
 
-void Data_reset()
+void Date_reset()
 {
     year = 2025;  // обнуляем год, инфляцию и месяц после расчета Ивана
     month = 6;
@@ -270,18 +295,22 @@ void Data_reset()
 }
 
 
-void conclusion()
+void print_conclusion()
 {
-    printf("P.s. As a result, Stepan earned %d more than Ivan\n\n",Stepan.bank_account_deposit - Ivan.bank_account_deposit);
-    if (Stepan.bank_account_deposit - Ivan.bank_account_deposit - apartment > 0)
+    printf("P.s. As a result, Stepan earned %d more than Ivan and the house of Ivan"
+        " costs %d\n\n", 
+        Stepan.bank_account_deposit - Ivan.bank_account_deposit,apartment_cost);
+    
+    if (Stepan.bank_account_deposit - Ivan.bank_account_deposit - apartment_cost > 0)
     {
         printf("Stepan has a great profit!!!!\n");
     }
+
     else
     {
         printf("Stepan made a mistake ((((((");
     }
-        
+
 }
 
 
@@ -289,14 +318,14 @@ int main()
 {
     Ivan_start();
     Ivan_action();
-    Ivan_show_results();
+    Ivan_print_results();
 
-    Data_reset();
+    Date_reset();
 
     Stepan_start();
     Stepan_action();
-    Stepan_show_results();
+    Stepan_print_results();
 
 
-    conclusion();
+    print_conclusion();
 }

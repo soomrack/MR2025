@@ -2,13 +2,11 @@
 #include <vector>
 #include <string>
 #include <cmath>
-#include <iomanip>
 
-using namespace std;
 
 typedef long long int RUB;
 
-// Тип покупки (накопления или ипотека)
+// Вариант покупки (ипотека или накопления)
 enum bankSaving {
     contribution = 1,
     mortgage = 2
@@ -16,9 +14,9 @@ enum bankSaving {
 
 const RUB first_payment = 2 * 1000 * 1000;                    // Первый взнос
 const RUB appartament_price = 10 * 1000 * 1000;               // Стоимость квартиры
-const double banks_percent = 0.12;                            // Процент в банке (по вкладам и ипотеке)
-const double percent_inflation = 0.005;                       // Процент инфляции
-double inflation = 1;                                         // Коэффициент инфляции
+const double banks_percent = 0.12;                            // Процент в банке (по ипотеке и вкладам)
+const double percent_inflation = 0.015;                       // Процент инфляции (сделать нормальны)
+double inflation = 0.102;                                      // Коэффициент инфляции 
 int clothes_average_price = 4000;                             // Стоимость одежды
 int public_utilities_average_price = 2500;                    // Плата коммунальных услуг
 int food_average_price = 8000;                                // Цены на пропитание
@@ -27,34 +25,31 @@ int mortgage_month = 20 * 12;                                 // Срок по �
 
 // Структура - Человек;
 struct Person {
-    const string name;                             // Имя
+    const std::string name;                             // Имя
     const bankSaving type;                       // Вид покупки
     const bool isHasCar;                                // Наличие машины
-    RUB payment;                                        // Оплата квартиры (аренда  или ипотека)
+    RUB payment;                                        // Оплата квартиры (ипотека или аренда)
     RUB bank_account;                                   // Текущий счёт
     RUB income;                                 // Начисления
     RUB bank_saves;
+    bool is_bankrot;
 
-    Person(string n, bankSaving t, bool car, RUB p, RUB account, RUB inc)
+    Person(std::string n, bankSaving t, bool car, RUB p, RUB account, RUB inc)
         : name(n), type(t), isHasCar(car), payment(p), bank_account(account), income(inc)
     {
         bank_saves = (type == bankSaving::mortgage ? -appartament_price : 0);
+        is_bankrot = false;
     }
 };
 
-// Расчёт ежемесячной платы ипотеки
+// Расчёт ежемесячной оплаты ипотеки
 RUB month_payout(double percent, int sum, int months) {
     return (sum * (((percent / 12.0) * pow((1 + percent / 12.0), months)) / (pow((1 + percent / 12.0), months) - 1)));
 }
 
-// Итоговый вывод счёта людей
-void person_print(vector<Person>& persons) {
-    for (int i = 0; i < persons.size(); i++)
-    {
-        if ((persons[i].type == bankSaving::contribution) && (persons[i].bank_account + 2 * persons[i].income >= appartament_price))
-            persons[i].bank_account -= (appartament_price);
-        cout << persons[i].name << " bank account = " << persons[i].bank_account << " rub.\n";
-    }
+// Итоговый вывод счёта у людей
+void person_print(Person person) {
+    std::cout << person.name << " bank account = " << person.bank_account << " rub.\n";
 }
 
 // Начисления людей + повышение
@@ -67,12 +62,12 @@ void person_income(Person& person, const int year, const int month) {
 
 // Затраты на еду
 void person_food(Person& person) {
-    person.bank_account -= food_average_price * inflation;
+    person.bank_account -= food_average_price;
 }
 
 // Затраты на одежду
 void person_clothes(Person& person) {
-    person.bank_account -= clothes_average_price * inflation;
+    person.bank_account -= clothes_average_price;
 }
 
 // Затраты на аренду жилья или ипотеки
@@ -80,104 +75,127 @@ void person_housing(Person& person) {
     if (person.type == bankSaving::mortgage)
         person.bank_account -= person.payment;
     else
-        person.bank_account -= person.payment * inflation;
+        person.bank_account -= person.payment;
 }
 
 // Затраты на автомобиль (при его наличии)
 void person_car(Person& person) {
     if (person.isHasCar)
-        person.bank_account -= car_service_average_price * inflation;
+        person.bank_account -= car_service_average_price;
 }
 
 // Затраты на коммунальные услуги
 void person_public_utilities(Person& person) {
-    person.bank_account -= public_utilities_average_price * inflation;
+    person.bank_account -= public_utilities_average_price;
+}
+
+void inflation_life(Person person)
+{
+    clothes_average_price *= (1 + inflation);                             // Стоимость одежды
+    public_utilities_average_price *= (1 + inflation);                  // Плата коммунальных услуг
+    food_average_price *= (1 + inflation);                                  // Цены на пропитание
+    car_service_average_price *= (1 + inflation);                       // Затраты на автомобиль
+    person.payment *= (1 + inflation);
+}
+
+void is_bankort(Person& person)
+{
+    person.is_bankrot = true;
+    std::cout << person.name << " can\'t handle this life" << std::endl;
+}
+
+void person_contribution(Person& person)
+{
+    if (person.type == bankSaving::contribution) {
+        person.bank_saves += person.bank_account;
+        person.bank_account = 0;
+        person.bank_saves *= (1 + (banks_percent / 12.0));
+    }
 }
 
 // Симуляция течения времени: начислений и трат
-void simulation(vector<Person>& persons) {
+void simulation(std::vector<Person>& persons) {
     int year = 2025;                        // Первоначальный год
     int month = 9;                          // Первоначальный месяц
-    bool error_handle = 0;                  // Флаг ошибки (при недостаточном количестве средств)
 
     // Цикл течения времени
     while (!(year == 2045 && month == 9)) {
-        for (int i = 0; i < persons.size(); i++)
+        for (Person person : persons)
         {
-            person_income(persons[i], year, month);
-            person_food(persons[i]);
-            person_housing(persons[i]);
-            person_clothes(persons[i]);
-            person_car(persons[i]);
-            person_public_utilities(persons[i]);
-            cout << persons[i].name << " " << persons[i].bank_account << endl;
-            // Вложение на вклад + начисления процентов на него
-            if (persons[i].type == bankSaving::contribution) {
-                persons[i].bank_saves += persons[i].bank_account;
-                persons[i].bank_account = 0;
-                persons[i].bank_saves *= (1 + (banks_percent / 12.0));
-            }
-            if (persons[i].type == bankSaving::mortgage && persons[i].bank_saves > 0)
+            if (person.is_bankrot)
             {
-                persons[i].type == bankSaving::contribution;
+                continue;
             }
-            // Ошибка, при недостаточном количестве средств
-            if (persons[i].bank_account < 0) {
-                cout << persons[i].name << " can\'t handle this life" << endl;
-                error_handle = 1;
-                break;
+            person_income(person, year, month);
+            person_food(person);
+            person_housing(person);
+            person_clothes(person);
+            person_car(person);
+            person_public_utilities(person);
+            person_contribution(person);
+
+            std::cout <<person.name << " " <<person.bank_account << std::endl;
+            // Вложение на вклад + начисления процентов на него
+            if (person.type == bankSaving::mortgage &&person.bank_saves > 0)
+            {
+               person.type == bankSaving::contribution;
+            }
+            // При недостаточном количестве средств
+            if (person.bank_account < 0) {
+                is_bankort(person);
             }
         }
 
-        // + месяц, + инфляция
+        // + месяц
         month++;
-        inflation *= (1 + percent_inflation);
 
         // Смена года
         if (month == 13) {
             year++;
             month = 1;
-            for (int i = 0; i < persons.size(); i++)
+            for (Person person : persons)
             {
-                persons[i].income *= inflation;
+               person.income *= inflation;
+                inflation *= (1 + percent_inflation);
+                inflation_life(person);
             }
         }
-        // Выход из цикла при ошибке
 
-        for (int i = 0; i < persons.size(); i++)
+        for (Person person : persons)
         {
             // Снятие средств со вклада
-            if (persons[i].type == bankSaving::contribution) {
-                persons[i].bank_account += persons[i].bank_saves;
+            if (person.type == bankSaving::contribution) {
+               person.bank_account +=person.bank_saves;
             }
         }
-        if (error_handle)
-            break;
     }
+
+    for (Person person : persons)
+    {
+        person_print(person);
+    }
+
+    RUB most_money = persons[0].bank_account;
+    int counter = 0;
+
+    for (Person person : persons) {
+        if (person.bank_account > most_money) {
+            most_money = person.bank_account;
+            counter++;
+        }
+    }
+    std::cout << "\nThe happiest person is " << persons[counter].name << " with " << persons[counter].bank_account << " rubles\n";
 }
 
 int main() {
-    Person alice = Person("Alice", bankSaving::mortgage, true, month_payout(banks_percent, appartament_price, mortgage_month), 0, 135000);
+    double month_payout_alice = month_payout(banks_percent, appartament_price, mortgage_month);
+    Person alice = Person("Alice", bankSaving::mortgage, true, month_payout_alice, 0, 135000); //сделать раздельно, т.е слишком много
     Person bob = Person("Bob", bankSaving::mortgage, true, 75000, 0, 100000);
 
-    vector<Person> persons;
+    std::vector<Person> persons;
     persons.push_back(alice);
     persons.push_back(bob);
 
     simulation(persons);
-
-    person_print(persons);
-
-    // Наибольшее количество денег под конец срока и счётчик (для индекса вектора)
-    RUB most_money = persons[0].bank_account;
-    int counter = 0;
-
-    for (int i = 1; i < persons.size(); i++) {
-        if (persons[i].bank_account > most_money) {
-            most_money = persons[i].bank_account;
-            counter = i;
-        }
-    }
-
-    cout << "\nThe happiest person is " << persons[counter].name << " with " << persons[counter].bank_account << " rubles\n";
+    //добавить деталей, стоимось рстёт с годами, индексация зарплаты, стоимсоь машины растёт из-за инфляции и дешевеет из-за амортизации
 }

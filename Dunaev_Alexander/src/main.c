@@ -41,12 +41,12 @@ void Alice_init(void){
 
 
 void Bob_print(void){
-    printf("Bob.bank_account = %lld\n", Bob.bank_account);
+    printf("Bob.bank_account\t= %lld RUB\n", Bob.bank_account);
 }
 
 
 void Alice_print(void){
-    printf("Alice.bank_account = %lld\n", Alice.bank_account+Alice.house);
+    printf("Alice.bank_account\t= %lld RUB\n", Alice.bank_account+Alice.house);
 }
 
 
@@ -62,13 +62,17 @@ void Alice_income(const int year, const int month){
 }
 
 
-void Bob_food(void){
+void Bob_food(const int month){
     Bob.bank_account -= Bob.food;
+    if (month == 12){Bob.bank_account -= Bob.food;} //в декабре в два раза
+                                                    //больше расходов на еду
 }
 
 
-void Alice_food(void){
+void Alice_food(const int month){
     Alice.bank_account -= Alice.food;
+    if (month == 12){Alice.bank_account -= Alice.food;} //в декабре в два раза
+                                                        //больше расходов на еду
 }
 
 
@@ -100,6 +104,15 @@ void Alice_credit(void){
     Alice.bank_account -= Alice.credit;
 }
 
+void Bob_bank(void){
+    Bob.bank_account*=1.2; //20% годовых
+}
+
+void Alice_bank(void){
+   int in_month = (Alice.bank_account*0.2)/12; //20% годовых, 
+                                                //но выплаты каждый месяц
+    Alice.bank_account+=in_month;
+}
 
 void inflation(const float percent){
     Bob.food *= percent;
@@ -123,23 +136,23 @@ void simulation(void){
     
     while (!(year==2045 && month ==9)){
         Bob_income(year, month);
-        Bob_food();
+        Bob_food(month);
         Bob_car();
         Bob_trip();
         Bob_rent();
         
         
         Alice_income(year, month);
-        Alice_food();
+        Alice_food(month);
         Alice_car();
         Alice_trip();
+        Alice_bank();
         Alice_credit();
         
         
         if (++month == 13){
             inflation(1.05);
-            Bob_print();
-            Alice_print();
+            Bob_bank();
             year++;
             month = 1;
         }
