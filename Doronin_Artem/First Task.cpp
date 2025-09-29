@@ -27,7 +27,7 @@ struct Person bob;
 
 
 void alice_init() {
-    alice.bank_account = 150 * 1000;
+    alice.bank_account = 200 * 1000;
     alice.income = 135 * 1000;
 
     alice.mortgage = 5000 * 1000;
@@ -35,7 +35,7 @@ void alice_init() {
 
     alice.food = 30 * 1000;
     alice.clothes = 20 * 1000;
-    alice.trip = 200 * 1000;
+    alice.trip = 160 * 1000;
 
     alice.car_price = 1500 * 1000;
     alice.gasoline = 15 * 1000;
@@ -48,11 +48,11 @@ void bob_init() {
     bob.bank_account = 300 * 1000;
     bob.income = 165 * 1000;
 
-    bob.rent = 50 * 1000;
+    bob.rent = 45 * 1000;
 
     bob.food = 30 * 1000;
     bob.clothes = 10 * 1000;
-    bob.trip = 200 * 1000;
+    bob.trip = 180 * 1000;
 
     bob.car_price = 2500 * 1000;
     bob.gasoline = 25 * 1000;
@@ -119,49 +119,71 @@ void bob_spending(const int year, const int month) {
 
 
 void alice_trip(const int month) {
-    if ((month == 8)  && (alice.bank_account > 200 * 1000)) {
+    if ((month == 8)  && (alice.bank_account > alice.trip + 100 * 1000)) {
         alice.bank_account -= alice.trip;
+    }
+    if (month == 1) {
+        alice.trip *= 1.07;  // Inflation
     }
 }
 
 
 void bob_trip(const int month) {
-    if ((month == 6 || month == 12) && (bob.bank_account > 200 * 1000)) {
+    if ((month == 6 || month == 12) && (bob.bank_account > bob.trip + 100 * 1000)) {
         bob.bank_account -= bob.trip;
+    }
+    if (month == 1) {
+        bob.trip *= 1.07;  // Inflation
     }
 }
     
 
 void alice_car_expences(const int year, const int month) {
-    RUB car_crash = 0 * 1000;  // Driving skill issues
+    static bool car_crashed = false;
+    static RUB car_crash = 150 * 1000;  // Driving skill issues
     if (year % 5 == 0 && month == 12) {
-        car_crash = 200 * 1000;
+        car_crashed = true;
+    }
+    if (car_crashed == true && alice.bank_account >= car_crash + 20 * 1000) {
+        alice.bank_account -= car_crash;
+        car_crash *= 1.2;
+        car_crashed = false;
     }
     if (month == 1) {
-        alice.car_price *= 0.98;  // Deprecation
+        alice.car_price *= 0.92 * 1.07;  // Deprecation + inflation
         alice.gasoline *= 1.07;  // Inflation
         alice.car_consumables *= 1.07;
         alice.bank_account -= alice.car_insurance;
     }
-    if (year == 2037 && month == 6) {
+    static char alice_car_change = 0;
+    if (year >= 2036 && alice_car_change == 0 && alice.bank_account >= 1600 * 1000) {
         alice.car_price += 1500 * 1000;
         alice.bank_account -= 1500 * 1000;
+        alice_car_change += 1;
     }
-    alice.bank_account -= alice.gasoline;
-    alice.bank_account -= alice.car_consumables;
+    if (car_crashed == false) {
+        alice.bank_account -= alice.gasoline;
+        alice.bank_account -= alice.car_consumables;  
+    } else {
+        alice.bank_account -= alice.gasoline / 3;  // Public transport
+    }
+
 }
 
 
 void bob_car_expences(const int year, const int month) {
     if (month == 1) {
-        bob.car_price *= 0.97;  // Deprecation
+        bob.car_price *= 0.95 * 1.07;  // Deprecation + inflation
         bob.gasoline *= 1.07;  // Inflation
         bob.car_consumables *= 1.07;
         bob.bank_account -= bob.car_insurance;
     }
-    if ((year == 2031 && month == 8) || (year == 2041 && month == 8)) {
+    static char bob_car_change = 0;
+    if ((year >= 2031 && bob_car_change == 0 && bob.bank_account > 1100 * 1000)
+     || (year >= 2041 && bob_car_change == 1 && bob.bank_account > 1100 * 1000)) {
         bob.car_price += 1000 * 1000;
         bob.bank_account -= 1000 * 1000;
+        bob_car_change += 1;
     }
     bob.bank_account -= bob.gasoline;
     bob.bank_account -= bob.car_consumables;
@@ -186,6 +208,16 @@ void bob_rent(const int year, const int month) {
 }
 
 
+void alice_deposit() {
+    alice.bank_account *= 1.005;  // Deposit at 6 percent per annum
+}
+
+
+void bob_deposit() {
+    bob.bank_account *= 1.005;  // Deposit at 6 percent per annum
+}
+
+
 void simulation() {
     int year = 2025;
     int month = 9;
@@ -196,12 +228,14 @@ void simulation() {
         alice_spending(year, month);  // Food and clothes 
         alice_trip(month);
         alice_car_expences(year, month);
+        alice_deposit();
 
         bob_income(year, month);
         bob_rent(year, month);
         bob_spending(year, month);  // Food and clothes 
         bob_trip(month);
         bob_car_expences(year, month);
+        bob_deposit();
 
         month++;
         if (month == 13) {
