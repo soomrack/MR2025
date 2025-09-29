@@ -19,6 +19,7 @@ struct Person
     RUB medical_expense;
     RUB sber_balance;
     RUB tinkoff_balance;
+    RUB total_capital;
 };
 
 struct Person alice;
@@ -58,7 +59,7 @@ void alice_init()
 }
 
 /*
-------------------------------------------------------------------------------------------------------
+-------RANDOM FUNCTIONS-----------------------------------------------------------------------------------------------
 */
 
 RUB rand_range(RUB min, RUB max)
@@ -95,37 +96,45 @@ void random_medical_expense(struct Person *p)
 }
 
 /*
-------------------------------------------------------------------------------------------------------
+----PRINT--------------------------------------------------------------------------------------------------
 */
 
 void bob_print()
 {
     printf("============\n");
-    printf("Bob money = %lld руб.\n", bob.money);
-    printf("Bob Tinkoff deposit = %lld руб.\n", bob.tinkoff_balance);
-    printf("Bob Sberbank deposit = %lld руб.\n", bob.sber_balance);
-    if (bob.flat_price_mortgage == 0)
-    {
-        printf("Bob paid off the mortgage. Success!\n");
-    }
-    else
-    {
-        printf("Bob hasn't paid off the mortgage yet.\n");
-    }
+    printf("Bob money = %lld rub.\n", bob.money);
+    printf("Bob Tinkoff deposit = %lld rub.\n", bob.tinkoff_balance);
+    printf("Bob Sberbank deposit = %lld rub.\n", bob.sber_balance);
+    printf("Bob has a flat.\n");
     printf("============\n");
 }
 
 void alice_print()
 {
     printf("============\n");
-    printf("Alice money = %lld руб.\n", alice.money);
-    printf("Alice Tinkoff deposit = %lld руб.\n", alice.tinkoff_balance);
-    printf("Alice Sberbank deposit = %lld руб.\n", alice.sber_balance);
+    printf("Alice money = %lld rub.\n", alice.money);
+    printf("Alice Tinkoff deposit = %lld rub.\n", alice.tinkoff_balance);
+    printf("Alice Sberbank deposit = %lld rub.\n", alice.sber_balance);
+    printf("Alice has a car.\n");
     printf("============\n");
 }
 
+
+void comparing_print()
+{
+    bob.total_capital = bob.money + bob.tinkoff_balance + bob.sber_balance + bob.flat_price_mortgage;
+    alice.total_capital = alice.money + alice.tinkoff_balance + alice.sber_balance + alice.car_cost;
+    printf("Bob's total capital: %lld rub.\n", bob.total_capital);
+    printf("Alice's total capital: %lld rub.\n", alice.total_capital);
+    if (alice.total_capital > bob.total_capital) {
+        printf("Alice has a better life!");
+    }
+    else {
+        printf("Bob has a better life!");
+    }
+}
 /*
-------------------------------------------------------------------------------------------------------
+------ALICE------------------------------------------------------------------------------------------------
 */
 
 void alice_income(const int year, const int month)
@@ -164,7 +173,7 @@ void alice_car(const int year, const int month)
 }
 
 /*
-------------------------------------------------------------------------------------------------------
+-------BOB-----------------------------------------------------------------------------------------------
 */
 
 void bob_income(const int year, const int month)
@@ -176,16 +185,7 @@ void bob_income(const int year, const int month)
 
 void bob_mortgage(const int year, const int month)
 {
-    if (year >= 2025 && year <= 2045 && bob.flat_price_mortgage > 0)
-    {
-        RUB payment = bob.mortgage_payment;
-        if (payment > bob.flat_price_mortgage)
-        {
-            payment = bob.flat_price_mortgage;
-        }
-        bob.flat_price_mortgage -= payment;
-        bob.money -= payment;
-    }
+    bob.money -= bob.mortgage_payment;
 }
 
 void bob_food(const int year, const int month)
@@ -202,7 +202,7 @@ void bob_trip(const int year, const int month)
 }
 
 /*
-------------------------------------------------------------------------------------------------------
+--------BANK----------------------------------------------------------------------------------------------
 */
 
 void deposit_to_bank(struct Person *p, RUB amount, int bank)
@@ -288,8 +288,12 @@ int main()
 
     alice_init();
     bob_init();
+
     simulation();
-    alice_print();
+
     bob_print();
+    alice_print();
+
+    comparing_print();
     return 0;
 }
