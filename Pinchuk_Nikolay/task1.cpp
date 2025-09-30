@@ -15,6 +15,9 @@ typedef unsigned char Month;
 struct Person {
     RUB income = 0;
     RUB bank_account = 0;
+    RUB bank_deposit = 0;
+    RUB cost_the_apartment = 0;
+    RUB cost_the_car = 0;
 };
 
 struct Expanses {
@@ -23,6 +26,8 @@ struct Expanses {
     RUB trip = 0;
     RUB standart_HCS = 0;
     RUB rent = 0;
+    RUB gasoline = 0;
+    RUB vehicle_maintenance = 0;
 };
 
 
@@ -55,18 +60,22 @@ void console_init() {
 // --- Alice`s funcs ---
 
 void alice_init() {
+    // Стартовая сумма на счету и зп
     alice.bank_account = 100 * 1000;
     alice.income = 150 * 1000;
 
+    // Расходы
     alice_expenses.food = 20 * 1000;
     alice_expenses.dress = 100 * 1000;
     alice_expenses.trip = 200 * 1000;
     alice_expenses.standart_HCS = 4000;
     alice_expenses.rent = 0;
 
+    // Ипотека
     alice_mortgage.amount_of_credit = 10 * 1000 * 1000;
     alice_mortgage.count_of_month = 20 * 12;
     alice_mortgage.monthly_loan_interest_rate = 0.12 / 12;
+    alice.cost_the_apartment = alice_mortgage.amount_of_credit;
 }
 
 
@@ -162,6 +171,7 @@ RUB alice_income(const Year count_years, const Month month) {
 void bob_init() {
     bob.bank_account = 100 * 1000;
     bob.income = 150 * 1000;
+    bob.cost_the_car = 1000 * 1000;
 
     bob_expenses.food = 20 * 1000;
     bob_expenses.dress = 100 * 1000;
@@ -251,27 +261,52 @@ RUB bob_income(const Year count_years, const Month month) {
     return bob.income;
 }
 
+void interest_on_bank_deposit() {
+    alice.bank_deposit *= 1.21 / 12;
+    bob.bank_deposit *= 1.21 / 12;
+}
+
+void rising_prices(Month month) {
+    if (month == 1) {
+        alice.cost_the_apartment *= 1.1;
+    }
+}
 
 void simulation(Year start_year, Month start_month, Year years_to_end) {
     Year year = start_year;
     Month month = start_month;
     while (!(year == start_year + years_to_end && month == start_month)) {
 
+        interest_on_bank_deposit(); // Начисление процентов
+        rising_prices(month);
+
+        // Зп Алисы
         alice.bank_account += alice_income(year - start_year, month);
 
+        // Расходы Алисы
         alice.bank_account -= alice_food(year - start_year, month);
         alice.bank_account -= alice_dress(year - start_year, month);
         alice.bank_account -= alice_trip(year - start_year, month);
         alice.bank_account -= alice_HCS(year - start_year, month);
         alice.bank_account -= alice_mortgage_calc();
 
+        // Оставшиеся деньги - на вклад
+        alice.bank_deposit += alice.bank_account;
+        alice.bank_account = 0;
+
+        // Зп Боба
         bob.bank_account += bob_income(year - start_year, month);
 
+        // Расходы Боба
         bob.bank_account -= bob_food(year - start_year, month);
         bob.bank_account -= bob_dress(year - start_year, month);
         bob.bank_account -= bob_trip(year - start_year, month);
         bob.bank_account -= bob_HCS(year - start_year, month);
         bob.bank_account -= bob_rent();
+
+        // Оставшиеся деньги - на вклад
+        bob.bank_deposit += bob.bank_account;
+        bob.bank_account = 0;
 
         month++;
         if (month > 12) {
