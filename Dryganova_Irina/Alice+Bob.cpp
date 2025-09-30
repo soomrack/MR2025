@@ -126,19 +126,21 @@ void alice_tax_deduction(const int year, const int month)
 void alice_deposit(const int month)
 {
     {
-        if (alice.account >= 70 * 1000)
-        alice.deposit.deposit += (alice.account - 70 * 1000);
-    }
+        if (alice.account >= 70 * 1000) {
+            alice.deposit.deposit += (alice.account - 70 * 1000);
+            alice.account = 70 * 1000;
+        }
 
-    if (alice.deposit.deposit >= 3 * 1000 * 1000) {
-        alice.deposit.deposit *= 1. + 0.11 / 12;
-    }
-    else {
-        alice.deposit.deposit *= 1. + 0.1 / 12;
-    }
+        if (alice.deposit.deposit >= 3 * 1000 * 1000) {
+            alice.deposit.deposit *= 1. + 0.11 / 12;
+        }
+        else {
+            alice.deposit.deposit *= 1. + 0.1 / 12;
+        }
 
-    if (month == 1) {
-        alice.deposit.deposit_min *= 1.07;
+        if (month == 1) {
+            alice.deposit.deposit_min *= 1.07;
+        }
     }
 }
 
