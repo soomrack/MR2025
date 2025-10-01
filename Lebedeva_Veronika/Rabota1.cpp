@@ -54,9 +54,9 @@ public:
     void food_inflation(Date Cur);
     void rent_flat_inflation(Date Cur);
     void crediting_to_bank_account();
-    void increase_of_money_with_deposit();
-    void show_results();
     void deposit_simulation();
+    void show_results();
+    void interest_deposit();
     void set_mortgage_monthly_payment();
     void count_month_expences();
     void count_total_expences();
@@ -93,7 +93,7 @@ void FinancialModel::rent_flat_inflation(Date Cur)
 }
 
 
-void FinancialModel::deposit_simulation()
+void FinancialModel::interest_deposit()
 {
     int period_deposit = 3;
     if (current.month % period_deposit == 0 && (current.month != 0)) {
@@ -117,12 +117,12 @@ void FinancialModel::crediting_to_bank_account()
 }
 
 
-void FinancialModel::increase_of_money_with_deposit()    
+void FinancialModel::deposit_simulation()    
 {
     current.month = data.month;
     current.year = data.year;
     while (!(current.year == (data.year + years) && current.month == data.month)) {
-        deposit_simulation();
+        interest_deposit();
         salary_inflation(current);
         food_inflation(current);
         rent_flat_inflation(current);
@@ -185,6 +185,7 @@ void FinancialModel::inflation_flat_price()
         }
         flat_price_after += inflation_flat;
         inflation_flat = 0;
+
         current.month++;
         if (current.month > 12) {
             current.month = 1;
@@ -236,9 +237,9 @@ int main()
     FinancialModel Maria;
     FinancialModel Fedor;
 
-    Maria.increase_of_money_with_deposit();
+    Maria.deposit_simulation();
     Fedor.mortgage_simulation();
-    
+
     Maria.show_results();
     Fedor.show_results();
 }
