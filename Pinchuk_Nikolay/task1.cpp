@@ -80,8 +80,9 @@ void alice_init() {
 
 
 void alice_print_status() {
-    printf("Alice has %ld rubles in bank accaunt ", alice.bank_account);
-    printf("with %ld rubles income.\n", alice.income);
+    printf("У Алисы %ld рублей на вкладе ", alice.bank_deposit);
+    printf("и квартира за %ld рублей.\n", alice.cost_the_apartment);
+    printf("Зарплата Алисы: %ld рублей.\n", alice.income);
 }
 
 
@@ -178,6 +179,8 @@ void bob_init() {
     bob_expenses.trip = 200 * 1000;
     bob_expenses.standart_HCS = 4000;
     bob_expenses.rent = 45 * 1000;
+    bob_expenses.gasoline = 3000;
+    bob_expenses.vehicle_maintenance = 100 * 1000;
 }
 
 
@@ -187,8 +190,9 @@ RUB bob_rent() {
 
 
 void bob_print_status() {
-    printf("Bob has %ld rubles in bank accaunt ", bob.bank_account);
-    printf("with %ld rubles income.\n", bob.income);
+    printf("У Боба %ld рублей на вкладе ", bob.bank_deposit);
+    printf("и машина за %ld рублей.\n", bob.cost_the_car);
+    printf("Зарплата Боба: %ld рублей.\n", bob.income);
 }
 
 
@@ -215,7 +219,21 @@ RUB bob_food(const Year count_years, const Month month) {
 }
 
 
-RUB bob_HCS(Year count_years, Month month) {
+RUB bob_gasoline(const Year count_years, const Month month) {
+    return bob_expenses.gasoline;
+}
+
+
+RUB bob_vehicle_maintenance(const Year count_years, const Month month) {
+    RUB expens = 0;
+    if (month % 6 == 0) {
+        expens = bob_expenses.vehicle_maintenance;
+    }
+    return expens;
+}
+
+
+RUB bob_HCS(const Year count_years, const Month month) {
     RUB expens = bob_expenses.standart_HCS;
     float seasonal_tariffs[4] = { 2, 1.2, 1, 1.5 };
     enum Seasons { JAN = 1, FEB, MAR, APR, MAY, JUN, JUL, AUG, SEPT, OCT, NOV, DEC };
@@ -266,9 +284,37 @@ void interest_on_bank_deposit() {
     bob.bank_deposit *= 1.21 / 12;
 }
 
-void rising_prices(Month month) {
+void rising_apartment_price(Month month) {
     if (month == 1) {
-        alice.cost_the_apartment *= 1.1;
+        alice.cost_the_apartment *= 1.05;
+    }
+}
+
+void reducing_car_price(Month month) {
+    bob.cost_the_car *= (1 - 0.01);
+}
+
+void inflation(Month month) {
+    double inflation = 1.001;
+    if (month == 1) {
+        alice.cost_the_apartment *= inflation;
+        bob.cost_the_car *= inflation;
+
+        alice_expenses.dress *= inflation;
+        alice_expenses.food *= inflation;
+        alice_expenses.gasoline *= inflation;
+        alice_expenses.rent *= inflation;
+        alice_expenses.standart_HCS *= inflation;
+        alice_expenses.trip *= inflation;
+        alice_expenses.vehicle_maintenance *= inflation;
+
+        bob_expenses.dress *= inflation;
+        bob_expenses.food *= inflation;
+        bob_expenses.gasoline *= inflation;
+        bob_expenses.rent *= inflation;
+        bob_expenses.standart_HCS *= inflation;
+        bob_expenses.trip *= inflation;
+        bob_expenses.vehicle_maintenance *= inflation;
     }
 }
 
@@ -278,7 +324,9 @@ void simulation(Year start_year, Month start_month, Year years_to_end) {
     while (!(year == start_year + years_to_end && month == start_month)) {
 
         interest_on_bank_deposit(); // Начисление процентов
-        rising_prices(month);
+        rising_apartment_price(month);
+        reducing_car_price(month);
+        inflation(month);
 
         // Зп Алисы
         alice.bank_account += alice_income(year - start_year, month);
@@ -302,6 +350,8 @@ void simulation(Year start_year, Month start_month, Year years_to_end) {
         bob.bank_account -= bob_dress(year - start_year, month);
         bob.bank_account -= bob_trip(year - start_year, month);
         bob.bank_account -= bob_HCS(year - start_year, month);
+        bob.bank_account -= bob_gasoline(year - start_year, month);
+        bob.bank_account -= bob_vehicle_maintenance(year - start_year, month);
         bob.bank_account -= bob_rent();
 
         // Оставшиеся деньги - на вклад
