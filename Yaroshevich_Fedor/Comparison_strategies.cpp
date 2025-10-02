@@ -60,11 +60,13 @@ void person_food(struct Person* p)
 	p->bank_account -= p->food;
 }
 
+
 void person_diff_services(struct Person* p)
 {
 	p->diff_services *= 1.008;
 	p->bank_account -= p->diff_services;
 }
+
 
 void person_clothes(struct Person* p, const int month)
 {
@@ -74,6 +76,7 @@ void person_clothes(struct Person* p, const int month)
 	}
 }
 
+
 void person_unforeseen_expenses(struct Person* p, const int month)
 {
 	if (month % 3 == 0) {
@@ -81,6 +84,7 @@ void person_unforeseen_expenses(struct Person* p, const int month)
 		p->bank_account -= p->unforeseen_expenses;
 	}
 }
+
 
 void person_trip(struct Person* p, const int month)
 {
@@ -90,6 +94,7 @@ void person_trip(struct Person* p, const int month)
 	}
 }
 
+
 void person_technique(struct Person* p, const int year, const int month)
 {
 	if (year % 5 == 0 && month == 1) {
@@ -97,6 +102,7 @@ void person_technique(struct Person* p, const int year, const int month)
 		p->bank_account -= p->technique;
 	}
 }
+
 
 void person_flatcost(struct Person* p, const int month)
 {
@@ -194,3 +200,4 @@ int main()
 	print_person_info();
 
 }
+
