@@ -6,13 +6,13 @@ struct Person {
 	RUB bank_account; 
 	RUB income;
 	RUB food;
-	RUB diff_services;  // услуги
+	RUB diff_services;  
 	RUB clothes;
-	RUB unforeseen_expenses;  // непредвиденные расходы
+	RUB unforeseen_expenses; 
 	RUB trip;
-	RUB technique;   // расходы на дорогую бытовую или цифровую технику 
-	RUB flatcost;  // стоимость квартиры
-	RUB deposit;  // вклад уолтера
+	RUB technique;   
+	RUB flatcost; 
+	RUB deposit;  
 	RUB mortage;
 };
 
@@ -26,15 +26,15 @@ void person_income(struct Person* p, const int year, const int month)
 		p->income = p->income * 1.05;
 	}
 	if (year == 2035 && month == 3) {
-		p->income += 1.5;
+		p->income *= 1.3;
 	}
 	p->bank_account += p->income;
 }
 
 
-void walter_deposit(const int year, const int month) 
+void deposit_simulation(const int year, const int month)
 {
-	float deposit_rate = 15; // ставка по вкладу/накоп.счету 15% годовых
+	float deposit_rate = 15; 
 	float month_rate = (deposit_rate * 0.01) / 12;
 
 	walter.deposit = walter.deposit * (1.0 + month_rate);
@@ -42,14 +42,23 @@ void walter_deposit(const int year, const int month)
 	if (walter.bank_account > 0) {
 		walter.deposit += walter.bank_account;
 		walter.bank_account = 0;
+	}
 
+	if (walter.bank_account < 0 && walter.deposit > 0) {
+		float need = -walter.bank_account;
+		float take = (walter.deposit >= need) ? need : walter.deposit;
+		walter.deposit -= take;
+		walter.bank_account += take;                 
 	}
 }
 
 
-void saul_mortage(const int year, const int month)
+void mortage_simulation(const int year, const int month)
 {
-	
+	float mortage_rate = 15;
+	float month_rate = (mortage_rate * 0.01) / 12;
+
+
 
 }
 
@@ -71,7 +80,7 @@ void person_diff_services(struct Person* p)
 void person_clothes(struct Person* p, const int month)
 {
 	if (month % 3 == 0) {
-		p->clothes *= 1.02;
+		p->clothes *= 1.025;
 		p->bank_account -= p->clothes;
 	}
 }
@@ -80,7 +89,7 @@ void person_clothes(struct Person* p, const int month)
 void person_unforeseen_expenses(struct Person* p, const int month)
 {
 	if (month % 3 == 0) {
-		p->unforeseen_expenses *= 1.02;
+		p->unforeseen_expenses *= 1.025;
 		p->bank_account -= p->unforeseen_expenses;
 	}
 }
@@ -142,8 +151,8 @@ void simulation()
 		person_technique(&walter, year, month);
 		person_technique(&saul, year, month);
 
-		walter_deposit(year, month);
-		saul_mortage(year, month);
+		deposit_simulation(year, month);
+		mortage_simulation(year, month);
 
 		++month;
 		if (month == 13) {
@@ -180,7 +189,7 @@ void walter_int()
 
 void saul_int()
 {
-	saul.bank_account = 100 * 1000;
+	saul.bank_account = 1000 * 1000;
 	saul.income = 155 * 1000;
 	saul.food = 30 * 1000;
 	saul.diff_services = 25 * 1000;
@@ -200,4 +209,3 @@ int main()
 	print_person_info();
 
 }
-
