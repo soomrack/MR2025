@@ -14,6 +14,7 @@ struct Person {
     RUB expenses;
     RUB annuity_payment;
     RUB rent;
+    RUB cat_expenses;
     RUB min_balance; // minimal balance during month for depositing
 };
 
@@ -82,9 +83,10 @@ void alice_expenses(const int year, const int month)
 
 void alice_cat(const int year, const int month)
 {
-    if ((year == 2026 && month >= 4) || (year == 2035 && month <=2) || (2026 < year && year < 2035)) {
-        const RUB cat_expenses = 5000; // TODO: инфляция
-        deposit_or_withdraw(alice, -cat_expenses);
+    if (year == 2026 && month == 4) alice.cat_expenses = 5000;
+    if ((year == 2026 && month >= 4) || (year == 2035 && month <= 2) || (2026 < year && year < 2035)) {
+        if (month == 12) alice.cat_expenses *= 1.05; // Inflation
+        deposit_or_withdraw(alice, -alice.cat_expenses);
     }
 }
 
