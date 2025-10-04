@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <cmath>
+#include <algorithm>
 
 
 typedef long int RUB;
@@ -26,7 +27,8 @@ RUB inflated_flat_price = 20 * 1000 * 1000; // this price will later be inflated
 // common functions ////////////////////////////////////////////////////////////
 
 
-void deposit(Person &person /*, const int year, const int month */) {
+void deposit_interest(Person &person /*, const int year, const int month */) {
+    // increase money on deposit by interest_rate
     // assume person keeps all of money on deposit
     float interest_rate = 0.05;
     if (person.bank_account > 3 * 1000 * 1000) { // increase interest rate if person has a lot of money
@@ -38,6 +40,13 @@ void deposit(Person &person /*, const int year, const int month */) {
         person.bank_account += person.min_balance * monthly_interest_rate;
         // person.bank_account *= 1.0+monthly_interest_rate;
     }
+}
+
+
+void deposit_or_withdraw(Person &person, RUB amount) {
+    // positive amount deposits money, negative — withdraws
+    person.bank_account += amount;
+    person.min_balance = std::min(person.min_balance, person.bank_account);
 }
 
 
@@ -54,15 +63,14 @@ void alice_income(const int year, const int month)
         alice.income *= 1.5;  // Promotion
     }
     
-    alice.bank_account += alice.income ;
+    deposit_or_withdraw(alice, alice.income);
 }
 
 
 void alice_expenses(const int year, const int month)
 {
     // covers common expenses, such as car, trip, food, etc
-    alice.bank_account -= alice.expenses;
-    alice.min_balance -= alice.expenses;
+    deposit_or_withdraw(alice, -alice.expenses);
 
     if(month == 9) {
         alice.expenses = alice.expenses * 1.07;  // Inflation
@@ -76,8 +84,7 @@ void alice_cat(const int year, const int month)
 {
     if ((year == 2026 && month >= 4) || (year == 2035 && month <=2) || (2026 < year && year < 2035)) {
         const RUB cat_expenses = 5000; // TODO: инфляция
-        alice.bank_account -= cat_expenses;
-        alice.min_balance -= cat_expenses;
+        deposit_or_withdraw(alice, -cat_expenses);
     }
 }
 
@@ -90,7 +97,7 @@ void alice_mortgage(const int year, const int month)
         const RUB first_payment = 4000 * 1000;
         // (RUB) flat_price * 0.2;
         // first payment
-        alice.bank_account -= first_payment;
+        deposit_or_withdraw(alice, -first_payment);
 
         const float monthly_interest_rate = interest_rate / 12;
         alice.annuity_payment = (RUB) round ( 
@@ -101,8 +108,7 @@ void alice_mortgage(const int year, const int month)
     }
     
     // monthly annuity mortgage payment
-    alice.bank_account -= alice.annuity_payment;
-    alice.min_balance -= alice.annuity_payment; // TODO: не учёл если сначала зачислили + отдельная функция на снятие средств
+    deposit_or_withdraw(alice, -alice.annuity_payment);
 }
 
 
@@ -140,15 +146,14 @@ void bob_income(const int year, const int month)
         bob.income *= 1.5;  // Promotion
     }
     
-    bob.bank_account += bob.income ;
+    deposit_or_withdraw(bob, bob.income);
 }
 
 
 void bob_expenses(const int year, const int month)
 {
     // covers common expenses, such as car, trip, food, etc
-    bob.bank_account -= bob.expenses;
-    bob.min_balance -= bob.expenses;
+    deposit_or_withdraw(bob, -bob.expenses);
 
     if(month == 9) {
         bob.expenses = bob.expenses * 1.07;  // Inflation
@@ -161,8 +166,7 @@ void bob_rent(const int year, const int month)
     if(month == 9) {
         bob.rent *= 1.05;  // Inflation
     }
-    bob.bank_account -= bob.rent;
-    bob.min_balance -= bob.rent;
+    deposit_or_withdraw(bob, -bob.rent);
 }
 
 
@@ -173,8 +177,7 @@ void bob_try_buy_flat(const int year, const int month)
         inflated_flat_price *= 1.02;  // Inflation
     }
     if (bob.bank_account >= inflated_flat_price + 100*1000) {
-        bob.bank_account -= inflated_flat_price;
-        bob.min_balance -= inflated_flat_price;
+        deposit_or_withdraw(bob, -inflated_flat_price);
         // printf("Bob bought flat in year %d\n", year); // dbg
         bob.rent = 0;
     }
@@ -223,7 +226,7 @@ void simulation()
         alice_expenses(year, month); // common expenses, such as car, trip, food, etc
         alice_cat(year, month);
         alice_mortgage(year, month);
-        deposit(alice);
+        deposit_interest(alice);
 
         // printf("y%d m%d bank %d debt %d\n", year, month, alice.bank_account, alice.debt); //dbg
 
@@ -232,7 +235,7 @@ void simulation()
         bob_expenses(year, month);
         bob_rent(year, month);
         bob_try_buy_flat(year, month);
-        deposit(bob);
+        deposit_interest(bob);
         
         ++month;
         if(month == 13) {
