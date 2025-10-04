@@ -7,15 +7,24 @@ typedef long int RUB;
 typedef int USDT;
 
 
+struct Car {
+    RUB cost;
+    RUB fuel;
+    RUB tax; // yearly
+};
+
 struct Person {
     // TODO: отдельная структура Home home, туда аренду, ипотеку и расходы. Машина, долг аналогично.
     RUB bank_account;
     RUB income;
-    RUB expenses;
+    RUB misc_expenses; // common expenses, such as food
     RUB annuity_payment;
     RUB rent;
     RUB cat_expenses;
+    RUB trip; // yearly
     RUB min_balance; // minimal balance during month for depositing
+
+    Car car;
 };
 
 struct Person alice;
@@ -23,6 +32,7 @@ struct Person bob;
 
 
 RUB inflated_flat_price = 20 * 1000 * 1000; // this price will later be inflated
+RUB inflated_car_price = 1500 * 1000;
 
 
 // common functions ////////////////////////////////////////////////////////////
@@ -68,16 +78,20 @@ void alice_income(const int year, const int month)
 }
 
 
-void alice_expenses(const int year, const int month)
+void alice_misc_expenses(const int year, const int month)
 {
-    // covers common expenses, such as car, trip, food, etc
-    deposit_or_withdraw(alice, -alice.expenses);
+    deposit_or_withdraw(alice, -alice.misc_expenses);
+    if(month == 9) alice.misc_expenses = alice.misc_expenses * 1.07; // Inflation
+}
 
-    if(month == 9) {
-        alice.expenses = alice.expenses * 1.07;  // Inflation
+
+void alice_trip(const int year, const int month)
+{
+    if (month == 7 && alice.bank_account >= 100*1000) {
+        // only travels in summer if has enough spare money
+        deposit_or_withdraw(alice, -alice.trip);
     }
-
-    // TODO: разделить расходы: машина (стоимость (падает), бензин, налог (ежегодно)), путешествия отдельно. В конце добавить машину к капиталу.
+    if (month == 9) alice.trip *= 1.05; // Inflation
 }
 
 
@@ -114,9 +128,32 @@ void alice_mortgage(const int year, const int month)
 }
 
 
+void alice_car(const int year, const int month)
+{
+    if (alice.car.cost == 0) { // does not have a car
+        if (alice.bank_account >= inflated_car_price + 100*1000) {
+            deposit_or_withdraw(alice, -inflated_car_price);
+            // printf("Alice bought car in year %d\n", year); // dbg
+            alice.car.cost = inflated_car_price;
+            alice.car.tax = 3000;
+            alice.car.fuel = 2000;
+        }
+    } else { // has a car
+        deposit_or_withdraw(alice, -alice.car.fuel);
+        if (month == 9) {
+            alice.car.fuel *= 1.05;
+            alice.car.tax *= 1.05; // Inflation
+            alice.car.cost *= 0.97;
+
+            deposit_or_withdraw(alice, -alice.car.tax);
+        }
+    }
+}
+
+
 void print_alice_info()
 {   
-    printf("Alice capital = %d RUB\n", alice.bank_account);
+    printf("Alice money = %d RUB, total capital %d RUB\n", alice.bank_account, alice.bank_account+alice.car.cost); // TODO: include home cost
 }
 
 
@@ -130,7 +167,11 @@ void alice_init()
 {
     alice.bank_account = 5 * 1000 * 1000;
     alice.income = 140 * 1000;
-    alice.expenses = 40 * 1000;
+    alice.misc_expenses = 10 * 1000;
+    alice.trip = 30 * 000;
+    alice.car.cost = 0; // no car yet
+    alice.car.fuel = 0;
+    alice.car.tax = 0;
     alice.rent = 0;
 }
 
@@ -152,14 +193,21 @@ void bob_income(const int year, const int month)
 }
 
 
-void bob_expenses(const int year, const int month)
+void bob_misc_expenses(const int year, const int month)
 {
-    // covers common expenses, such as car, trip, food, etc
-    deposit_or_withdraw(bob, -bob.expenses);
+    // covers common expenses, such as food
+    deposit_or_withdraw(bob, -bob.misc_expenses);
+    if(month == 9) bob.misc_expenses = bob.misc_expenses * 1.07; // Inflation
+}
 
-    if(month == 9) {
-        bob.expenses = bob.expenses * 1.07;  // Inflation
+
+void bob_trip(const int year, const int month)
+{
+    if (month == 7 && bob.bank_account >= 100*1000) {
+        // only travels in summer if has enough spare money
+        deposit_or_withdraw(bob, -bob.trip);
     }
+    if (month == 9) bob.trip *= 1.05; // Inflation
 }
 
 
@@ -175,9 +223,7 @@ void bob_rent(const int year, const int month)
 void bob_try_buy_flat(const int year, const int month)
 {
     if (bob.rent == 0) return; // already has flat
-    if(month == 9) {
-        inflated_flat_price *= 1.02;  // Inflation
-    }
+    if (month == 9) inflated_flat_price *= 1.02; // Inflation
     if (bob.bank_account >= inflated_flat_price + 100*1000) {
         deposit_or_withdraw(bob, -inflated_flat_price);
         // printf("Bob bought flat in year %d\n", year); // dbg
@@ -186,15 +232,38 @@ void bob_try_buy_flat(const int year, const int month)
 }
 
 
+void bob_car(const int year, const int month)
+{
+    if (bob.car.cost == 0) { // does not have a car
+        if (bob.bank_account >= inflated_car_price + 100*1000) {
+            deposit_or_withdraw(bob, -inflated_car_price);
+            // printf("Bob bought car in year %d\n", year); // dbg
+            bob.car.cost = inflated_car_price;
+            bob.car.tax = 3000;
+            bob.car.fuel = 2000;
+        }
+    } else { // has a car
+        deposit_or_withdraw(bob, -bob.car.fuel);
+        if (month == 9) {
+            bob.car.fuel *= 1.05;
+            bob.car.tax *= 1.05; // Inflation
+            bob.car.cost *= 0.97;
+
+            deposit_or_withdraw(bob, -bob.car.tax);
+        }
+    }
+}
+
+
 void print_bob_info()
 {   
-    printf("Bob capital = %d RUB\n", bob.bank_account);
+    printf("Bob money = %d RUB, total capital %d RUB\n", bob.bank_account, bob.bank_account+bob.car.cost); // TODO: include home cost
 }
 
 
 void print_bob_info_more(const int year)
 {
-    printf("%d: Bob capital = %d RUB\n", year, bob.bank_account);
+    printf("%d: Bob money = %d RUB\n", year, bob.bank_account);
 }
 
 
@@ -208,7 +277,11 @@ void bob_init()
 {
     bob.bank_account = 5 * 1000 * 1000;
     bob.income = 140 * 1000;
-    bob.expenses = 40 * 1000;
+    bob.misc_expenses = 10 * 1000;
+    bob.trip = 30 * 000;
+    bob.car.cost = 0; // no car yet
+    bob.car.fuel = 0; 
+    bob.car.tax = 0;
     bob.rent = 70 * 1000;
 }
 
@@ -225,7 +298,9 @@ void simulation()
     while( !(year == 2045 && month == 9) ) {
         alice.min_balance = alice.bank_account;
         alice_income(year, month);
-        alice_expenses(year, month); // common expenses, such as car, trip, food, etc
+        alice_misc_expenses(year, month); // common expenses, such as food
+        alice_trip(year, month);
+        alice_car(year, month);
         alice_cat(year, month);
         alice_mortgage(year, month);
         deposit_interest(alice);
@@ -234,7 +309,9 @@ void simulation()
 
         bob.min_balance = bob.bank_account;
         bob_income(year, month);
-        bob_expenses(year, month);
+        bob_misc_expenses(year, month);
+        bob_trip(year, month);
+        bob_car(year, month);
         bob_rent(year, month);
         bob_try_buy_flat(year, month);
         deposit_interest(bob);
