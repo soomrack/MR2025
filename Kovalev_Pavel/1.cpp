@@ -14,7 +14,6 @@ struct Person {
     RUB annuity_payment;
     RUB rent;
     RUB min_balance; // minimal balance during month for depositing
-    bool has_flat;
 };
 
 struct Person alice;
@@ -92,7 +91,6 @@ void alice_mortgage(const int year, const int month)
         // (RUB) flat_price * 0.2;
         // first payment
         alice.bank_account -= first_payment;
-        alice.has_flat = true;
 
         const float monthly_interest_rate = interest_rate / 12;
         alice.annuity_payment = (RUB) round ( 
@@ -126,7 +124,6 @@ void alice_init()
     alice.income = 140 * 1000;
     alice.expenses = 40 * 1000;
     alice.rent = 0;
-    alice.has_flat = false;
 }
 
 
@@ -164,16 +161,14 @@ void bob_rent(const int year, const int month)
     if(month == 9) {
         bob.rent *= 1.05;  // Inflation
     }
-    if (! bob.has_flat) {
-        bob.bank_account -= bob.rent;
-        bob.min_balance -= bob.rent;
-    }
+    bob.bank_account -= bob.rent;
+    bob.min_balance -= bob.rent;
 }
 
 
 void bob_try_buy_flat(const int year, const int month)
 {
-    if (bob.has_flat) return;
+    if (bob.rent == 0) return; // already has flat
     if(month == 9) {
         inflated_flat_price *= 1.02;  // Inflation
     }
@@ -181,7 +176,7 @@ void bob_try_buy_flat(const int year, const int month)
         bob.bank_account -= inflated_flat_price;
         bob.min_balance -= inflated_flat_price;
         // printf("Bob bought flat in year %d\n", year); // dbg
-        bob.has_flat = true; // TODO: вместо этого rent = 0
+        bob.rent = 0;
     }
 }
 
@@ -200,7 +195,7 @@ void print_bob_info_more(const int year)
 
 void print_if_bob_no_flat()
 {
-    if (! bob.has_flat) printf("Bob could not buy a flat for %d RUB", inflated_flat_price);
+    if (bob.rent != 0) printf("Bob could not buy a flat for %d RUB", inflated_flat_price);
 }
 
 
@@ -210,7 +205,6 @@ void bob_init()
     bob.income = 140 * 1000;
     bob.expenses = 40 * 1000;
     bob.rent = 70 * 1000;
-    bob.has_flat = false;
 }
 
 
