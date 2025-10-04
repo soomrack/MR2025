@@ -16,7 +16,7 @@ struct Car {
     RUB tires;            // замена шин (сезонная)
     RUB insurance;        // страховка (раз в год)
     RUB fine_amount;      // штраф (по вероятности)
-    bool chance_of_fine;  // вероятность штрафа
+    int chance_of_fine;  // вероятность штрафа
     bool winter_driver;   // меняет шины зимой?
 };
 
@@ -289,13 +289,6 @@ void car_expenses(Person &p, int year, int month) {
     }
 }
 
-
-//  случайное событие
-void pay_fine(Person &p, int month) {
-    if ((rand() % 100) < 5) { // 5% шанс
-        p.bank_account -= p.fine_amount;
-    }
-}
 
 //============================================================================================
 // Управление вкладом
