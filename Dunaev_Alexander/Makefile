@@ -1,4 +1,4 @@
-CC := g++
+CC := gcc
 
 main_O_SET := src_main # список зависимостей для main 
 BUILD_DIR := build/
@@ -24,7 +24,7 @@ all: $(TARGET).run
 $(eval $(call run_tmpl,$(TARGET)))
 
 %.o: # скомпилировать, учитывая расположение -- app/main.c => app_main.o
-	$(CC) -c $(subst _,/,$(basename $@)).cpp -o $(BUILD_DIR)$@
+	$(CC) -c $(subst _,/,$(basename $@)).c -o $(BUILD_DIR)$@
 
 clean: 
 	rm -f $(BUILD_DIR)*.o *.run
