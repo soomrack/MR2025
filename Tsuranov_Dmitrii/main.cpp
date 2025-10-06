@@ -4,10 +4,10 @@
 #include <cmath>
 
 /*
-* В начальный момент времени Алиса и Боб имеют одинаковое количество денег на счету в банке.
-* Зарплаты у них одинаковые, повышение происходит одновременно, в октябре 2030 года
+* Г‚ Г­Г Г·Г Г«ГјГ­Г»Г© Г¬Г®Г¬ГҐГ­ГІ ГўГ°ГҐГ¬ГҐГ­ГЁ ГЂГ«ГЁГ±Г  ГЁ ГЃГ®ГЎ ГЁГ¬ГҐГѕГІ Г®Г¤ГЁГ­Г ГЄГ®ГўГ®ГҐ ГЄГ®Г«ГЁГ·ГҐГ±ГІГўГ® Г¤ГҐГ­ГҐГЈ Г­Г  Г±Г·ГҐГІГі Гў ГЎГ Г­ГЄГҐ.
+* Г‡Г Г°ГЇГ«Г ГІГ» Гі Г­ГЁГµ Г®Г¤ГЁГ­Г ГЄГ®ГўГ»ГҐ, ГЇГ®ГўГ»ГёГҐГ­ГЁГҐ ГЇГ°Г®ГЁГ±ГµГ®Г¤ГЁГІ Г®Г¤Г­Г®ГўГ°ГҐГ¬ГҐГ­Г­Г®, Гў Г®ГЄГІГїГЎГ°ГҐ 2030 ГЈГ®Г¤Г 
 *
-* Алиса берёт в ипотеку под 20% годовых квартиру стоимостью 8 500 000 руб. Первоначальный взнос 1 710 000 руб
+* ГЂГ«ГЁГ±Г  ГЎГҐГ°ВёГІ Гў ГЁГЇГ®ГІГҐГЄГі ГЇГ®Г¤ 20% ГЈГ®Г¤Г®ГўГ»Гµ ГЄГўГ Г°ГІГЁГ°Гі Г±ГІГ®ГЁГ¬Г®Г±ГІГјГѕ 8 500 000 Г°ГіГЎ. ГЏГҐГ°ГўГ®Г­Г Г·Г Г«ГјГ­Г»Г© ГўГ§Г­Г®Г± 1 710 000 Г°ГіГЎ
 */
 typedef long long int RUB;
 
@@ -71,7 +71,7 @@ void Person::init(std::string got_name) {
 
 
 void Person::print() {
-    printf("%s final bank account = %s руб.\n", name.c_str(), format_rub(bank_account).c_str());
+    printf("%s final bank account = %s Г°ГіГЎ.\n", name.c_str(), format_rub(bank_account).c_str());
 }
 
 
@@ -91,16 +91,15 @@ class Mortage_person : public Person {
 public:
     void mortage(const int year, const int month);
     void income(const int year, const int month);
-    void apartment_flood(const int year, const int month);
 };
 
 
 void Mortage_person::mortage(const int year, const int month) {
-    //Начальный взнос
+    //ГЌГ Г·Г Г«ГјГ­Г»Г© ГўГ§Г­Г®Г±
     if (year == 2025 && month == 9) {
         bank_account -= mortage_features.first_payment;
     }
-    //Регулярный платёж
+    //ГђГҐГЈГіГ«ГїГ°Г­Г»Г© ГЇГ«Г ГІВёГ¦
     bank_account -= mortage_features.regular_payment;
 
 }
@@ -117,18 +116,12 @@ void Mortage_person::income(const int year, const int month) {
 }
 
 
-void Mortage_person::apartment_flood(const int year, const int month) {
-    if (year == 2031 && month == 9) {
-        bank_account -= flood_repair_cost;
-    }
-}
-
-
 class Rent_person : public Person {
 public:
     void rent(const int year, const int month);
     void income(const int year, const int month);
     void deposit();
+    void apartment_flood(const int year, const int month);
 };
 
 
@@ -160,6 +153,13 @@ void Rent_person::deposit() {
 }
 
 
+void Rent_person::apartment_flood(const int year, const int month) {
+    if (year == 2031 && month == 9) {
+        bank_account -= flood_repair_cost;
+    }
+}
+
+
 void simulation(Mortage_person& alice, Rent_person& bob) {
     int year = 2025;
     int month = 9;
@@ -187,8 +187,8 @@ void simulation(Mortage_person& alice, Rent_person& bob) {
 
 
 void compare(Mortage_person alice, Rent_person bob) {
-    printf("\nAlice final fund = %s руб.\n", format_rub(alice.bank_account + mortage_features.sum).c_str());
-    printf("Bob final fund = %s руб.\n", format_rub(bob.bank_account + deposit_features.sum).c_str());
+    printf("\nAlice final fund = %s Г°ГіГЎ.\n", format_rub(alice.bank_account + mortage_features.sum).c_str());
+    printf("Bob final fund = %s Г°ГіГЎ.\n", format_rub(bob.bank_account + deposit_features.sum).c_str());
 }
 
 
@@ -207,4 +207,5 @@ int main() {
     bob.print();
 
     compare(alice, bob);
+
 }
