@@ -8,7 +8,7 @@ struct Simulation_propertis
     int actual_month = 0;  // текущий месяц от начала симуляции
     float key_bid = 0.18;  // ключивая ставка
     float inflation_coefficient = 1.01; // коэффиценнт инфляции
-    int credit_mought = 180; // кредит на пятнадцать лет
+    int credit_month = 180; // кредит на пятнадцать лет
     float salary_indexation = 1.008; // коэффицент индексации
 }sim;
 
@@ -16,7 +16,7 @@ struct Simulation_propertis
 struct Date
 {
     int year = 2025;
-    int mought = 3;
+    int month = 3;
 } date;
 
 
@@ -96,7 +96,7 @@ void alice_init()
     
     alice.salary = 200 * 1000;
     alice.deposit_interest = alice.contribution * sim.key_bid / 12;\
-    bob.deposit_interest = 9 * 1000 * 1000 * (((sim.key_bid / 12)) / ( 1 - pow((1 + (sim.key_bid / 12)), (-1 * (sim.credit_mought - 1)) )));;
+    bob.deposit_interest = 9 * 1000 * 1000 * (((sim.key_bid / 12)) / ( 1 - pow((1 + (sim.key_bid / 12)), (-1 * (sim.credit_month - 1)) )));;
 
     alice.car.quantity = 1;
     alice.car.cost = 3 * 1000 * 1000;
@@ -203,7 +203,7 @@ void alice_live_cost()
 
 void simulation ()
 {   
-    while (sim.actual_month < sim.credit_mought)
+    while (sim.actual_month < sim.credit_month)
     {
         bob_receiving_money();
         bob_home_cost();
@@ -215,10 +215,10 @@ void simulation ()
         alice_car_cost();
         alice_live_cost(); //food, clothes, different
         
-        date.mought ++;
-        if (date.mought > 12)
+        date.month ++;
+        if (date.month > 12)
         {
-            date.mought == 1;
+            date.month = 1;
             date.year++;
         }
         sim.actual_month ++;
