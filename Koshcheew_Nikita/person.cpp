@@ -67,6 +67,12 @@ void Person::spend_money(int month, int inflation)
 }
 
 
+void Person::spend_money_on_car(RUB spending_on_car)
+{
+	bank_account -= spending_on_car;
+}
+
+
 void Person::buy_food(int month, int inflation)
 {
 	if (month == 12) increase_food_spending(inflation);
@@ -94,15 +100,21 @@ void Person::pay_communal(int month, int inflation)
 }
 
 
-void Person::print_info()
+void Person::print_info_alice(RUB cost_of_flat)
 {
-	std::cout << std::format("deposit - {}\n", deposit);
+	std::cout << std::format("deposit - {}, с учетом цены квартиры: {}\n", deposit, deposit + cost_of_flat);
 }
 
 
-void Person::buy_flat(RUB cost_of_flat)
+void Person::print_info_bob(RUB cost_of_car)
 {
-	deposit -= cost_of_flat;
+	std::cout << std::format("deposit - {}, с учетом цены машины: {}\n", deposit, deposit + cost_of_car);
+}
+
+
+void Person::buy_car(RUB cost_of_car)
+{
+	deposit -= cost_of_car;
 }
 
 
