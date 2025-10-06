@@ -41,7 +41,6 @@ struct Home
 };
 
 struct Person
-
 {
     RUB salary;           // Зарплата   
     RUB deposit_interest; // Процент по вкладу
@@ -140,7 +139,12 @@ void bob_home_cost()
         bob.home.quantity ++ ;
         bob.home.rent = 0;
     }
-    
+
+    if(sim.actual_month % 12 == 0)
+    {
+        bob.bank_account -= bob.home.tax;
+    }
+
     bob.bank_account -= bob.car.quantity * (bob.home.utility_bills + bob.home.insuranceb);
     bob.home.cost *= sim.inflation_coefficient / 12; // влияние инфляции на стоимость дома
 }
@@ -153,6 +157,11 @@ void alice_home_cost()
         alice.home.quantity ++ ;
     }
     
+    if(sim.actual_month % 12 == 0)
+    {
+        alice.bank_account -= alice.home.tax;
+    }
+
     alice.bank_account -= alice.car.quantity * (alice.home.utility_bills + alice.home.insuranceb);
     alice.home.cost *= sim.inflation_coefficient / 12; // влияние инфляции на стоимость дома
 }
@@ -162,12 +171,22 @@ void bob_car_cost()
 {    
     bob.bank_account -= bob.car.quantity * bob.car.insuranceb;
     bob.car.cost *= sim.inflation_coefficient / 12;  // влияние инфляции на стоимость автомобиля
+
+    if(sim.actual_month % 12 == 0)
+    {
+        bob.bank_account -= bob.car.tax;
+    }
 }
 
 void alice_car_cost()
 {
     alice.bank_account -= alice.car.quantity * alice.car.insuranceb;
     alice.car.cost *= sim.inflation_coefficient / 12;  // влияние инфляции на стоимость автомобиля
+
+    if(sim.actual_month % 12 == 0)
+    {
+        alice.bank_account -= alice.car.tax;
+    }
 }
 
 
@@ -179,17 +198,6 @@ void bob_live_cost()
 void alice_live_cost()
 {
    alice.bank_account -= alice.food + alice.clothes + alice.different;
-}
-
-
-void bob_tax()
-{    
-   bob.bank_account -= bob.home.tax + bob.car.tax;
-}
-
-void alice_tax()
-{
-   alice.bank_account -= alice.home.tax + alice.car.tax;
 }
 
 
@@ -207,20 +215,12 @@ void simulation ()
         alice_car_cost();
         alice_live_cost(); //food, clothes, different
         
-        if(sim.actual_month % 12 == 0)
-        {
-            bob_tax();
-            alice_tax();
-        }
-
         date.mought ++;
-
         if (date.mought > 12)
         {
             date.mought == 1;
             date.year++;
         }
-
         sim.actual_month ++;
     }
 }
