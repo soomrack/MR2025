@@ -200,6 +200,7 @@ void simulation ()
             alice_tax();
         }
 
+        sim.actual_month ++;
     }
 }
 
@@ -222,6 +223,5 @@ int main()
 
     Output();
 
-    return 0;
 }
 
