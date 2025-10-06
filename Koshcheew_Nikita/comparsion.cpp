@@ -19,13 +19,19 @@ void set_random_inflation(int& inflation) {
 }
 
 
+void increase_price(RUB& price, int inflation) {
+    price *= ((100.0 + inflation) / 100.0);
+}
+
+
 RUB get_mortgage_pay(RUB cost_of_flat, int inflation, int years) {
-    double credit_rate = (static_cast<double>(inflation) * 2 + 3) / (12 * 100);
+    double credit_rate = (inflation + 3.0) / (12.0 * 100.0);
 
     double coefficient = credit_rate * pow(1 + credit_rate, years * 12) / (pow(1 + credit_rate, years * 12) - 1);
     RUB mortgage_pay = cost_of_flat * coefficient;
     return mortgage_pay;
 }
+
 
 void simulation(Person& alice, Person& bob, int startingInflation) {
     int inflation{ startingInflation };
@@ -36,20 +42,21 @@ void simulation(Person& alice, Person& bob, int startingInflation) {
     Date date{ 2025, 9 };
 
     alice.set_food_spending(30000);
-    bob.set_food_spending(30000);
+    alice.set_communal(10000);
 
+    bob.set_food_spending(30000);
+    bob.set_communal(10000);
     bob.set_rent(45000);
 
     while (!(date.year == 2045 && date.month == 8)) {
-        alice.income();
-        bob.income();
-
-        alice.buy_food();
-        bob.buy_food();
-        alice.pay_mortgage();
-        bob.pay_rent();
-
+        alice.get_income(date.month, inflation);
+        alice.spend_money(date.month, inflation);
+        alice.put_money_on_deposit();
         alice.get_dep_percent(inflation);
+
+        bob.get_income(date.month, inflation);
+        bob.spend_money(date.month, inflation);
+        bob.put_money_on_deposit();
         bob.get_dep_percent(inflation);
 
         date.month += 1;
@@ -57,14 +64,8 @@ void simulation(Person& alice, Person& bob, int startingInflation) {
         if (date.month == 13) {
             date.month = 1;
             date.year += 1;
-            
-            alice.increase_prices(inflation);
-            bob.increase_prices(inflation);
-            cost_of_flat *= ((100 + static_cast<double>(inflation)) / 100);
 
-            alice.increase_salary(inflation);
-            bob.increase_salary(inflation);
-
+            increase_price(cost_of_flat, inflation);
             set_random_inflation(inflation);
         }
     }
@@ -72,9 +73,11 @@ void simulation(Person& alice, Person& bob, int startingInflation) {
     bob.buy_flat(cost_of_flat);
 }
 
+
 int main() {
-    Person Alice(200000);
-    Person Bob(200000);
+    setlocale(LC_ALL, "RUS");
+    Person Alice(300000);
+    Person Bob(300000);
 
     int startingInflation;
     std::cin >> startingInflation;
@@ -86,6 +89,4 @@ int main() {
 
     return 0;
 }
-
-
 
