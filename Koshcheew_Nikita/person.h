@@ -24,9 +24,11 @@ public:
 	void put_money_on_deposit();
 
 	void spend_money(int month, int inflation);
+	void spend_money_on_car(RUB spending_on_car);
 
-	void buy_flat(RUB cost_of_flat);
-	void print_info();
+	void buy_car(RUB cost_of_car);
+	void print_info_alice(RUB cost_of_car);
+	void print_info_bob(RUB cost_of_flat);
 
 private:
 	void increase_salary(int inflation);
