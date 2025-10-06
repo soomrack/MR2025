@@ -36,8 +36,6 @@ struct {
 const double inflationMonthCoefficient = 1.0 + 0.6 / 100;
 const double indexationQuarterCoefficient = 1.0 + 1.9 / 100;
 
-const RUB carSharingMonthSpending = 15000;
-
 
 std::string formatRub(RUB sum) {
     std::string s = std::to_string(sum);
@@ -52,6 +50,7 @@ public:
     RUB bank_account;
     RUB income_amount;
     RUB foodSpendings = 15000;
+    RUB carSharingMonthSpending = 15000;
 
     std::string name;
 
@@ -74,6 +73,7 @@ void Person::food() {
 }
 void Person::carSharing() {
     bank_account -= carSharingMonthSpending;
+    carSharingMonthSpending *= inflationMonthCoefficient;
 }
 
 
@@ -154,11 +154,12 @@ void simulation(Mortage_person& alice, Rent_person& bob) {
             month = 1;
         }
     }
+}
 
-    bob.bank_account += deposit_features.sum;
-    deposit_features.sum = 0;
 
-    alice.bank_account += mortage_features.sum;
+void compare(Mortage_person alice, Rent_person bob) {
+    printf("\nAlice final fund = %s руб.\n", formatRub(alice.bank_account + mortage_features.sum).c_str());
+    printf("Bob final fund = %s руб.\n", formatRub(bob.bank_account + deposit_features.sum).c_str());
 }
 
 
@@ -175,6 +176,6 @@ int main() {
 
     alice.print();
     bob.print();
-}
 
-//Добавить инфляцию и индексацию, сравнение балансов с учётом стоимости квартиры Алисы
+    compare(alice, bob);
+}
