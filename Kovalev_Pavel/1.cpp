@@ -1,3 +1,4 @@
+// зачтено 20251006
 #include <stdio.h>
 #include <cmath>
 #include <algorithm>
@@ -92,7 +93,7 @@ void alice_misc_expenses(const int year, const int month)
 
 void alice_trip(const int year, const int month)
 {
-    if (month == 7 && alice.bank_account >= 100*1000) {
+    if (month == 7 && alice.bank_account >= 100 * 1000) { // TODO: проверить пробелы вокруг знаков
         // only travels in summer if has enough spare money
         deposit_or_withdraw(alice, -alice.trip);
     }
@@ -340,7 +341,7 @@ void simulation()
         alice_car(year, month);
         alice_cat(year, month);
         alice_home(year, month);
-        deposit_interest(alice);
+        deposit_interest(alice); // TODO: * сначала interest, потом min, да и min можно внутри deposit (но можно и так)
 
         // printf("y%d m%d bank %d debt %d\n", year, month, alice.bank_account, alice.debt); //dbg
 
