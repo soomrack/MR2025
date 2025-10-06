@@ -72,7 +72,7 @@ void person_print()
     // Наибольшее количество денег под конец срока и счётчик (для индекса вектора)
     int counter = 0;
 
-    for (int i = 1; i < human.size(); i++) {
+    for (size_t i = 1; i < human.size(); i++) {
         if ((human[i].bank_account + human[i].saves +
         (human[counter].is_has_car ? car_price : 0)) > (human[i - 1].bank_account
         + human[i - 1].saves + (human[counter].is_has_car ? car_price : 0))) {
@@ -114,26 +114,26 @@ void bob_income(const int& year, const int& month)
  // Траты на еду
 void alice_food() 
 {
-    int food_average_price = 7000 + (random_num() % 2000);
+    RUB food_average_price = 7000 + (random_num() % 2000);
     human[0].bank_account -= (food_average_price * inflation);
 }
 
 void bob_food()
 {
-    int food_average_price = 7000 + (random_num() % 2000);
+    RUB food_average_price = 7000 + (random_num() % 2000);
     human[1].bank_account -= (food_average_price * inflation);
 }
 
 // Траты на одежду
 void alice_clothes() 
 {
-    int clothes_average_price = 3000 + (random_num() % 2000);
+    RUB clothes_average_price = 3000 + (random_num() % 2000);
     human[0].bank_account -= (clothes_average_price * inflation);
 }
 
 void bob_clothes()
 {
-    int clothes_average_price = 3000 + (random_num() % 2000);
+    RUB clothes_average_price = 3000 + (random_num() % 2000);
     human[1].bank_account -= (clothes_average_price * inflation);
 }
 
@@ -158,14 +158,14 @@ void bob_mortage()
 // Траты на автомобиль (при его наличии)
 void alice_car() 
 {
-    int car_service_average_price = 4000 + (random_num() % 2000);
+    RUB car_service_average_price = 4000 + (random_num() % 2000);
     if (human[0].is_has_car)
         human[0].bank_account -= (car_service_average_price * inflation);
 }
 
 void bob_car()
 {
-    int car_service_average_price = 4000 + (random_num() % 2000);
+    RUB car_service_average_price = 4000 + (random_num() % 2000);
     if (human[1].is_has_car)
         human[1].bank_account -= (car_service_average_price * inflation);
 }
@@ -173,14 +173,14 @@ void bob_car()
  // Траты на коммунальные услуги
 void alice_public_utilities() 
 {
-    int public_utilities_average_price = 1500 + (random_num() % 2000);
+    RUB public_utilities_average_price = 1500 + (random_num() % 2000);
     human[0].bank_account -= public_utilities_average_price * inflation;
 
 }
 
 void bob_public_utilities()
 {
-    int public_utilities_average_price = 1500 + (random_num() % 2000);
+    RUB public_utilities_average_price = 1500 + (random_num() % 2000);
     human[1].bank_account -= public_utilities_average_price * inflation;
 
 }
