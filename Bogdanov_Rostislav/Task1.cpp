@@ -9,7 +9,7 @@ typedef long long int RUB;
 std::mt19937 mt{ std::random_device{}() };
 
 // Тип покупки (накопления или ипотека)
-enum typeOfMoneySaving 
+enum TypeOfMoneySaving 
 {
     contribution = 1,
     mortgage = 2
@@ -19,7 +19,7 @@ enum typeOfMoneySaving
 struct Person 
 {
     const std::string name;                                                         // Имя
-    const typeOfMoneySaving type;                                                   // Тип покупки
+    const TypeOfMoneySaving type;                                                   // Тип покупки
     const bool isHasCar;                                                            // Имеет ли машину
     RUB payment;                                                                    // Оплата квартиры (аренда  или ипотека)
     RUB income;                                                                     // Начисления
@@ -60,16 +60,14 @@ void person_init()
 }
 
  // Итоговый вывод счёта людей
-void person_print() 
+void person_print()
 {
     for (auto& per : human)
     {
         if ((per.type == contribution) && (per.bank_account + 2 * per.income >= appartament_price))
             per.bank_account -= (appartament_price);
-        per.bank_account += appartament_price;
-        if (per.isHasCar)
-            per.bank_account += car_price;
-        std::cout << per.name << " bank account = " << per.bank_account << " rub.\n";
+
+        std::cout << per.name << " bank account = " << appartament_price + per.bank_account + per.saves + (per.isHasCar ? car_price : 0) << " rub.\n";
     }
 
     // Наибольшее количество денег под конец срока и счётчик (для индекса вектора)
@@ -77,28 +75,53 @@ void person_print()
 
     for (int i = 1; i < human.size(); i++)
     {
-        if (human[i].bank_account > human[i - 1].bank_account)
+        if ((human[i].bank_account + human[i].saves + (human[counter].isHasCar ? car_price : 0)) > (human[i - 1].bank_account + human[i-1].saves + (human[counter].isHasCar ? car_price : 0)))
             counter = i;
     }
 
-    std::cout << "\nThe happiest person is " << human[counter].name << " with " << human[counter].bank_account << " rubles\n";
+    std::cout << "\nThe happiest person is " << human[counter].name << " with " << appartament_price + human[counter].bank_account + human[counter].saves + (human[counter].isHasCar ? car_price : 0) << " rubles\n";
 }
 
  // Начисления людей + повышение
-void person_income(const int& year, const int& month) 
+void alice_income(const int& year, const int& month) 
 {
     for (auto& per : human)
     {
         if (year == 2030 && month == 10) {
             per.income *= 1.5; //Promotion
         }
+        if (month == 10)
+            per.income *= inflation;
+        per.bank_account += per.income;
+    }
+
+}
+
+void bob_income(const int& year, const int& month)
+{
+    for (auto& per : human)
+    {
+        if (year == 2030 && month == 10) {
+            per.income *= 1.5; //Promotion
+        }
+        if (month == 10)
+            per.income *= inflation;
         per.bank_account += per.income;
     }
 
 }
 
  // Траты на еду
-void person_food() 
+void alice_food() 
+{
+    int food_average_price = 7000 + (mt() % 2000);
+    for (auto& per : human)
+    {
+        per.bank_account -= (food_average_price * inflation);
+    }
+}
+
+void bob_food()
 {
     int food_average_price = 7000 + (mt() % 2000);
     for (auto& per : human)
@@ -108,7 +131,16 @@ void person_food()
 }
 
 // Траты на одежду
-void person_clothes() 
+void alice_clothes() 
+{
+    int clothes_average_price = 3000 + (mt() % 2000);
+    for (auto& per : human)
+    {
+        per.bank_account -= (clothes_average_price * inflation);
+    }
+}
+
+void bob_clothes()
 {
     int clothes_average_price = 3000 + (mt() % 2000);
     for (auto& per : human)
@@ -118,8 +150,21 @@ void person_clothes()
 }
 
 // Траты на аренду жилья или ипотеки
-void person_mortage() 
+void alice_mortage() 
 {
+    appartament_price *= 1 + percent_inflation;
+    for (auto& per : human)
+    {
+        if (per.type == mortgage)
+            per.bank_account -= per.payment;
+        else
+            per.bank_account -= (per.payment * inflation);
+    }
+}
+
+void bob_mortage()
+{
+    appartament_price *= 1 + percent_inflation;
     for (auto& per : human)
     {
         if (per.type == mortgage)
@@ -130,9 +175,21 @@ void person_mortage()
 }
 
 // Траты на автомобиль (при его наличии)
-void person_car() 
+void alice_car() 
 {
     int car_service_average_price = 4000 + (mt() % 2000);
+    car_price *= 1 + percent_inflation;
+    for (auto& per : human)
+    {
+        if (per.isHasCar == 1)
+            per.bank_account -= (car_service_average_price * inflation);
+    }
+}
+
+void bob_car()
+{
+    int car_service_average_price = 4000 + (mt() % 2000);
+    car_price *= 1 + percent_inflation;
     for (auto& per : human)
     {
         if (per.isHasCar == 1)
@@ -141,7 +198,7 @@ void person_car()
 }
 
  // Траты на коммунальные услуги
-void person_public_utilities() 
+void alice_public_utilities() 
 {
     int public_utilities_average_price = 1500 + (mt() % 2000);
     for (auto &per: human)
@@ -149,6 +206,16 @@ void person_public_utilities()
         per.bank_account -= public_utilities_average_price * inflation;
     }
 }
+
+void bob_public_utilities()
+{
+    int public_utilities_average_price = 1500 + (mt() % 2000);
+    for (auto& per : human)
+    {
+        per.bank_account -= public_utilities_average_price * inflation;
+    }
+}
+
 // Вложение на вклад + начисления процентов на него
 void money_saving() 
 {
@@ -177,30 +244,9 @@ bool isEnoughMoney()
 // увеличение инфляции, стоимости квартиры и машины
 void inflation_raise() 
 {
-    appartament_price *= 1 + percent_inflation;
-    car_price *= 1 + percent_inflation;
     inflation = (1 + percent_inflation);
 }
 
-// увеличение зарплаты относительно инфляции (годовой)
-void salary_raise() 
-{
-    for (auto& per : human)
-    {
-            per.income *= inflation;
-    }
-}
-
-// Снятие средств со вклада
-void withdrawal_saves() 
-{
-    for (auto& per : human)
-    {
-        if (per.type == contribution) {
-            per.bank_account += per.saves;
-        }
-    }
-}
 
  // Симуляция логики течения времени: начислений и трат
 void simulation() {
@@ -212,31 +258,39 @@ void simulation() {
     while (!(year == 2045 && month == 9)) 
     {
         // Функции прибавок, трат и откладываний денег
-        person_income(year, month);                                 
-        person_food();                                              
-        person_mortage();                                           
-        person_clothes();                                           
-        person_car();                                               
-        person_public_utilities();                                  
-        money_saving();                                             
-
-        // + месяц, + инфляция
-        month++;
+        {
+            alice_income(year, month);
+            alice_food();
+            alice_mortage();
+            alice_clothes();
+            alice_car();
+            alice_public_utilities();
+        }
+        {
+            bob_income(year, month);
+            bob_food();
+            bob_mortage();
+            bob_clothes();
+            bob_car();
+            bob_public_utilities();
+        }                               
+                                                                                    
+        money_saving();
         inflation_raise();
 
-        // Смена года
+        // + месяц
+        month++;
         if (month == 13) {
             year++;
             month = 1;
 
             // Рост зарплаты с инфляцией
-            salary_raise();
+
         }
         // Выход из цикла при ошибке
         if (isEnoughMoney())
             break;
     }
-    withdrawal_saves();
 }
 int main() 
 {
@@ -246,3 +300,5 @@ int main()
 
     person_print();
 }
+// цикл на вывод поменятьь (не через bank account)
+// разделить на несколько функций

@@ -2,87 +2,176 @@
 #include <locale.h>
 #include <math.h>
 
-void alice_init();
-void bob_init();
-void apply_inflation();
-void apply_bank_interest();
-void live(int year, int month);
-void simulation();
-void results();
+// === TODO ===
+// все виды расходов и доходов вынести в отдельные функции
+// отдельный счет для накоплений в банке
+// еще структуру для дома (с арендой и прочими затратами по дому)
+// === TODO ===
 
-int main() {
-	setlocale(LC_ALL, "RU");
-	simulation();
-	results();
-}
+typedef long long int RUB; //--- В КОПЕЙКАХ РАСЧЕТЫ INT
 
 
+struct Home {
+	RUB rent;            // аренда (для Боба), для Алисы = 0
+	RUB apartment_price; // цена квартиры (для покупки/ипотеки)
+	RUB apartment_price_buy; // цена квартиры на момент покупки
+	RUB mortgage;        // ежемесячный аннуитетный платёж (для Алисы), для Боба = 0
+};
 
-typedef double RUB;
+
+struct Work {
+	RUB income;          // зарплата
+	RUB new_year_award;	 // новогодняя премия
+};
+
 
 struct Person {
 	RUB initial_payment; // первоначальный взнос (только для Алисы)
-	RUB bank_account;    // накопления
-	RUB income;          // зарплата
+	RUB money;			 // наличка
+	RUB bank_account;	 // банковсвкий счет для накоплений
 	RUB expenses;        // расходы (одежда, еда, развлечения и т.д.)
-	RUB rent;            // аренда (для Боба), для Алисы = 0
-	RUB mortgage;        // ежемесячный аннуитетный платёж (для Алисы), для Боба = 0
-	RUB apartment_price; // цена квартиры (для покупки/ипотеки)
 	bool has_apartment;  // 1 если есть квартира, 0 если нет
+
+	Home home;
+	Work work;
 };
+
 
 struct Person alice;
 struct Person bob;
 
-double inflation = 0.07;    // 7% инфляция
-double bank_rate = 0.155;	// 15,5% годовых по вкладам 
-double mortgage_interest = 0.205; //20,5% годовых ставка по ипотеке
-double mipm = mortgage_interest / 12; //mortgage_interest_per_month
+const double inflation = 0.07;    // 7% инфляция
+const double bank_rate = 0.155;	// 15,5% годовых по вкладам 
+const double mortgage_interest = 0.205; //20,5% годовых ставка по ипотеке
+const double mipm = mortgage_interest / 12; //mortgage_interest_per_month
 
-int start_year = 2025;
-int start_month = 9;
-int end_year = 2045;
-int end_month = 9;
+const int start_year = 2025;
+const int start_month = 9;
+const int end_year = 2045;
+const int end_month = 9;
 
-int years = end_year - start_year;	//Количество лет ипотеки
-int months_total = years * 12 + end_month - start_month; // Количчество месяцев ипотеки
+const int years = end_year - start_year;	//Количество лет ипотеки
+const int months_total = years * 12 + end_month - start_month; // Количчество месяцев ипотеки
+
 
 // === ИНИЦИАЛИЗАЦИЯ АЛИСЫ ===
 void alice_init() {
-	alice.initial_payment = 800.0 * 1000.0;  // Первоначальный взнос Алисы
-	alice.bank_account = 1000.0 * 1000.0;    // Стартовый капитал у Алисы
-	alice.income = 200.0 * 1000.0;           // Зарплата у Алисы
-	alice.expenses = 50.0 * 1000.0;          // Траты в месяц у Алисы
-	alice.rent = 0.0;                        // Аренда жилья у Алисы
-	alice.apartment_price = 7000.0 * 1000.0; // Цена квартиры Алисы
-	alice.has_apartment = true;				 // Наличие квартиры у Алисы
+	alice.initial_payment = 800 * 1000 * 100;  // Первоначальный взнос Алисы
+	alice.money = 1000 * 1000 * 100;		   // Наличка у Алисы
+	alice.expenses = 50 * 1000 * 100;          // Траты в месяц у Алисы
+	alice.has_apartment = true;				   // Наличие квартиры у Алисы
+	alice.home.rent = 0;                       // Аренда жилья у Алисы
+	alice.home.apartment_price = 7000 * 1000 * 100; // Цена квартиры Алисы
+	alice.work.new_year_award = 30 * 1000 * 100; //новогодняя премия у Алисы
+	alice.work.income = 200 * 1000 * 100;           // Зарплата у Алисы
+
 
 	// === РАСЧЕТ АННУИТЕТНОГО ПЛАТЕЖА ===
 	double f1 = mipm * pow(1 + mipm, months_total);
 	double f2 = pow(1 + mipm, months_total) - 1;
-	alice.mortgage = (alice.apartment_price - alice.initial_payment) * (f1 / f2);
-	alice.bank_account -= alice.initial_payment;
+	alice.home.mortgage = (alice.home.apartment_price - alice.initial_payment) * (f1 / f2);
+	alice.bank_account = alice.money - alice.initial_payment;
+	alice.money = 0;
 }
+
+
+void alice_income(const int years, const int month) {
+	if (years % 3 == 0 && month == 1) {
+		alice.work.income *= 1.1; //Повышение зарплаты Алисы раз в 3 года
+	}
+	if (month == 12) {
+		alice.money += alice.work.new_year_award;
+		alice.work.new_year_award += 5 * 1000 * 100; // раз в год повышение премии
+	}
+	alice.money += alice.work.income;
+}
+
+
+void alice_expenses(const int months) {
+	if (months % 3 == 0) {
+		alice.money -= 40 * 1000 * 100;	// Крупная трата раз в 3 месяца
+	}
+	alice.money -= alice.expenses;
+}
+
+
+void alice_rent() {
+	alice.money -= alice.home.rent;	// Аренда квартиры
+}
+
+
+void alice_mortage() {
+	alice.money -= alice.home.mortgage;	// Платеж по ипотеке
+}
+
+
+void alice_money_transfer() {
+	alice.bank_account += alice.money;
+	alice.money = 0;
+}
+
 
 // === ИНИЦИАЛИЗАЦИЯ БОБА ===
 void bob_init() {
-	bob.initial_payment = 0.0;             // У Боба нет первоначального взноса
-	bob.bank_account = 1000.0 * 1000.0;    // Стартовый капитал у Боба
-	bob.income = 200.0 * 1000.0;           // Зарплата у Боба
-	bob.expenses = 50.0 * 1000.0;          // Траты в месяц у Боба
-	bob.rent = 35.0 * 1000.0;              // Аренда жилья у Боба
-	bob.mortgage = 0.0;                    // У Боба нет ипотеки
-	bob.apartment_price = 7000.0 * 1000.0; // Цена квартиры Боба
-	bob.has_apartment = false;			   // Наличие квартиры у Боба
+	bob.initial_payment = 0;                 // У Боба нет первоначального взноса
+	bob.money = 1000 * 1000 * 100;			 // Наличка у Боба
+	bob.expenses = 50 * 1000 * 100;          // Траты в месяц у Боба
+	bob.has_apartment = false;			     // Наличие квартиры у Боба
+	bob.home.rent = 35 * 1000 * 100;         // Аренда жилья у Боба
+	bob.home.mortgage = 0;                   // У Боба нет ипотеки
+	bob.home.apartment_price = 7000 * 1000 * 100; // Цена квартиры Боба
+	bob.work.new_year_award = 40 * 1000 * 100; //новогодняя премия у Боба
+	bob.work.income = 200 * 1000 * 100;           // Зарплата у Боба
+
+	bob.bank_account = bob.money;
+	bob.money = 0;
 }
+
+
+void bob_income(const int years, const int month) {
+	if (years % 3 == 0 && month == 1) {
+		bob.work.income *= 1.1; //Повышение зарплаты Боба раз в 3 года
+	}
+	if (month == 12) {
+		bob.money += bob.work.new_year_award;
+		bob.work.new_year_award += 5 * 1000 * 100; // раз в год повышение премии
+	}
+	bob.money += bob.work.income;
+}
+
+
+void bob_expenses(const int months) {
+	if (months % 4 == 0) {
+		bob.money -= 40 * 1000 * 100;	// Крупная трата раз в 3 месяца
+	}
+	bob.money -= bob.expenses;
+}
+
+
+void bob_rent() {
+	bob.money -= bob.home.rent;	// Аренда квартиры
+}
+
+
+void bob_mortage() {
+	bob.money -= bob.home.mortgage;	// Платеж по ипотеке
+}
+
+
+void bob_money_transfer() {
+	bob.bank_account += bob.money;
+	bob.money = 0;
+}
+
 
 // === ИНФЛЯЦИЯ (РАЗ В ГОД) ===
 void apply_inflation() {
 	alice.expenses *= (1.0 + inflation);
 	bob.expenses *= (1.0 + inflation);
-	bob.rent *= (1.0 + inflation);
-	bob.apartment_price *= (1.0 + inflation);
+	bob.home.rent *= (1.0 + inflation);
+	bob.home.apartment_price *= (1.0 + inflation);
 }
+
 
 // === ПРОЦЕНТЫ ПО ВКЛАДУ (РАЗ В МЕСЯЦ) ===
 void apply_bank_interest() {
@@ -90,53 +179,80 @@ void apply_bank_interest() {
 	bob.bank_account *= (1.0 + bank_rate / 12);		// Ежемесячное начисление процентов по вкладу у Боба
 }
 
+
 // === ЖИЗНЬ (1 МЕСЯЦ) ===
 void live(int year, int month) {
-	apply_bank_interest();
 
-	alice.bank_account += alice.income;
-	alice.bank_account -= alice.expenses;
-	alice.bank_account -= alice.rent;
-	alice.bank_account -= alice.mortgage;
 
-	bob.bank_account += bob.income;
-	bob.bank_account -= bob.expenses;
-	bob.bank_account -= bob.rent;
-
-	if (bob.bank_account > bob.apartment_price && !bob.has_apartment) {
-		bob.bank_account -= bob.apartment_price;
-		bob.has_apartment = true;
-		printf("Боб купил квартиру %d %02d\n", year, month);
-	}
 }
+
 
 // === СИМУЛЯЦИЯ ===
 void simulation() {
 	int year = start_year;
 	int month = start_month;
+	int months = 1;
+	int years = 1;
 	alice_init();
 	bob_init();
 
 	while (!(year == end_year && month == end_month)) {
-		live(year, month);
+		apply_bank_interest();
+
+		alice_income(years, month);
+		alice_expenses(months);
+		alice_rent();
+		alice_mortage();
+		alice_money_transfer();
+
+		bob_income(years, month);
+		bob_expenses(months);
+		bob_rent();
+		bob_mortage();
+		bob_money_transfer();
+
+		if (bob.bank_account > bob.home.apartment_price && !bob.has_apartment) {
+			bob.bank_account -= bob.home.apartment_price;
+			bob.has_apartment = true;
+			printf("Боб купил квартиру %d %02d\n", year, month);
+			printf("На момент покупки квартира Боба стоит: %lld руб.\n", bob.home.apartment_price / 100);
+			bob.home.apartment_price_buy = bob.home.apartment_price;
+		}
+
 		if (month == 12) apply_inflation();
+
 		month++;
+		months++;
 		if (month == 13) {
 			year++;
+			years++;
 			month = 1;
 		}
 	}
 }
 
+
 // === ВЫВОД РЕЗУЛЬТАТОВ ===
 void results() {
 	printf("\n === РЕЗУЛЬТАТЫ ЗА %d ЛЕТ ===\n", end_year - start_year);
-	printf("Алиса: счет = %.2f, квартира %s\n", alice.bank_account, alice.has_apartment ? "есть" : "нету");
-	printf("Боб:   счет = %.2f, квартира %s\n", bob.bank_account, bob.has_apartment ? "есть" : "нету");
-	RUB alice_total = alice.bank_account + (alice.has_apartment ? alice.apartment_price : 0.0);
-	RUB bob_total = bob.bank_account + (bob.has_apartment ? bob.apartment_price : 0.0);
+	printf("Алиса: счет = %.2lld руб., квартира %s\n", alice.bank_account / 100, alice.has_apartment ? "есть" : "нету");
+	printf("Боб:   счет = %.2lld руб., квартира %s\n", bob.bank_account / 100, bob.has_apartment ? "есть" : "нету");
+
+	RUB alice_total = (alice.bank_account + (alice.has_apartment ? alice.home.apartment_price : 0)) / 100;
+	RUB bob_total = (bob.bank_account + (bob.has_apartment ? bob.home.apartment_price_buy : 0)) / 100;
+
 	printf("\nСравнение:\n");
-	if (alice_total > bob_total) printf("Лучше вариант Алисы (итого: %.2f руб.)\n", alice_total);
-	else if (bob_total > alice_total) printf("Лучше вариант Боба (итого: %.2f руб.)\n", bob_total);
-	else printf("Итог одинаковый (%.2f руб.)\n", alice_total);
+
+	if (alice_total > bob_total) printf("Лучше вариант Алисы (итого: %.2lld руб.)\n", alice_total);
+	else if (bob_total > alice_total) printf("Лучше вариант Боба (итого: %.2lld руб.)\n", bob_total);
+	else printf("Итог одинаковый (%.2lld руб.)\n", alice_total);
+
+	printf("Цена квартиры Боба через 20 лет: %lld руб.", bob.home.apartment_price / 100);
+}
+
+
+int main() {
+	setlocale(LC_ALL, "RU");
+	simulation();
+	results();
 }

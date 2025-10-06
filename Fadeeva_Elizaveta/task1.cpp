@@ -7,261 +7,252 @@ struct Person {
     RUB income;
     RUB food;
     RUB trip;
+    RUB vznos;
+    RUB vklad;
+    RUB deposit;
+    RUB capital;
+};
+
+struct Car {
     RUB cartex;
     RUB car;
-    RUB util_vznos;
     RUB car_price;
+    RUB util_vznos;
+};
+
+struct Apartamernt {
     RUB utility_bills;
     RUB rent;
     RUB mortgage;
     RUB mortgage_pay;
-    RUB vznos;
-    RUB vklad;
-    RUB deposit;
     RUB apartment;
-    RUB itog;
 };
 
-Person Alice;
-Person Bob;
+Person Alice_Person;
+Person Bob_Person;
+Car Alice_Car;
+Car Bob_Car;
+Apartamernt Alice_Apartamernt;
+Apartamernt Bob_Apartamernt;
 
 void Alice_income(const int year, const int month)                     // зарплата и премия
 {
     if (year == 2030 && month == 3) {
-        Alice.income = static_cast<int>(Alice.income * 1.5);
+        Alice_Person.income = Alice_Person.income * 1.5;
     }
 
-    Alice.bank_account += Alice.income;
+    Alice_Person.bank_account += Alice_Person.income;
+    Alice_Person.income = Alice_Person.income * (1.0 + 8.0 / 1200);
 }
 
 
-void Bob_income(const int year, const int month)                    
+void Bob_income(const int year, const int month)
 {
     if (year == 2030 && month == 3) {
-        Bob.income = static_cast<int>(Bob.income * 1.5);
+        Bob_Person.income = Bob_Person.income * 1.5;
     }
 
-    Bob.bank_account += Bob.income;
+    Bob_Person.bank_account += Bob_Person.income;
+    Bob_Person.income = Bob_Person.income * (1.0 + 8.0 / 1200);
 }
 
 
 void Alice_food()                                                     // траты на еду
 {
-    Alice.bank_account -= Alice.food;
+    Alice_Person.bank_account -= Alice_Person.food;
+    Alice_Person.food = Alice_Person.food * (1.0 + 8.0 / 1200);
 }
 
 
-void Bob_food()                                                 
+void Bob_food()
 {
-    Bob.bank_account -= Bob.food;
+    Bob_Person.bank_account -= Bob_Person.food;
+    Bob_Person.food = Bob_Person.food * (1.0 + 8.0 / 1200);
 }
 
 
 void Alice_trip(const int month)                                     // траты на путешествие
 {
     if (month == 8) {
-        Alice.bank_account -= Alice.trip;
+        Alice_Person.bank_account -= Alice_Person.trip;
     }
+
+    Alice_Person.trip = Alice_Person.trip * (1.0 + 8.0 / 1200);
 }
 
 
-void Bob_trip(const int month)                                
+void Bob_trip(const int month)
 {
     if (month == 8) {
-        Bob.bank_account -= Bob.trip;
+        Bob_Person.bank_account -= Bob_Person.trip;
     }
+
+    Bob_Person.trip = Bob_Person.trip * (1.0 + 8.0 / 1200);
 }
 
 
-void Alice_car(const int month)                                     // траты на бензин и тех обслуживание
+void Alice_car(const int month)                                     // траты на бензин и тех обслуживание, пробег
 {
-    Alice.bank_account -= Alice.car;
+    Alice_Person.bank_account -= Alice_Car.car;
+    Alice_Car.car_price -= Alice_Car.car_price * 0.001;
 
     if (month == 1) {
-        Alice.bank_account -= Alice.cartex;
+        Alice_Person.bank_account -= Alice_Car.cartex;
     }
+
+    Alice_Car.cartex = Alice_Car.cartex * (1.0 + 8.0 / 1200);
+    Alice_Car.car = Alice_Car.car * (1.0 + 8.0 / 1200);
+    Alice_Car.car_price = Alice_Car.car_price * (1.0 + 8.0 / 1200);
+    Alice_Car.util_vznos = Alice_Car.util_vznos * (1.0 + 8.0 / 1200);
 }
 
 
-void Bob_car(const int month)                                                
+void Bob_car(const int month)
 {
-    Bob.bank_account -= Bob.car;
+    Bob_Person.bank_account -= Bob_Car.car;
+    Bob_Car.car_price -= Bob_Car.car_price * 0.001;
 
     if (month == 1) {
-        Bob.bank_account -= Bob.cartex;
+        Bob_Person.bank_account -= Bob_Car.cartex;
     }
-}
 
-
-void Alice_car_ptice()                                         // снижение стоимости машины из-за пробега
-{
-    Alice.car_price -= static_cast<int>(Alice.car_price * 0.001);
-}
-
-
-void Bob_car_ptice()
-{
-    Bob.car_price -= static_cast<int>(Bob.car_price * 0.001);
+    Bob_Car.cartex = Bob_Car.cartex * (1.0 + 8.0 / 1200);
+    Bob_Car.car = Bob_Car.car * (1.0 + 8.0 / 1200);
+    Bob_Car.car_price = Bob_Car.car_price * (1.0 + 8.0 / 1200);
+    Bob_Car.util_vznos = Bob_Car.util_vznos * (1.0 + 8.0 / 1200);
 }
 
 
 void Alice_mortgage()                                              // выплаты по ипотеке Элис
 {
-    if (Alice.mortgage > 0) {
-        Alice.bank_account -= Alice.mortgage_pay;
+    if (Alice_Apartamernt.mortgage > 0) {
+        Alice_Person.bank_account -= Alice_Apartamernt.mortgage_pay;
     }
+
+    Alice_Apartamernt.mortgage_pay = Alice_Apartamernt.mortgage_pay * (1.0 + 8.0 / 1200);
+    Alice_Apartamernt.apartment = Alice_Apartamernt.apartment * (1.0 + 8.0 / 1200);
 }
 
 
 void Bob_rent()                                                    // выплаты аренды Боба
 {
-    Bob.bank_account -= Bob.rent;
+    Bob_Person.bank_account -= Bob_Apartamernt.rent;
+    Bob_Apartamernt.rent = Bob_Apartamernt.rent * (1.0 + 8.0 / 1200);
 }
 
 
 void Alice_utility_bills()                                        // коммунальные платежи
 {
-    Alice.bank_account -= Alice.utility_bills;
+    Alice_Person.bank_account -= Alice_Apartamernt.utility_bills;
+    Alice_Apartamernt.utility_bills = Alice_Apartamernt.utility_bills * (1.0 + 8.0 / 1200);
 }
 
 
-void Bob_utility_bills()                                         
+void Bob_utility_bills()
 {
-    Bob.bank_account -= Bob.utility_bills;
+    Bob_Person.bank_account -= Bob_Apartamernt.utility_bills;
+    Bob_Apartamernt.utility_bills = Bob_Apartamernt.utility_bills * (1.0 + 8.0 / 1200);
 }
 
 
-void Alice_deposit()                                            // пополнение депозита
+void Alice_deposit()                                            // процент, пополнение депозита
 {
-    Alice.deposit += Alice.bank_account;
-    Alice.bank_account = 0;
+    Alice_Person.deposit = Alice_Person.deposit * 1.015;
+    Alice_Person.deposit += Alice_Person.bank_account;
+    Alice_Person.bank_account = 0;
 }
 
 
 void Bob_deposit()
 {
-    Bob.deposit += Bob.bank_account;
-    Bob.bank_account = 0;
-}
-
-
-void Alice_deposit_protsent()                                  // начисление процентов по депозиту
-{
-    Alice.deposit = static_cast<int>(Alice.deposit * 1.015);
-}
-
-
-void Bob_deposit_protsent()
-{
-    Bob.deposit = static_cast<int>(Bob.deposit * 1.015);
+    Bob_Person.deposit = Bob_Person.deposit * 1.015;
+    Bob_Person.deposit += Bob_Person.bank_account;
+    Bob_Person.bank_account = 0;
 }
 
 
 void Alice_vznos(const int year, const int month)         // первоначальный взнос Элис
 {
     if (year == 2025 && month == 9) {
-        Alice.bank_account -= Alice.vznos;
+        Alice_Person.bank_account -= Alice_Person.vznos;
     }
 }
 
 
 void Bob_vklad(const int year, const int month)                 // вклад Боба
 {
-    Bob.vklad = static_cast<int>(Bob.vklad * 1.02);
+    Bob_Person.vklad = Bob_Person.vklad * 1.02;
 }
 
 
-void Alice_itog()                                               // итоговый капитал
+void Alice_capital()                                               // итоговый капитал
 {
-    Alice.itog = Alice.deposit + Alice.car_price + Alice.apartment - Alice.util_vznos;
+    Alice_Person.capital = Alice_Person.deposit + Alice_Car.car_price
+        + Alice_Apartamernt.apartment - Alice_Car.util_vznos;
 }
 
 
-void Bob_itog()                                              
+void Bob_capital()
 {
-    Bob.itog = Bob.deposit + Bob.vklad + Bob.car_price - Bob.util_vznos;
+    Bob_Person.capital = Bob_Person.deposit + Bob_Person.vklad
+        + Bob_Car.car_price - Bob_Car.util_vznos;
 }
 
 
 void print_Alice_info()                                        // вывод капиатала
 {
-    std::cout << "Alice capital = " << Alice.itog << " RUB\n";
+    std::cout << "Alice capital = " << Alice_Person.capital << " RUB\n";
 }
 
 
-void print_Bob_info()                                         
+void print_Bob_info()
 {
-    std::cout << "Bob capital = " << Bob.itog << " RUB\n";
-}
-
-
-void inflation()                                              // расчет инфляции ежемесячной
-{
-    Alice.income        = Alice.income * (1 + 8.0 / 1200);
-    Alice.food          = Alice.food * (1 + 8.0 / 1200);
-    Alice.trip          = Alice.trip * (1 + 8.0 / 1200);
-    Alice.cartex        = Alice.cartex * (1 + 8.0 / 1200);
-    Alice.car           = Alice.car * (1 + 8.0 / 1200);
-    Alice.car_price     = Alice.car_price * (1 + 8.0 / 1200);
-    Alice.util_vznos    = Alice.util_vznos * (1 + 8.0 / 1200);
-    Alice.utility_bills = Alice.utility_bills * (1 + 8.0 / 1200);
-    Alice.mortgage_pay  = Alice.mortgage_pay * (1 + 8.0 / 1200);
-    Alice.apartment     = Alice.apartment * (1 + 8.0 / 1200);
-
-    Bob.income          = Bob.income * (1 + 8.0 / 1200);
-    Bob.food            = Bob.food * (1 + 8.0 / 1200);
-    Bob.trip            = Bob.trip * (1 + 8.0 / 1200);
-    Bob.cartex          = Bob.cartex * (1 + 8.0 / 1200);
-    Bob.car_price       = Bob.car_price * (1 + 8.0 / 1200);
-    Bob.util_vznos      = Bob.util_vznos * (1 + 8.0 / 1200);
-    Bob.car             = Bob.car * (1 + 8.0 / 1200);
-    Bob.utility_bills   = Bob.utility_bills * (1 + 8.0 / 1200);
-    Bob.rent            = Bob.rent * (1 + 8.0 / 1200);
+    std::cout << "Bob capital = " << Bob_Person.capital << " RUB\n";
 }
 
 
 void Alice_init()                                             // инфа про Элис
 {
-    Alice.bank_account  = 100 * 100;
-    Alice.income        = 150 * 1000;
-    Alice.food          = 30000;
-    Alice.trip          = 80 * 1000;
-    Alice.cartex        = 50 * 100;
-    Alice.car           = 2000;
-    Alice.utility_bills = 8000;
-    Alice.mortgage_pay  = 60 * 1000;
-    Alice.mortgage      = 200 * 1000;
-    Alice.vznos         = 500 * 1000;
-    Alice.apartment     = 2000 * 1000;
-    Alice.car_price     = 1000 * 1000;
-    Alice.deposit       = 0;
-    Alice.util_vznos    = 10 * 1000;
+    Alice_Person.bank_account = 100 * 100;
+    Alice_Person.income = 150 * 1000;
+    Alice_Person.food = 30000;
+    Alice_Person.trip = 80 * 1000;
+    Alice_Person.deposit = 0;
+    Alice_Person.vznos = 500 * 1000;
+    Alice_Car.cartex = 50 * 100;
+    Alice_Car.car = 2000;
+    Alice_Car.car_price = 1000 * 1000;
+    Alice_Car.util_vznos = 10 * 1000;
+    Alice_Apartamernt.utility_bills = 8000;
+    Alice_Apartamernt.mortgage_pay = 60 * 1000;
+    Alice_Apartamernt.mortgage = 200 * 1000;
+    Alice_Apartamernt.apartment = 2000 * 1000;
 }
 
 
 void Bob_init()                                               // инфа про Боба
 {
-    Bob.bank_account  = 100 * 100;
-    Bob.income        = 150 * 1000;
-    Bob.food          = 35000;
-    Bob.trip          = 90 * 1000;
-    Bob.cartex        = 70 * 100;
-    Bob.car           = 2000;
-    Bob.utility_bills = 7000;
-    Bob.rent          = 30 * 1000;
-    Bob.vklad         = 50 * 100;
-    Bob.car_price     = 1000 * 1000;
-    Bob.deposit       = 0;
-    Bob.util_vznos    = 15 * 1000;
+    Bob_Person.bank_account = 100 * 100;
+    Bob_Person.income = 150 * 1000;
+    Bob_Person.food = 35000;
+    Bob_Person.vklad = 5000;
+    Bob_Person.deposit = 0;
+    Bob_Person.trip = 90 * 1000;
+    Bob_Car.cartex = 70 * 100;
+    Bob_Car.car = 2000;
+    Bob_Car.car_price = 1000 * 1000;
+    Bob_Car.util_vznos = 15 * 1000;
+    Bob_Apartamernt.utility_bills = 7000;
+    Bob_Apartamernt.rent = 30 * 1000;
 }
 
 
 void comparison()                                             // сравнение банковских счетов
 {
-    if (Bob.itog > Alice.itog) {
+    if (Bob_Person.capital > Alice_Person.capital) {
         std::cout << "Bob is living better\n";
     }
-    else if (Alice.itog > Bob.itog) {
+    else if (Alice_Person.capital > Bob_Person.capital) {
         std::cout << "Alice is living better\n";
     }
     else {
@@ -272,10 +263,10 @@ void comparison()                                             // сравнен�
 
 void death()                                                  // проверка банковских счетов на уход в минус
 {
-    if (Bob.itog < 0) {
+    if (Bob_Person.capital < 0) {
         std::cout << "Bob need more money\n";
     }
-    else if (Alice.itog < 0) {
+    else if (Alice_Person.capital < 0) {
         std::cout << "Alice need more money\n";
     }
     else {
@@ -296,10 +287,7 @@ void simulation()                                            // симуляци
         Alice_utility_bills();
         Alice_car(month);
         Alice_trip(month);
-        Alice_mortgage();
         Alice_vznos(year, month);
-        Alice_car_ptice();
-        Alice_deposit_protsent();
         Alice_deposit();
 
         Bob_income(year, month);
@@ -308,13 +296,8 @@ void simulation()                                            // симуляци
         Bob_utility_bills();
         Bob_car(month);
         Bob_trip(month);
-        Bob_rent();
         Bob_vklad(year, month);
-        Bob_car_ptice();
-        Bob_deposit_protsent();
         Bob_deposit();
-
-        inflation();
 
         ++month;
         if (month == 13) {
@@ -332,8 +315,8 @@ int main()
 
     simulation();
 
-    Alice_itog();
-    Bob_itog();
+    Alice_capital();
+    Bob_capital();
 
     print_Alice_info();
     print_Bob_info();
