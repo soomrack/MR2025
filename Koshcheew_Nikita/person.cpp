@@ -1,79 +1,137 @@
 #include "Person.h"
 #include <format>
 
+
 Person::Person(RUB income)
-	: m_income{ income } {
+	: income{ income } {
 }
+
 
 void Person::get_dep_percent(int inflation)
 {
-	m_deposit *= ((100 + static_cast<double>(inflation) * 2) / 100);
+	deposit *= ((102.0 + inflation) / 100.0);
 }
+
 
 void Person::increase_salary(int inflation)
 {
-	m_income *= ((105 + static_cast<double>(inflation))/100);
+	income *= ((105.0 + inflation)/100.0);
 }
+
 
 void Person::set_food_spending(RUB prices)
 {
-	m_food = prices;
+	food = prices;
 }
 
-void Person::set_rent(RUB rent)
+
+void Person::set_rent(RUB price)
 {
-	m_rent = rent;
+	rent = price;
 }
+
+
+void Person::set_communal(RUB price)
+{
+	communal = price;
+}
+
 
 void Person::set_mortgage_pay(RUB pay)
 {
-	m_mortgage_pay = pay;
+	if (pay > income / 2) std::cout << pay <<" Слишком большой платеж\n";
+	mortgage_pay = pay;
 }
 
-void Person::income()
+
+void Person::get_income(int month, int inflation)
 {
-	m_deposit += m_income;
+	if (month == 8) increase_salary(inflation);
+	bank_account += income;
 }
 
-void Person::buy_food()
+
+void Person::put_money_on_deposit()
 {
-	m_deposit -= m_food;
+	deposit += bank_account;
+	bank_account = 0;
 }
 
-void Person::pay_rent()
+
+void Person::spend_money(int month, int inflation)
 {
-	m_deposit -= m_rent;
+	buy_food(month, inflation);
+	pay_mortgage();
+	pay_rent(month, inflation);
+	pay_communal(month, inflation);
 }
+
+
+void Person::spend_money_on_car(RUB spending_on_car)
+{
+	bank_account -= spending_on_car;
+}
+
+
+void Person::buy_food(int month, int inflation)
+{
+	if (month == 12) increase_food_spending(inflation);
+	bank_account -= food;
+}
+
+
+void Person::pay_rent(int month, int inflation)
+{
+	if (month == 12) increase_rent(inflation);
+	bank_account -= rent;
+}
+
 
 void Person::pay_mortgage()
 {
-	m_deposit -= m_mortgage_pay;
+	bank_account -= mortgage_pay;
 }
 
-void Person::increase_prices(int inflation)
+
+void Person::pay_communal(int month, int inflation)
 {
-	increase_food_spending(inflation);
-	increase_rent(inflation);
+	if (month == 12) increase_communal(inflation);
+	bank_account -= communal;
 }
 
-void Person::print_info()
+
+void Person::print_info_alice(RUB cost_of_flat)
 {
-	std::cout << std::format("deposit - {}\n", m_deposit);
+	std::cout << std::format("deposit - {}, с учетом цены квартиры: {}\n", deposit, deposit + cost_of_flat);
 }
 
-void Person::buy_flat(RUB cost_of_flat)
+
+void Person::print_info_bob(RUB cost_of_car)
 {
-	m_deposit -= cost_of_flat;
+	std::cout << std::format("deposit - {}, с учетом цены машины: {}\n", deposit, deposit + cost_of_car);
 }
+
+
+void Person::buy_car(RUB cost_of_car)
+{
+	deposit -= cost_of_car;
+}
+
 
 void Person::increase_food_spending(int inflation)
 {
-	m_food *= ((100 + static_cast<double>(inflation))/100);
+	food *= ((100.0 + inflation)/100.0);
 }
+
 
 void Person::increase_rent(int inflation)
 {
-	m_rent *= ((100 + static_cast<double>(inflation)) / 100);
+	rent *= ((100.0 + inflation) / 100.0);
 }
 
+
+void Person::increase_communal(int inflation)
+{
+	communal *= ((100.0 + inflation) / 100.0);
+}
 

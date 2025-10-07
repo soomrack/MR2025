@@ -4,16 +4,16 @@
 #include <cmath>
 
 /*
-* Â íà÷àëüíûé ìîìåíò âðåìåíè Àëèñà è Áîá èìåþò îäèíàêîâîå êîëè÷åñòâî äåíåã íà ñ÷åòó â áàíêå.
-* Çàðïëàòû ó íèõ îäèíàêîâûå, ïîâûøåíèå ïðîèñõîäèò îäíîâðåìåííî, â îêòÿáðå 2030 ãîäà
+* Ã‚ Ã­Ã Ã·Ã Ã«Ã¼Ã­Ã»Ã© Ã¬Ã®Ã¬Ã¥Ã­Ã² Ã¢Ã°Ã¥Ã¬Ã¥Ã­Ã¨ Ã€Ã«Ã¨Ã±Ã  Ã¨ ÃÃ®Ã¡ Ã¨Ã¬Ã¥Ã¾Ã² Ã®Ã¤Ã¨Ã­Ã ÃªÃ®Ã¢Ã®Ã¥ ÃªÃ®Ã«Ã¨Ã·Ã¥Ã±Ã²Ã¢Ã® Ã¤Ã¥Ã­Ã¥Ã£ Ã­Ã  Ã±Ã·Ã¥Ã²Ã³ Ã¢ Ã¡Ã Ã­ÃªÃ¥.
+* Ã‡Ã Ã°Ã¯Ã«Ã Ã²Ã» Ã³ Ã­Ã¨Ãµ Ã®Ã¤Ã¨Ã­Ã ÃªÃ®Ã¢Ã»Ã¥, Ã¯Ã®Ã¢Ã»Ã¸Ã¥Ã­Ã¨Ã¥ Ã¯Ã°Ã®Ã¨Ã±ÃµÃ®Ã¤Ã¨Ã² Ã®Ã¤Ã­Ã®Ã¢Ã°Ã¥Ã¬Ã¥Ã­Ã­Ã®, Ã¢ Ã®ÃªÃ²Ã¿Ã¡Ã°Ã¥ 2030 Ã£Ã®Ã¤Ã 
 *
-* Àëèñà áåð¸ò â èïîòåêó ïîä 20% ãîäîâûõ êâàðòèðó ñòîèìîñòüþ 8 500 000 ðóá. Ïåðâîíà÷àëüíûé âçíîñ 1 710 000 ðóá
+* Ã€Ã«Ã¨Ã±Ã  Ã¡Ã¥Ã°Â¸Ã² Ã¢ Ã¨Ã¯Ã®Ã²Ã¥ÃªÃ³ Ã¯Ã®Ã¤ 20% Ã£Ã®Ã¤Ã®Ã¢Ã»Ãµ ÃªÃ¢Ã Ã°Ã²Ã¨Ã°Ã³ Ã±Ã²Ã®Ã¨Ã¬Ã®Ã±Ã²Ã¼Ã¾ 8 500 000 Ã°Ã³Ã¡. ÃÃ¥Ã°Ã¢Ã®Ã­Ã Ã·Ã Ã«Ã¼Ã­Ã»Ã© Ã¢Ã§Ã­Ã®Ã± 1 710 000 Ã°Ã³Ã¡
 */
 typedef long long int RUB;
 
 
 struct {
-    RUB sum;
+    const RUB sum;
     const RUB first_payment;
     const RUB regular_payment;
     const float year_multiplier;
@@ -33,7 +33,13 @@ struct {
 } deposit_features = { 0, 40000, 9.0 };
 
 
-std::string formatRub(RUB sum) {
+const double inflationMonthCoefficient = 1.0 + 0.6 / 100;
+const double indexationQuarterCoefficient = 1.0 + 1.9 / 100;
+const RUB flood_repair_cost = 100000;
+
+
+std::string format_rub(RUB sum) 
+{
     std::string s = std::to_string(sum);
     for (int i = s.length() - 3; i > 0; i -= 3)
         s.insert(i, " ");
@@ -42,102 +48,133 @@ std::string formatRub(RUB sum) {
 
 
 class Person {
+public:
     RUB bank_account;
     RUB income_amount;
+    RUB food_spendings = 15000;
+    RUB car_sharing_month_spending = 15000;
 
-public:
     std::string name;
 
-    void init(std::string gotName) {
-        name = gotName;
-        bank_account = 3 * 1000 * 1000;
-        income_amount = 200 * 1000;
-    }
-
-
-    void income(const int year, const int month) {
-        if (year == 2030 && month == 10) {
-            income_amount *= 1.5; //Promotion
-        }
-        bank_account += income_amount;
-    }
-
-
-    void print() {
-        printf("%s final bank account = %s ðóá.\n", name.c_str(), formatRub(bank_account).c_str());
-    }
-
-
-    void mortage(const int year, const int month) {
-        if (month == 1) {
-            mortage_features.sum *= mortage_features.year_multiplier;
-        }
-        
-        if (mortage_features.sum < mortage_features.regular_payment) {
-            RUB last_payment = mortage_features.sum;
-            bank_account -= last_payment;
-            mortage_features.sum -= last_payment;
-        }
-        else if (year == 2025 && month == 9) {
-            bank_account -= mortage_features.first_payment;
-            mortage_features.sum -= mortage_features.first_payment;
-        }
-        else {
-            bank_account -= mortage_features.regular_payment;
-            mortage_features.sum -= mortage_features.regular_payment;
-        }
-        //printf("%s final bank account = %lld ðóá.\n", name.c_str(), bank_account);
-
-    }
-
-
-    void rent(const int year, const int month) {
-        if (year == 2025 && month == 9) {
-            bank_account -= rent_features.pledge;
-        }
-        bank_account -= rent_features.regular_payment;
-    }
-
-
-    void food() {
-        bank_account -= 15000;
-    }
-
-
-    void deposit() {
-        double month_multiplier = 1.0 + pow(deposit_features.year_percent, 1.0/12)/100;      
-        
-        deposit_features.sum *= month_multiplier;
-        if (bank_account > deposit_features.minimumBalance) {
-            RUB month_deposit = bank_account-deposit_features.minimumBalance;
-            bank_account -= month_deposit;
-            deposit_features.sum += month_deposit;
-        }
-        //printf("%s\n", formatRub(deposit_features.sum).c_str());
-    }
-
-    
-    void popDeposit() {
-        bank_account += deposit_features.sum;
-        deposit_features.sum = 0;
-    }
+    void init(std::string got_name);    
+    void print();
+    void food();    
+    void car_sharing();
 };
 
 
-void simulation(Person& alice, Person& bob) {
+void Person::init(std::string got_name) {
+    name = got_name;
+    bank_account = 3 * 1000 * 1000;
+    income_amount = 200 * 1000;
+}
+
+
+void Person::print() {
+    printf("%s final bank account = %s Ã°Ã³Ã¡.\n", name.c_str(), format_rub(bank_account).c_str());
+}
+
+
+void Person::food() {
+    bank_account -= food_spendings;
+    food_spendings *= inflationMonthCoefficient;
+}
+
+
+void Person::car_sharing() {
+    bank_account -= car_sharing_month_spending;
+    car_sharing_month_spending *= inflationMonthCoefficient;
+}
+
+
+class Mortage_person : public Person {
+public:
+    void mortage(const int year, const int month);
+    void income(const int year, const int month);
+};
+
+
+void Mortage_person::mortage(const int year, const int month) {
+    //ÃÃ Ã·Ã Ã«Ã¼Ã­Ã»Ã© Ã¢Ã§Ã­Ã®Ã±
+    if (year == 2025 && month == 9) {
+        bank_account -= mortage_features.first_payment;
+    }
+    //ÃÃ¥Ã£Ã³Ã«Ã¿Ã°Ã­Ã»Ã© Ã¯Ã«Ã Ã²Â¸Ã¦
+    bank_account -= mortage_features.regular_payment;
+
+}
+
+
+void Mortage_person::income(const int year, const int month) {
+    if (year == 2030 && month == 10) {
+        income_amount *= 1.5; //Promotion
+    }
+    if (month == 1 or month == 4 or month == 7 or month == 10) {
+        income_amount *= indexationQuarterCoefficient; //indexation
+    }
+    bank_account += income_amount;
+}
+
+
+class Rent_person : public Person {
+public:
+    void rent(const int year, const int month);
+    void income(const int year, const int month);
+    void deposit();
+    void apartment_flood(const int year, const int month);
+};
+
+
+void Rent_person::rent(const int year, const int month) {
+    if (year == 2025 && month == 9) {
+        bank_account -= rent_features.pledge;
+    }
+    bank_account -= rent_features.regular_payment;
+}
+
+
+void Rent_person::income(const int year, const int month) {
+    if (month == 1 or month == 4 or month == 7 or month == 10) {
+        income_amount *= indexationQuarterCoefficient; //indexation
+    }
+    bank_account += income_amount;
+}
+
+
+void Rent_person::deposit() {
+    double month_multiplier = 1.0 + (deposit_features.year_percent / 12.0)/100;
+
+    deposit_features.sum *= month_multiplier;
+    if (bank_account > deposit_features.minimumBalance) {
+        RUB month_deposit = bank_account - deposit_features.minimumBalance;
+        bank_account -= month_deposit;
+        deposit_features.sum += month_deposit;
+    }
+}
+
+
+void Rent_person::apartment_flood(const int year, const int month) {
+    if (year == 2031 && month == 9) {
+        bank_account -= flood_repair_cost;
+    }
+}
+
+
+void simulation(Mortage_person& alice, Rent_person& bob) {
     int year = 2025;
     int month = 9;
 
     while (!(year == 2045 && month == 9)) {
         alice.income(year, month);
-        bob.income(year, month);
-
         alice.mortage(year, month);
-        bob.rent(year, month);
-
         alice.food();
-        bob.food();
+        alice.car_sharing();
+        alice.apartment_flood(year, month);
 
+        bob.income(year, month);
+        bob.rent(year, month);
+        bob.food();
+        bob.car_sharing();
         bob.deposit();
 
         month++;
@@ -145,16 +182,21 @@ void simulation(Person& alice, Person& bob) {
             year++;
             month = 1;
         }
-        bob.popDeposit();
     }
+}
+
+
+void compare(Mortage_person alice, Rent_person bob) {
+    printf("\nAlice final fund = %s Ã°Ã³Ã¡.\n", format_rub(alice.bank_account + mortage_features.sum).c_str());
+    printf("Bob final fund = %s Ã°Ã³Ã¡.\n", format_rub(bob.bank_account + deposit_features.sum).c_str());
 }
 
 
 int main() {
     setlocale(LC_ALL, "Russian");
 
-    Person alice;
-    Person bob;
+    Mortage_person alice;
+    Rent_person bob;
 
     alice.init("Alice");
     bob.init("Bob");
@@ -163,4 +205,7 @@ int main() {
 
     alice.print();
     bob.print();
+
+    compare(alice, bob);
+
 }

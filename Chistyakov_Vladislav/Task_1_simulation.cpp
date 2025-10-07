@@ -1,4 +1,4 @@
-#include <iostream>
+п»ї#include <iostream>
 #include <cmath>
 #include <random>
 
@@ -7,50 +7,51 @@ typedef long int RUB;
 std::mt19937 mt{ std::random_device{}() };
 
 struct person {
-	RUB bank_account;  //Счёт в банке
-	RUB income;        //Зарплата
-	RUB mortgage;      //Остаток суммы по ипотеке
-	RUB investment;    //Вклад в банке
+	RUB bank_account;  //РЎС‡С‘С‚ РІ Р±Р°РЅРєРµ
+	RUB apartment;     //Р¦РµРЅР° РєРІР°СЂС‚РёСЂС‹
+	RUB income;        //Р—Р°СЂРїР»Р°С‚Р°
+	RUB mortgage;      //РћСЃС‚Р°С‚РѕРє СЃСѓРјРјС‹ РїРѕ РёРїРѕС‚РµРєРµ
+	RUB investment;    //Р’РєР»Р°Рґ РІ Р±Р°РЅРєРµ
 
-	RUB food;          //Траты на еду
-	RUB rent;          //Аренда квартиры
-	RUB utilities;     //Комунальные услуги
+	RUB food;          //РўСЂР°С‚С‹ РЅР° РµРґСѓ
+	RUB rent;          //РђСЂРµРЅРґР° РєРІР°СЂС‚РёСЂС‹
+	RUB utilities;     //РљРѕРјСѓРЅР°Р»СЊРЅС‹Рµ СѓСЃР»СѓРіРё
 
-	bool HasApartment; //Наличие квартиры
+	//bool HasApartment; //РќР°Р»РёС‡РёРµ РєРІР°СЂС‚РёСЂС‹
 };
 
-struct person alice;   //Берёт в ипотеку
-struct person bob;     //Копит на вкладах
+struct person alice;   //Р‘РµСЂС‘С‚ РІ РёРїРѕС‚РµРєСѓ
+struct person bob;     //РљРѕРїРёС‚ РЅР° РІРєР»Р°РґР°С…
 
+//РЎС‚РѕРёРјРѕСЃС‚СЊ РєРІР°СЂС‚РёСЂС‹
+//RUB alice.apartment = 10 * 1000 * 1000;
 
-//Заранее выставленные переменные (Алиса уже внесла первоначальный взнос)
 void alice_init() {
 	alice.bank_account = 0;
+	alice.apartment = 10 * 1000 * 1000;
 	alice.mortgage = 8 * 1000 * 1000;
 	alice.income = 70 * 1000;
 	alice.food = 20 * 1000;
 	alice.utilities = 4 * 1000;
-	alice.HasApartment = true;
+	//alice.HasApartment = true;
 }
 
-//Заранее выставленные переменные (Боб уже полодил деньги на накопительный счёт)
 void bob_init() {
 	bob.bank_account = 0;
+	bob.apartment = 0;
 	bob.investment = 2 * 1000 * 1000;
 	bob.income = 70 * 1000;
 	bob.food = 20 * 1000;
 	bob.rent = 30 * 1000;
 	bob.utilities = 4 * 1000;
-	bob.HasApartment = false;
+	//bob.HasApartment = false;
 }
 
-//Стоимость квартиры
-RUB apartment_cost = 10 * 1000 * 1000;
-
-//Инфляция
+/*
+//РРЅС„Р»СЏС†РёСЏ
 void inflation(const int& month) {
 	if (month == 10) {
-		apartment_cost *= 1.07;
+		alice.apartment *= 1.07;
 
 		alice.food *= 1.07;
 		bob.food *= 1.07;
@@ -61,93 +62,179 @@ void inflation(const int& month) {
 		bob.utilities *= 1.07;
 	}
 }
+*/
 
 void alice_income(const int& year, const int& month) {
-	if (month == 10) alice.income *= 1.07;                 //Учёт инфляции на зарплату
-	if (year == 2030 && month == 3) alice.income *= 1.5;   //Повышение в должности
+	if (month == 10) alice.income *= 1.07;                 //РЈС‡С‘С‚ РёРЅС„Р»СЏС†РёРё РЅР° Р·Р°СЂРїР»Р°С‚Сѓ
+	if (year == 2030 && month == 3) alice.income *= 1.5;   //РџРѕРІС‹С€РµРЅРёРµ РІ РґРѕР»Р¶РЅРѕСЃС‚Рё
 	alice.bank_account += alice.income;
 }
 
-void bob_income(const int& year, const int& month) {
-	if (month == 10) bob.income *= 1.07;                   //Учёт инфляции на зарплату
-	if (year == 2030 && month == 3) bob.income *= 1.5;     //Повышение в должности
-	bob.bank_account += bob.income;
-	bob.investment *= 1 + 0.20 / 12;                       //Начисление процетов на вклад в банке под 20% годовых (каждый месяц)
+void alice_apartment(const int& month) {
+	if (month == 10) alice.apartment *= 1.07;
 }
 
-//Вычисление ежемесячного платеже по ипотеке
+void alice_food(const int& month) {
+	if (month == 10) alice.food *= 1.07;
+	alice.bank_account -= alice.food;
+}
+
+void alice_utilities(const int& month) {
+	if (month == 10) alice.utilities *= 1.07;
+	alice.bank_account -= alice.utilities;
+}
+
+//Р’С‹С‡РёСЃР»РµРЅРёРµ РµР¶РµРјРµСЃСЏС‡РЅРѕРіРѕ РїР»Р°С‚РµР¶Рµ РїРѕ РёРїРѕС‚РµРєРµ
 int mortgage_payment(long sum, double percent, int months) {
 	return (sum * (percent / 12) / (1 - pow(1 + percent / 12, -months - 1)));
 }
 
-//Обязательные затраты на проживание для Алисы
+void alice_mortgage() {
+	alice.bank_account -= mortgage_payment(alice.mortgage, 0.06, 12 * 20);
+	//РђР»РёСЃР° Р±РµСЂС‘С‚ РёРїРѕС‚РµРєСѓ СЃ РґРѕРЅРѕСЂСЃС‚РІРѕРј, С‚Р°Рє С‡С‚РѕР±С‹ РїСЂРѕС†РµРЅС‚ Р±С‹Р» 6%, РЅР° 20 Р»РµС‚
+}
+
+void alice_rand_expenses() {
+	int rand_num = 10 + (mt() % 50);
+	alice.bank_account -= rand_num * 1000;
+}
+
+void alice_mortgage_repayment(const int& year, const int& month) {
+	if (alice.mortgage >= alice.bank_account) {
+		alice.mortgage -= alice.bank_account;
+		alice.bank_account = 0;
+	}
+	else {
+		if (alice.mortgage < alice.bank_account && alice.mortgage != 0) {
+			alice.bank_account -= alice.mortgage;
+			alice.mortgage = 0;
+			std::cout << "РђР»РёСЃР° РїРѕРіР°СЃРёР»Р° РёРїРѕС‚РµРєСѓ: " << month << " РјРµСЃСЏС† " << year << " РіРѕРґ\n";
+		}
+	}
+}
+
+
+
+void bob_income(const int& year, const int& month) {
+	if (month == 10) bob.income *= 1.07;                   //РЈС‡С‘С‚ РёРЅС„Р»СЏС†РёРё РЅР° Р·Р°СЂРїР»Р°С‚Сѓ
+	if (year == 2030 && month == 3) bob.income *= 1.5;     //РџРѕРІС‹С€РµРЅРёРµ РІ РґРѕР»Р¶РЅРѕСЃС‚Рё
+	bob.bank_account += bob.income;
+}
+
+void bob_apartment(const int& month) {
+	if (month == 10) bob.apartment *= 1.07;
+}
+
+void bob_food(const int& month) {
+	if (month == 10) bob.food *= 1.07;
+	bob.bank_account -= bob.food;
+}
+
+void bob_utilities(const int& month) {
+	if (month == 10) {
+		bob.rent *= 1.07;
+		bob.utilities *= 1, 07;
+	}
+	if (bob.apartment == 0) bob.bank_account -= bob.rent;       //РџРѕРєР° РЅРµС‚ РєРІР°СЂС‚РёСЂС‹ - Р°СЂРµРЅРґСѓРµС‚
+	else bob.bank_account -= bob.utilities;                    //РЎ РєРІР°СЂС‚РёСЂРѕР№ РїР»Р°С‚РёС‚ РєРѕРјСѓРЅР°Р»СЊРЅС‹Рµ СѓСЃР»СѓРіРё
+}
+
+void bob_rand_expenses() {
+	int rand_num = 10 + (mt() % 50);
+	bob.bank_account -= rand_num * 1000;
+}
+
+void bob_investment(const int& year, const int& month) {
+	bob.investment *= 1.0 + 0.20 / 12;                       //РќР°С‡РёСЃР»РµРЅРёРµ РїСЂРѕС†РµС‚РѕРІ РЅР° РІРєР»Р°Рґ РІ Р±Р°РЅРєРµ РїРѕРґ 20% РіРѕРґРѕРІС‹С… (РєР°Р¶РґС‹Р№ РјРµСЃСЏС†)
+
+	if (bob.apartment == 0 && bob.investment < alice.apartment) {         //РџРѕРєР° РґРµРЅРµРі РЅР° РІРєР»Р°РґРµ РЅРµ С…РІР°С‚Р°РµС‚ РїСЂРѕРґРѕР»Р¶Р°РµС‚ РІРєР»Р°РґС‹РІР°С‚СЊ
+		bob.investment += bob.bank_account;
+		bob.bank_account = 0;
+	}
+	else if (bob.apartment == 0 && bob.investment >= alice.apartment) {   //Р•СЃР»Рё РЅР°РєРѕРїРёР», С‚Рѕ СЃРЅРёРјР°РµС‚ РІСЃС‘ Рё РїРѕРєСѓРїР°РµС‚
+		bob.bank_account += bob.investment;
+		bob.investment = 0;
+		bob.bank_account -= alice.apartment;
+		bob.apartment = alice.apartment;
+		std::cout << "Р‘РѕР± РєСѓРїРёР» РєРІР°СЂС‚РёСЂСѓ: " << month << " РјРµСЃСЏС† " << year << " РіРѕРґ\n";
+	}
+}
+
+/*
+//РћР±СЏР·Р°С‚РµР»СЊРЅС‹Рµ Р·Р°С‚СЂР°С‚С‹ РЅР° РїСЂРѕР¶РёРІР°РЅРёРµ РґР»СЏ РђР»РёСЃС‹
 void alice_costs() {
 	alice.bank_account -= alice.food;
 	alice.bank_account -= alice.utilities;
+
 	alice.bank_account -= mortgage_payment(alice.mortgage, 0.06, 12 * 20);
-	//Алиса берёт ипотеку с донорством, так чтобы процент был 6%, на 20 лет
+	//РђР»РёСЃР° Р±РµСЂС‘С‚ РёРїРѕС‚РµРєСѓ СЃ РґРѕРЅРѕСЂСЃС‚РІРѕРј, С‚Р°Рє С‡С‚РѕР±С‹ РїСЂРѕС†РµРЅС‚ Р±С‹Р» 6%, РЅР° 20 Р»РµС‚
 }
 
-//Обязательные затраты на проживание для Боба
+//РћР±СЏР·Р°С‚РµР»СЊРЅС‹Рµ Р·Р°С‚СЂР°С‚С‹ РЅР° РїСЂРѕР¶РёРІР°РЅРёРµ РґР»СЏ Р‘РѕР±Р°
 void bob_costs() {
 	bob.bank_account -= bob.food;
-	if (!bob.HasApartment) bob.bank_account -= bob.rent;       //Пока нет квартиры снимает арендует
-	else bob.bank_account -= bob.utilities;                    //С квартирой платит комунальные услуги
+	if (bob.apartment == 0) bob.bank_account -= bob.rent;       //РџРѕРєР° РЅРµС‚ РєРІР°СЂС‚РёСЂС‹ СЃРЅРёРјР°РµС‚ Р°СЂРµРЅРґСѓРµС‚
+	else bob.bank_account -= bob.utilities;                    //РЎ РєРІР°СЂС‚РёСЂРѕР№ РїР»Р°С‚РёС‚ РєРѕРјСѓРЅР°Р»СЊРЅС‹Рµ СѓСЃР»СѓРіРё
 }
 
-//Случайные траты Боба и Алисы (одинаковые для более точного подсчёта)
+//РЎР»СѓС‡Р°Р№РЅС‹Рµ С‚СЂР°С‚С‹ Р‘РѕР±Р° Рё РђР»РёСЃС‹ (РѕРґРёРЅР°РєРѕРІС‹Рµ РґР»СЏ Р±РѕР»РµРµ С‚РѕС‡РЅРѕРіРѕ РїРѕРґСЃС‡С‘С‚Р°)
 void rand_costs() {
 	int rand_num = 10 + (mt() % 50);
 	alice.bank_account -= rand_num * 1000;
 	bob.bank_account -= rand_num * 1000;
 }
 
-//Что делает Алиса с остатком
+//Р§С‚Рѕ РґРµР»Р°РµС‚ РђР»РёСЃР° СЃ РѕСЃС‚Р°С‚РєРѕРј
 void alice_remain(const int& year, const int& month) {
-	if (alice.mortgage >= alice.bank_account) {             //Пока есть ипотека, погашает её заранее
+	if (alice.mortgage >= alice.bank_account) {             //РџРѕРєР° РµСЃС‚СЊ РёРїРѕС‚РµРєР°, РїРѕРіР°С€Р°РµС‚ РµС‘ Р·Р°СЂР°РЅРµРµ
 		alice.mortgage -= alice.bank_account;
 		alice.bank_account = 0;
 	}
-	else {													//Если суммы хватает, чтобы погасить ипотеку полностью
+	else {													//Р•СЃР»Рё СЃСѓРјРјС‹ С…РІР°С‚Р°РµС‚, С‡С‚РѕР±С‹ РїРѕРіР°СЃРёС‚СЊ РёРїРѕС‚РµРєСѓ РїРѕР»РЅРѕСЃС‚СЊСЋ
 		if (alice.mortgage < alice.bank_account && alice.mortgage != 0) {
 			alice.bank_account -= alice.mortgage;
 			alice.mortgage = 0;
-			std::cout << "Алиса погасила ипотеку: " << month << " месяц " << year << " год\n";
-		}                                                   //В остальных случаюх копит
+			std::cout << "РђР»РёСЃР° РїРѕРіР°СЃРёР»Р° РёРїРѕС‚РµРєСѓ: " << month << " РјРµСЃСЏС† " << year << " РіРѕРґ\n";
+		}                                                   //Р’ РѕСЃС‚Р°Р»СЊРЅС‹С… СЃР»СѓС‡Р°СЋС… РєРѕРїРёС‚
 	}
 }
 
-//Что делает Боб с остатком
+//Р§С‚Рѕ РґРµР»Р°РµС‚ Р‘РѕР± СЃ РѕСЃС‚Р°С‚РєРѕРј
 void bob_remain(const int& year, const int& month) {
-	if (!bob.HasApartment && bob.investment < apartment_cost) {         //Пока денег на вкладе не хватает продолжает вкладывать
+	if (bob.apartment == 0 && bob.investment < alice.apartment) {         //РџРѕРєР° РґРµРЅРµРі РЅР° РІРєР»Р°РґРµ РЅРµ С…РІР°С‚Р°РµС‚ РїСЂРѕРґРѕР»Р¶Р°РµС‚ РІРєР»Р°РґС‹РІР°С‚СЊ
 		bob.investment += bob.bank_account;
 		bob.bank_account = 0;
 	}
-	else if (!bob.HasApartment && bob.investment >= apartment_cost) {   //Если накопил, то снимает всё и покупает
+	else if (bob.apartment == 0 && bob.investment >= alice.apartment) {   //Р•СЃР»Рё РЅР°РєРѕРїРёР», С‚Рѕ СЃРЅРёРјР°РµС‚ РІСЃС‘ Рё РїРѕРєСѓРїР°РµС‚
 		bob.bank_account += bob.investment;
 		bob.investment = 0;
-		bob.bank_account -= apartment_cost;
+		bob.bank_account -= alice.apartment;
 		bob.HasApartment = true;
-		std::cout << "Боб купил квартиру: " << month << " месяц " << year << " год\n";
-	}														   	        //В остальных случаюх копит, без накопительного счёта
+		std::cout << "Р‘РѕР± РєСѓРїРёР» РєРІР°СЂС‚РёСЂСѓ: " << month << " РјРµСЃСЏС† " << year << " РіРѕРґ\n";
+	}														   	        //Р’ РѕСЃС‚Р°Р»СЊРЅС‹С… СЃР»СѓС‡Р°СЋС… РєРѕРїРёС‚, Р±РµР· РЅР°РєРѕРїРёС‚РµР»СЊРЅРѕРіРѕ СЃС‡С‘С‚Р°
 }
+*/
 
 void simulation() {
 	int year = 2025;
 	int month = 9;
 
 	while (!(year == 2045 && month == 9)) {
-		inflation(month);
-
-		alice_income(year, month);
-		bob_income(year, month);
-
-		alice_costs();
-		bob_costs();
-		rand_costs();
-
-		alice_remain(year, month);
-		bob_remain(year, month);
+		{
+			alice_income(year, month);
+			alice_food(month);
+			alice_mortgage();
+			alice_utilities(month);
+			alice_rand_expenses();
+			alice_mortgage_repayment(year, month);
+		}
+		{
+			bob_income(year, month);
+			bob_food(month);
+			bob_utilities(month);
+			bob_rand_expenses();
+			bob_investment(year, month);
+		}
 
 		++month;
 		if (month == 13) {
@@ -158,15 +245,15 @@ void simulation() {
 }
 
 void alice_print() {
-	std::cout << "Счёт Алисы в банке: " << alice.bank_account << "\n";
-	if (alice.HasApartment) std::cout << "Есть квартира\n";
-	else std::cout << "Нет квартиры\n";
+	std::cout << "РЎС‡С‘С‚ РђР»РёСЃС‹ РІ Р±Р°РЅРєРµ: " << alice.bank_account + alice.apartment << "\n";
+	if (alice.apartment != 0) std::cout << "Р•СЃС‚СЊ РєРІР°СЂС‚РёСЂР°\n";
+	else std::cout << "РќРµС‚ РєРІР°СЂС‚РёСЂС‹\n";
 }
 
 void bob_print() {
-	std::cout << "Счёт Боба в банке: " << bob.bank_account << "\n";
-	if (bob.HasApartment) std::cout << "Есть квартира\n";
-	else std::cout << "Нет квартиры\n";
+	std::cout << "РЎС‡С‘С‚ Р‘РѕР±Р° РІ Р±Р°РЅРєРµ: " << bob.bank_account + bob.apartment << "\n";
+	if (bob.apartment != 0) std::cout << "Р•СЃС‚СЊ РєРІР°СЂС‚РёСЂР°\n";
+	else std::cout << "РќРµС‚ РєРІР°СЂС‚РёСЂС‹\n";
 }
 
 int main() {

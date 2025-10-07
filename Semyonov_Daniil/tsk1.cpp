@@ -1,15 +1,21 @@
 //Once David and Alice argued about benefits of mortgage. 
 // Unlike David who had just taken morgage Alice was convinced that it is more profitably to rent accomodation and deposit money in bank. 
-// Then they managed to conduct a comptetition: who will have more money on his bank account after 20 years.
+// Then they managed to conduct a competition: who will have more money on his bank account after 20 years.
 
 #include <stdio.h>
-#include <locale.h>
 
 typedef long long int RUB;
 
 struct Person {
     RUB bank_account;
     RUB income;
+    RUB rent_price;
+    RUB food_price;
+    RUB invested_money;
+    RUB mortgage;
+    RUB other_spendings;
+    RUB flat_price;
+    RUB all_spendings;
 };
 
 Person alice;
@@ -18,12 +24,22 @@ Person david;
 void alice_init() {
     alice.bank_account = 1000 * 1000;
     alice.income = 300 * 1000;
+    alice.rent_price = 60 * 1000;
+    alice.food_price = 25 * 1000;
+    alice.other_spendings = 30 * 1000;
+    alice.invested_money = alice.invested_money = alice.income - (alice.rent_price + alice.food_price + alice.other_spendings);
+
 };
 
 void david_init() {
     david.bank_account = 500 * 1000;
     david.income = 200 * 1000;
-    int flat_price = 20 * 1000 * 1000;
+    david.flat_price = 20 * 1000 * 1000;  //david's new flat price
+    david.food_price = 25 * 1000;
+    david.other_spendings = 30 * 1000;
+    david.mortgage = 60 * 1000;
+    david.invested_money = david.invested_money = david.income - (david.mortgage + david.food_price + david.other_spendings);
+
 };
 
 void alice_print() {
@@ -34,12 +50,17 @@ void david_print() {
     printf("David bank account = %lld rub.\n", david.bank_account);
 }
 
-void david_mortgage(const int mortgage_start_year, const int mortgage_start_month, const int mortgage_period, const int current_year, const int current_month) {
+void david_mortgage(const int current_year, const int current_month) {
+
+    int mortgage_start_year = 2025;
+    int mortgage_start_month = 9;
+    int mortgage_period = 15;
+
     int mortgage_years_passed = current_year - mortgage_start_year;
     int mortgage_months_passed = mortgage_years_passed * 12 + current_month;
-  
+
     if (mortgage_months_passed < mortgage_period * 12) {
-        david.bank_account -= 60000;
+        david.bank_account -= david.mortgage; //month mortgage payment
     }
 }
 
@@ -64,39 +85,43 @@ void david_income(const int year, const int month) {
 }
 
 
-void inflation(int* price, int year, int month) {
+void inflation(RUB* price, int year, int month) {
     if (month == 12) {
         *price *= 1.08;
     }
 }
 
-void alice_rent(int rent_price) {
-    alice.bank_account -= rent_price;
+void alice_rent(int year, int month) {
+    alice.bank_account -= alice.rent_price;
+    inflation(&alice.rent_price, year, month);
 }
 
-void alice_food(int food_prices, int year, int month) {
-    alice.bank_account -= food_prices;
+void alice_food(int year, int month) {
+    alice.bank_account -= alice.food_price;
     if (month == 5) {
-       alice.bank_account -= 10000; //she tried to improve her diet(Healthy food is more expensive)
+        alice.bank_account -= 10000; //she tried to improve her diet(Healthy food is more expensive)
     }
+    inflation(&alice.food_price, year, month);
 }
 
-void david_food(int food_prices, int year, int month) {
-    david.bank_account -= food_prices;
+void david_food(int year, int month) {
+    RUB init_bank_account = david.bank_account;
+    david.bank_account -= david.food_price;
     if (month == 5) {
         david.bank_account -= 20000; //he bought a lot of caviar this month
     }
+    inflation(&david.food_price, year, month);
 }
 
-void alice_deposit(int invested_money, int year, int month) {
-    alice.bank_account += invested_money * 0.18;
-    if (year == 2030 && month == 10) {
-        invested_money *= 1.5; //promotion
-    }
-    if (month == 12) {
-        invested_money *= 1.5; //gained a bonus at work
-    }
+void alice_deposit(int year, int month) {
+    alice.bank_account += alice.invested_money * 0.18;
 }
+
+void david_deposit(int year, int month) {
+    david.bank_account += david.invested_money * 0.18;
+}
+
+//void david_deposit
 
 void david_trip(int year, int month) {
     if (month == 6) {
@@ -108,8 +133,8 @@ void david_trip(int year, int month) {
     }
 }
 
-void david_other_spendings(int other_spendings, int year, int month) {
-    david.bank_account -= other_spendings;
+void david_other_spendings(int year, int month) {
+    david.bank_account -= david.other_spendings;
     if (month == 6) {
         david.bank_account -= 10000;  //donated to charity
     }
@@ -121,10 +146,11 @@ void david_other_spendings(int other_spendings, int year, int month) {
     if (year == 2035 && month == 12) {
         david.bank_account -= 200000; //bought a new playstation 7
     }
+    inflation(&david.other_spendings, year, month);
 }
 
-void alice_other_spendings(int other_spendings, int year, int month) {
-    alice.bank_account -= other_spendings;
+void alice_other_spendings(int year, int month) {
+    alice.bank_account -= alice.other_spendings;
     if (month == 6) {
         alice.bank_account -= 20000;  //donated to charity
     }
@@ -134,8 +160,9 @@ void alice_other_spendings(int other_spendings, int year, int month) {
     }
 
     if (year == 2035 && month == 12) {
-        alice.bank_account -= 200000; //bought new dyson
+        alice.bank_account -= 200000; //bought a new dyson
     }
+    inflation(&alice.other_spendings, year, month);
 }
 
 void alice_trip(int year, int month) {
@@ -153,41 +180,33 @@ void alice_trip(int year, int month) {
 }
 
 void david_flat(int year, int month) {
-    int flat_price = 20 * 1000 * 1000;
     if (year == 2045 && month == 8)
-    david.bank_account += flat_price * 2; //due to inflation
+        david.bank_account += david.flat_price * 2; //due to inflation
 }
 
 void simulation() {
-    int mortgage_start_year = 2025;
-    int mortgage_start_month = 9;
+
     int year = 2025;
     int month = 9;
-    int mortgage_period = 15;
-    int rent_price = 60000;
-    int food_price = 25000;
-    int invested_money = 50000;
-    int other_spendings = 30000;
 
     while (!(year == 2045 && month == 9)) {
-        alice_income(year, month);
-        alice_rent(rent_price);
+
         david_income(year, month);
-        david_mortgage(mortgage_start_year, mortgage_start_month, mortgage_period, year, month);
-        david_food(food_price, year, month);
-        alice_food(food_price, year, month);
-        alice_deposit(invested_money, year, month);
+        david_mortgage(year, month);
+        david_food(year, month);
         david_trip(year, month);
-        alice_trip(year, month);
-        david_other_spendings(other_spendings, year, month);
-        alice_other_spendings(other_spendings, year, month);
+        david_other_spendings(year, month);
+        david_deposit(year, month);
         david_flat(year, month);
-        inflation(&rent_price, year, month);
-        inflation(&food_price, year, month);
-        inflation(&other_spendings, year, month);
-        
-        
-        // alice_car();
+
+
+        alice_income(year, month);
+        alice_rent(year, month);
+        alice_food(year, month);
+        alice_deposit(year, month);
+        alice_trip(year, month);
+        alice_other_spendings(year, month);
+
 
         month++;
         if (month == 13) {

@@ -3,28 +3,42 @@
 typedef long long RUB;
 
 class Person {
+private:
+	RUB deposit{ 0 };
+	RUB income;
+	RUB food{ 0 };
+	RUB rent{ 0 };
+	RUB mortgage_pay{ 0 };
+	RUB bank_account{ 0 };
+	RUB communal{ 0 };
 public:
 	explicit Person(RUB income);
-	void get_dep_percent(int inflation);
-	void increase_salary(int inflation);
+
 	void set_food_spending(RUB prices);
 	void set_mortgage_pay(RUB pay);
 	void set_rent(RUB rent);
-	void income();
-	void buy_food();
-	void pay_rent();
-	void pay_mortgage();
-	void increase_prices(int inflation);
-	void buy_flat(RUB cost_of_flat);
-	void print_info();
-private:
-	RUB m_deposit{0};
-	RUB m_income;
-	RUB m_food{0};
-	RUB m_rent{0};
-	RUB m_mortgage_pay{ 0 };
+	void set_communal(RUB price);
 
+	void get_dep_percent(int inflation);
+	void get_income(int mont, int inflation);
+	void put_money_on_deposit();
+
+	void spend_money(int month, int inflation);
+	void spend_money_on_car(RUB spending_on_car);
+
+	void buy_car(RUB cost_of_car);
+	void print_info_alice(RUB cost_of_car);
+	void print_info_bob(RUB cost_of_flat);
+
+private:
+	void increase_salary(int inflation);
 	void increase_food_spending(int inflation);
 	void increase_rent(int inflation);
+	void increase_communal(int inflation);
+
+	void buy_food(int month, int inflation);
+	void pay_rent(int month, int inflation);
+	void pay_mortgage();
+	void pay_communal(int month, int inflation);
 };
 
