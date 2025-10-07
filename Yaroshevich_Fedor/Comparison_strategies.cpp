@@ -72,10 +72,14 @@ void mortage_simulation(struct Person* p, const int year, const int month)
 
 	if (!initialized) {
 		double loan_amount = p->flatcost; 
-		double annual_rate = 0.12;       
-		double month_rate = annual_rate / 12.0;
+		double initial_payment = 1000000;
+		double annual_rate = 12;       
+		double month_rate = (annual_rate / 12) / 100;
 		int years = 20;
 		int total_months = years * 12;
+
+		loan_amount -= initial_payment;
+		p->bank_account -= initial_payment;
 
 		double annuity_coeff =
 			(month_rate * pow(1.0 + month_rate, total_months)) /
@@ -239,8 +243,8 @@ void walter_int()
 
 void saul_int()
 {
-	saul.bank_account = 1000 * 1000;
-	saul.income = 180 * 1000;
+	saul.bank_account = 1100 * 1000;
+	saul.income = 190 * 1000;
 	saul.food = 30 * 1000;
 	saul.diff_services = 25 * 1000;
 	saul.clothes = 15 * 1000;
