@@ -12,6 +12,7 @@ struct Person {
 	RUB unforeseen_expenses; 
 	RUB trip;
 	RUB technique;   
+	RUB rent_flat;
 	RUB flatcost; 
 	RUB deposit;  
 	RUB mortage;
@@ -40,6 +41,7 @@ void deposit_simulation(struct Person* p, const int year, const int month)
 	static double month_rate = (deposit_rate * 0.01) / 12;
 
 	if (p->has_flat) {
+		printf("Walter already owns a flat!\n");
 		return;
 	}
 
@@ -69,11 +71,11 @@ void mortage_simulation(struct Person* p, const int year, const int month)
 	static double remaining_loan = 0.0; 
 	static double monthly_payment = 0.0;
 	static int initialized = 0;
+	static double annual_rate = 22;
 
 	if (!initialized) {
 		double loan_amount = p->flatcost; 
-		double initial_payment = 1000000;
-		double annual_rate = 12;       
+		double initial_payment = 1000000;       
 		double month_rate = (annual_rate / 12) / 100;
 		int years = 20;
 		int total_months = years * 12;
@@ -94,8 +96,7 @@ void mortage_simulation(struct Person* p, const int year, const int month)
 	}
 
 	if (remaining_loan > 0.0) {
-		double annual_rate = 0.12;
-		double month_rate = annual_rate / 12.0;
+		double month_rate = (annual_rate / 12) / 100;
 
 		double interest = remaining_loan * month_rate;
 
@@ -164,6 +165,13 @@ void person_technique(struct Person* p, const int year, const int month)
 }
 
 
+void person_rent_flat(struct Person* p)
+{
+	p->rent_flat *= 1.005;
+	p->bank_account -= p->rent_flat;
+}
+
+
 void person_flatcost(struct Person* p, const int month)
 {
 	if (month == 7) {
@@ -202,6 +210,7 @@ void simulation()
 		person_technique(&walter, year, month);
 		person_technique(&saul, year, month);
 
+		person_rent_flat(&walter);
 		deposit_simulation(&walter, year, month);
 		mortage_simulation(&saul, year, month);
 
@@ -228,14 +237,15 @@ void print_person_info()
 
 void walter_int()
 {
-	walter.bank_account = 100 * 1000;
-	walter.income = 160 * 1000;
+	walter.bank_account = 1100 * 1000;
+	walter.income = 200 * 1000;
 	walter.food = 30 * 1000;
 	walter.diff_services = 25 * 1000;
 	walter.clothes = 15 * 1000;
 	walter.unforeseen_expenses = 50 * 1000;
 	walter.trip = 120 * 1000;
 	walter.technique = 200 * 1000;
+	walter.rent_flat = 40 * 1000;
 	walter.flatcost = 10000 * 1000;
 	walter.deposit = 10 * 1000;
 }
@@ -244,7 +254,7 @@ void walter_int()
 void saul_int()
 {
 	saul.bank_account = 1100 * 1000;
-	saul.income = 190 * 1000;
+	saul.income = 220 * 1000;
 	saul.food = 30 * 1000;
 	saul.diff_services = 25 * 1000;
 	saul.clothes = 15 * 1000;
