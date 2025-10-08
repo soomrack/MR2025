@@ -1,19 +1,19 @@
 #include <stdio.h>
 
-typedef long long int Money;
+typedef long long int RUB;
 
 struct Mortgage {
-    Money sum;
-    Money first_pay;
-    Money monthly_payment;
+    RUB sum;
+    RUB first_pay;
+    RUB monthly_payment;
 };
 
 struct Person {
-    Money salary;
-    Money account;
-    Money wastes;
-    Money renta;
-    Money deposit;
+    RUB salary;
+    RUB account;
+    RUB wastes;
+    RUB renta;
+    RUB deposit;
 };
 
 
@@ -23,15 +23,15 @@ struct Mortgage alice_mortgage;
 
 void alice_inite() 
 {
-    alice.account = 1000 * 1000 * 100;
-    alice.salary = 300 * 1000 * 100;
-    alice.wastes = 30 * 1000 * 100;
+    alice.account = 1000 * 1000;
+    alice.salary = 300 * 1000;
+    alice.wastes = 30 * 1000;
     alice.deposit = 0;
 
 
-    alice_mortgage.sum = 14 * 1000 * 1000 * 100;
-    alice_mortgage.first_pay = 1000 * 1000 * 100;
-    alice_mortgage.monthly_payment = 217232 * 100;
+    alice_mortgage.sum = 14 * 1000 * 1000;
+    alice_mortgage.first_pay = 1000 * 1000;
+    alice_mortgage.monthly_payment = 217232;
     alice.account -= alice_mortgage.first_pay;
 }
 
@@ -67,17 +67,16 @@ void alice_deposit()
 {
     alice.deposit *= (20.0 / 12.) / 100.;
     alice.deposit += alice.account;
-    alice.account = 0;
 }
 
 //Bob
 
 void bob_inite() 
 {
-    bob.deposit = 1000 * 1000 * 100;
-    bob.salary = 300 * 1000 * 100;
-    bob.wastes = 50 * 1000 * 100;
-    bob.renta = 60 * 1000 * 100;
+    bob.deposit = 1000 * 1000;
+    bob.salary = 300 * 1000;
+    bob.wastes = 50 * 1000;
+    bob.renta = 60 * 1000;
 } 
 
 
@@ -112,16 +111,15 @@ void bob_deposit()
 {
     bob.deposit *= (20.0 / 12.) / 100.;
     bob.deposit += bob.account;
-    bob.account = 0;
 }
 
 
 void simulation()
 {
     int month = 9;
-    int year = 2024;
+    int year = 2025;
 
-    while (!((year == 2024 + 30) && (month == 9))) {
+    while (!((year == 2025 + 30) && (month == 9))) {
         alice_salary(month);
         alice__mortgage();
         alice_wastes();
