@@ -2,21 +2,23 @@
 #define motor_left_dir 7
 #define motor_right_pwm 5
 #define motor_right_dir 4
-
 #define BUTTON_PIN 12
-
 #define LEFT_SENSOR_PIN A0
 #define RIGHT_SENSOR_PIN A1
 
 float gain_p = 8.0;
 float gain_d = 5.0;
-int speed = 170;
+int speed = 180;
 
 int sensorL_min = 1023, sensorL_max = 0;  // magic numbers
 int sensorR_min = 1023, sensorR_max = 0;  // also
 
 int last_error = 0;
 bool is_bot_active = false;
+bool button_old = HIGH;
+
+int white_L, white_R, black_L, black_R;
+int tresholdL, tresholdR;
 
 
 void move_motors(int leftSpeed, int rightSpeed) {
@@ -27,35 +29,49 @@ void move_motors(int leftSpeed, int rightSpeed) {
 }
 
 
-void sensor_calibration() { // Калибровка датчиков на белое и чёрное через нажатие кнопок
+int midArifm(int pin) {
+  long sum = 0;
+  for (int i = 0; i < 20; i++)
+    sum += analogRead(pin);
+  return (sum / 20);
+}
 
-    pinMode(BUTTON_PIN, INPUT_PULLUP);
-    pinMode(LEFT_SENSOR_PIN, INPUT);
-    pinMode(R_SENS_PIN, INPUT);
 
-    while (digitalRead(BUTTON_PIN)) {delay(50);}  // Ожидание первого нажатия клавиши
-    while (!digitalRead(BUTTON_PIN)) {delay(50);} // Ожидание когда кнопку отпустят
+void sensor_calibration() {
+  Serial.println("Calibration started");
 
-    white_L = midArifm(LEFT_SENSOR_PIN); // Запись значения белого с левого датчика
-    white_R = midArifm(RIGHT_SENSOR_PIN); // Запись значения белого с правого датчика
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  pinMode(LEFT_SENSOR_PIN, INPUT);
+  pinMode(RIGHT_SENSOR_PIN, INPUT);
+
+  while (digitalRead(BUTTON_PIN)) {delay(10);}  // Ожидание первого нажатия клавиши
+  while (!digitalRead(BUTTON_PIN)) {delay(10);} // Ожидание когда кнопку отпустят
+
+  white_L = midArifm(LEFT_SENSOR_PIN); // Запись значения белого с левого датчика
+  white_R = midArifm(RIGHT_SENSOR_PIN); // Запись значения белого с правого датчика
     
-    while (digitalRead(BUTTON_PIN)) {delay(50);}  // Ожидание второго нажатия клавиши
-    while (!digitalRead(BUTTON_PIN)) {delay(50);} // Ожидание когда кнопку отпустят
+  while (digitalRead(BUTTON_PIN)) {delay(10);}  // Ожидание второго нажатия клавиши
+  while (!digitalRead(BUTTON_PIN)) {delay(10);} // Ожидание когда кнопку отпустят
 
-    black_L = midArifm(LEFT_SENSOR_PIN); // Запись значения чёрного с левого датчика
-    black_R = midArifm(RIGHT_SENSOR_PIN); // Запись значения чёрного с правого датчика
+  black_L = midArifm(LEFT_SENSOR_PIN); // Запись значения чёрного с левого датчика
+  black_R = midArifm(RIGHT_SENSOR_PIN); // Запись значения чёрного с правого датчика
 
-    while (digitalRead(BUTTON_PIN)) {delay(50);}  // Ожидание третьего нажатия клавиши
+  while (digitalRead(BUTTON_PIN)) {delay(10);}  // Ожидание третьего нажатия клавиши
 
-    Serial.print(white_L);
-    Serial.println(" ");
-    Serial.println(white_R);
+  sensorL_min = black_L;  // минимальное значение (тёмная линия)
+  sensorL_max = white_L;  // максимальное значение (светлый фон)
+  sensorR_min = black_R;
+  sensorR_max = white_R;
 
-    Serial.print(black_L);
-    Serial.println(" ");
-    Serial.println(black_R);
+  float threshold_ratio = 0.05; // 5% от диапазона
+  tresholdL = black_L + (white_L - black_L) * threshold_ratio;
+  tresholdR = black_R + (white_R - black_R) * threshold_ratio;
 
-    while (!digitalRead(BUTTON_PIN)) {delay(50);} // Ожидание когда кнопку отпустят
+
+  Serial.print("L: "); Serial.print(sensorL_min); Serial.print(" - "); Serial.println(sensorL_max);
+  Serial.print("R: "); Serial.print(sensorR_min); Serial.print(" - "); Serial.println(sensorR_max);
+  Serial.print("Threshold L: "); Serial.println(tresholdL);
+  Serial.print("Threshold R: "); Serial.println(tresholdR);
 }
 
 
@@ -73,28 +89,62 @@ void line_following() {
 }
 
 
+bool is_line_lost() {
+  int value_left = map(analogRead(LEFT_SENSOR_PIN), sensorL_min, sensorL_max, 0, 100);
+  int value_right = map(analogRead(RIGHT_SENSOR_PIN), sensorR_min, sensorR_max, 0, 100);
+
+  return (value_left < tresholdL && value_right < tresholdR);
+}
+
+
+void searching_line() {
+  for (int i = 0; i < 3; i++) {
+    if (last_error > 0) {
+      move_motors(80, -80);
+    }
+    else if (last_error < 0) {
+      move_motors(-80, 80);
+    }
+    else {
+      move_motors(-80, -80);
+    }
+
+    delay(150);    // короткий поворот/движение
+    move_motors(0,0); // остановка
+
+    if (!is_line_lost()) break; // линия найдена, выход из цикла
+  }
+}
+
+
 void setup() {
+  Serial.begin(9600);
+
   pinMode(motor_left_pwm, OUTPUT);
   pinMode(motor_left_dir, OUTPUT);
   pinMode(motor_right_pwm, OUTPUT);
   pinMode(motor_right_dir, OUTPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);  // пинмоды на каждый, на button подаем 1
 
-  sensor_calibration()
+  sensor_calibration();
 
-  while (digitalRead(BUTTON_PIN) == HIGH) {
-  }
+  while (digitalRead(BUTTON_PIN) == HIGH) {}
 
-  active = true;
+  is_bot_active = true;
 }
 
 void loop() {
-  if (is_bot_active) {
-    line_following();
+  bool button_state = digitalRead(BUTTON_PIN);
+
+  if (button_state == LOW && button_old == HIGH) {
+    is_bot_active = !is_bot_active;
+    delay(30);
   }
 
-  if (digitalRead(BUTTON_PIN) == HIGH && button_old == LOW) {
-    active = !active;
+  button_old = button_state;
+
+  if (is_bot_active) {
+    if (is_line_lost()) searching_line();
+    else line_following();
   }
-  button_old = digitalRead(BUTTON_PIN);
 }
