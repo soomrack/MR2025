@@ -1,77 +1,100 @@
-int motorL_pwm = 6;
-int motorL_dir = 7;
-int motorR_pwm = 5;
-int motorR_dir = 4;
+#define motor_left_pwm 6
+#define motor_left_dir 7
+#define motor_right_pwm 5
+#define motor_right_dir 4
+
+#define BUTTON_PIN 12
+
+#define LEFT_SENSOR_PIN A0
+#define RIGHT_SENSOR_PIN A1
 
 float gain_p = 8.0;
 float gain_d = 5.0;
-int speed = 150;
+int speed = 170;
 
-int sensorL_min = 1023, sensorL_max = 0;
-int sensorR_min = 1023, sensorR_max = 0;
+int sensorL_min = 1023, sensorL_max = 0;  // magic numbers
+int sensorR_min = 1023, sensorR_max = 0;  // also
 
 int last_error = 0;
-bool active = false;
-bool button_old = HIGH;
+bool is_bot_active = false;
 
-void moveMotors(int leftSpeed, int rightSpeed) {
-  digitalWrite(motorL_dir, leftSpeed > 0);
-  digitalWrite(motorR_dir, rightSpeed > 0);
-  analogWrite(motorL_pwm, abs(leftSpeed));
-  analogWrite(motorR_pwm, abs(rightSpeed));
+
+void move_motors(int leftSpeed, int rightSpeed) {
+  digitalWrite(motor_left_dir, leftSpeed > 0);
+  digitalWrite(motor_right_dir, rightSpeed > 0);
+  analogWrite(motor_left_pwm, abs(leftSpeed));
+  analogWrite(motor_right_pwm, abs(rightSpeed));
 }
 
-void calibrate() {
-  unsigned long time_start = millis();
-  while (millis() - time_start < 6000) {
-    moveMotors(120, -120);  // вращение на месте
-    int left = analogRead(A0);
-    int right = analogRead(A1);
 
-    if (left < sensorL_min) sensorL_min = left;
-    if (left > sensorL_max) sensorL_max = left;
-    if (right < sensorR_min) sensorR_min = right;
-    if (right > sensorR_max) sensorR_max = right;
-  }
-  moveMotors(0, 0);
+void sensor_calibration() { // Калибровка датчиков на белое и чёрное через нажатие кнопок
+
+    pinMode(BUTTON_PIN, INPUT_PULLUP);
+    pinMode(LEFT_SENSOR_PIN, INPUT);
+    pinMode(R_SENS_PIN, INPUT);
+
+    while (digitalRead(BUTTON_PIN)) {delay(50);}  // Ожидание первого нажатия клавиши
+    while (!digitalRead(BUTTON_PIN)) {delay(50);} // Ожидание когда кнопку отпустят
+
+    white_L = midArifm(LEFT_SENSOR_PIN); // Запись значения белого с левого датчика
+    white_R = midArifm(RIGHT_SENSOR_PIN); // Запись значения белого с правого датчика
+    
+    while (digitalRead(BUTTON_PIN)) {delay(50);}  // Ожидание второго нажатия клавиши
+    while (!digitalRead(BUTTON_PIN)) {delay(50);} // Ожидание когда кнопку отпустят
+
+    black_L = midArifm(LEFT_SENSOR_PIN); // Запись значения чёрного с левого датчика
+    black_R = midArifm(RIGHT_SENSOR_PIN); // Запись значения чёрного с правого датчика
+
+    while (digitalRead(BUTTON_PIN)) {delay(50);}  // Ожидание третьего нажатия клавиши
+
+    Serial.print(white_L);
+    Serial.println(" ");
+    Serial.println(white_R);
+
+    Serial.print(black_L);
+    Serial.println(" ");
+    Serial.println(black_R);
+
+    while (!digitalRead(BUTTON_PIN)) {delay(50);} // Ожидание когда кнопку отпустят
 }
+
 
 void line_following() {
-  int value_left = map(analogRead(A0), sensorL_min, sensorL_max, 0, 100);
-  int value_right = map(analogRead(A1), sensorR_min, sensorR_max, 0, 100);
+  int value_left = map(analogRead(LEFT_SENSOR_PIN), sensorL_min, sensorL_max, 0, 100);
+  int value_right = map(analogRead(RIGHT_SENSOR_PIN), sensorR_min, sensorR_max, 0, 100);
 
   float error = value_left - value_right;
   float correct = error * gain_p + (error - last_error) * gain_d;
 
-  moveMotors(constrain(speed + correct, -250, 250),
+  move_motors(constrain(speed + correct, -250, 250),
              constrain(speed - correct, -250, 250));
 
   last_error = error;
 }
 
+
 void setup() {
-  pinMode(motorL_pwm, OUTPUT);
-  pinMode(motorL_dir, OUTPUT);
-  pinMode(motorR_pwm, OUTPUT);
-  pinMode(motorR_dir, OUTPUT);
-  pinMode(A2, INPUT_PULLUP);  // пинмоды на каждый, на A2 подаем 1
+  pinMode(motor_left_pwm, OUTPUT);
+  pinMode(motor_left_dir, OUTPUT);
+  pinMode(motor_right_pwm, OUTPUT);
+  pinMode(motor_right_dir, OUTPUT);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);  // пинмоды на каждый, на button подаем 1
 
-  calibrate();
+  sensor_calibration()
 
-  while (digitalRead(A2) == HIGH) {
-    active = false;
+  while (digitalRead(BUTTON_PIN) == HIGH) {
   }
 
   active = true;
 }
 
 void loop() {
-  if (active) {
+  if (is_bot_active) {
     line_following();
   }
 
-  if (digitalRead(A2) == HIGH && button_old == LOW) {
+  if (digitalRead(BUTTON_PIN) == HIGH && button_old == LOW) {
     active = !active;
   }
-  button_old = digitalRead(A2);
+  button_old = digitalRead(BUTTON_PIN);
 }
