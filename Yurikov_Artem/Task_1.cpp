@@ -369,20 +369,14 @@ void bob_simulation()
 
 void print_alice_info()
 {
-    printf("Alice's funds = %d RUB\n", alice.bank_account);
     printf("Alice's deposit = %d RUB\n", alice.deposit);
-    printf("Alice's flat cost = %d RUB\n", alice.flat_cost);
-    printf("Alice's car cost = %d RUB\n", alice.car_cost);
     printf("\n");
 }
 
 
 void print_bob_info()
 {
-    printf("Bob's funds = %d RUB\n", bob.bank_account);
     printf("Bob's deposit = %d RUB\n", bob.deposit);
-    printf("Bob's flat cost = %d RUB\n", bob.flat_cost);
-    printf("Bob's car cost = %d RUB\n", bob.car_cost);
 }
 
 
