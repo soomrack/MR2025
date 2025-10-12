@@ -1,4 +1,3 @@
-#include <Servo.h>
 
 bool flag= false;
 
