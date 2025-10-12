@@ -17,7 +17,7 @@ const int deltaSpeed = 40;
 
 void setup() {
 
-  Serial.begin(9600);
+ Serial.begin(9600);
 
  pinMode(leftSensorPin, INPUT);
  pinMode(rightSensorPin, INPUT);
