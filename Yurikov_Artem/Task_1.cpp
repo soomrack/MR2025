@@ -1,272 +1,440 @@
 #include <stdio.h>
-#include <stdbool.h>
+#include <math.h>
 
-typedef long long int CURRENCY;
+typedef int RUB;
+typedef float PERCENT;
 
-struct Residence {
-    CURRENCY property_value;
-    CURRENCY loan_balance;
-    CURRENCY initial_payment;
-    CURRENCY monthly_rent;
+PERCENT inflation = 7;
+PERCENT deposit_rate = 10;
+PERCENT car_loss_rate = 5;
+
+struct Person {
+    RUB bank_account;
+    RUB deposit;
+    RUB income;
+    RUB monthly_payment;
+    RUB initial_capital;
+    RUB rent_fee;
+
+    RUB food;
+    RUB clothes;
+    RUB trip;
+    RUB unexpected_costs;
+
+    RUB fuel;
+    RUB car_fix;
+    RUB insurance;
+    RUB tax;
+
+    RUB flat_cost;
+    RUB car_cost;
 };
 
-struct Vehicle {
-    CURRENCY vehicle_cost;
-    CURRENCY fuel_cost;
-    CURRENCY maintenance;
-    CURRENCY coverage_cost;
-};
+struct Person alice;
+struct Person bob;
 
-struct Individual {
-    CURRENCY savings;
-    CURRENCY salary;
-    
-    Residence housing;
-    
-    CURRENCY groceries;
-    CURRENCY apparel;
-    CURRENCY vacation;
-    
-    Vehicle automobile;
-};
 
-Individual person_a;
-Individual person_b;
-
-void initialize_person_a() {
-    person_a.savings = 20000000;
-    person_a.salary = 1350000;
-
-    person_a.housing.property_value = 70000000;
-    person_a.housing.initial_payment = 20000000;
-    person_a.housing.loan_balance = 50000000;
-    
-    person_a.groceries = 30000;
-    person_a.apparel = 20000;
-    person_a.vacation = 160000;
-
-    person_a.automobile.vehicle_cost = 1500000;
-    person_a.automobile.fuel_cost = 15000;
-    person_a.automobile.maintenance = 7000;
-    person_a.automobile.coverage_cost = 30000;
-}
-
-void initialize_person_b() {
-    person_b.savings = 30000000;
-    person_b.salary = 1650000;
-
-    person_b.housing.monthly_rent = 45000;
-
-    person_b.groceries = 30000;
-    person_b.apparel = 10000;
-    person_b.vacation = 180000;
-
-    person_b.automobile.vehicle_cost = 2500000;
-    person_b.automobile.fuel_cost = 25000;
-    person_b.automobile.maintenance = 10000;
-    person_b.automobile.coverage_cost = 7000;
-}
-
-void display_person_a() {
-    printf("Person A savings = %lld руб.\n", person_a.savings);
-    printf("Person A property value = %lld руб.\n", person_a.housing.property_value);
-    printf("Person A vehicle cost = %lld руб.\n", person_a.automobile.vehicle_cost);
-    printf("\n");
-}
-
-void display_person_b() {
-    printf("Person B savings = %lld руб.\n", person_b.savings);
-    printf("Person B vehicle cost = %lld руб.\n", person_b.automobile.vehicle_cost);
-}
-
-void process_income_a(int current_year, int current_month) {
-    if (current_month == 10) {
-        person_a.salary = (person_a.salary * 105) / 100;
+void alice_income(const int year, const int month)
+{
+    if(month == 9) {
+        alice.income = alice.income * 1.07;
     }
-    if (current_year == 2035 && current_month == 10) {
-        person_a.salary = (person_a.salary * 135) / 100;
-    }
-    person_a.savings += person_a.salary;
-}
-
-void process_income_b(int current_year, int current_month) {
-    if (current_month == 10) {
-        person_b.salary = (person_b.salary * 105) / 100;
-    }
-    if ((current_year == 2030 && current_month == 10) || 
-        (current_year == 2040 && current_month == 10)) {
-        person_b.salary = (person_b.salary * 125) / 100;
-    }
-    person_b.savings += person_b.salary;
-}
-
-void process_expenses_a(int current_year, int current_month) {
-    if (current_month == 1) {
-        person_a.groceries = (person_a.groceries * 107) / 100;
-        person_a.apparel = (person_a.apparel * 107) / 100;
-    }
-    person_a.savings -= person_a.groceries;
-    person_a.savings -= person_a.apparel;
-}
-
-void process_expenses_b(int current_year, int current_month) {
-    if (current_month == 1) {
-        person_b.groceries = (person_b.groceries * 107) / 100;
-        person_b.apparel = (person_b.apparel * 107) / 100;
-        person_b.housing.monthly_rent = (person_b.housing.monthly_rent * 107) / 100;
-    }
-    person_b.savings -= person_b.groceries;
-    person_b.savings -= person_b.apparel;
-}
-
-void process_vacation_a(int current_month) {
-    if ((current_month == 8) && (person_a.savings > person_a.vacation + 1000000)) {
-        person_a.savings -= person_a.vacation;
-    }
-    if (current_month == 1) {
-        person_a.vacation = (person_a.vacation * 107) / 100;
-    }
-}
-
-void process_vacation_b(int current_month) {
-    if ((current_month == 6 || current_month == 12) && 
-        (person_b.savings > person_b.vacation + 1000000)) {
-        person_b.savings -= person_b.vacation;
-    }
-    if (current_month == 1) {
-        person_b.vacation = (person_b.vacation * 107) / 100;
-    }
-}
-
-void process_vehicle_a(int current_year, int current_month) {
-    static bool accident_occurred = false;
-    static CURRENCY accident_cost = 1500000;
-    
-    if (current_year % 5 == 0 && current_month == 12) {
-        accident_occurred = true;
+        
+    if(year == 2030 && month == 3) {
+        alice.income *= 1.5;
     }
     
-    if (accident_occurred && person_a.savings >= accident_cost + 200000) {
-        person_a.savings -= accident_cost;
-        accident_cost = (accident_cost * 120) / 100;
-        accident_occurred = false;
-    }
+    alice.bank_account += alice.income;
+}
 
-    if (current_month == 1) {
-        person_a.automobile.vehicle_cost = (person_a.automobile.vehicle_cost * 92 * 107) / 10000;
-        person_a.automobile.fuel_cost = (person_a.automobile.fuel_cost * 107) / 100;
-        person_a.automobile.maintenance = (person_a.automobile.maintenance * 107) / 100;
-        person_a.savings -= person_a.automobile.coverage_cost;
-    }
 
-    static char vehicle_upgrade_count = 0;
-    if (current_year >= 2036 && vehicle_upgrade_count == 0 && 
-        person_a.savings >= 16000000) {
-        person_a.automobile.vehicle_cost += 15000000;
-        person_a.savings -= 15000000;
-        vehicle_upgrade_count++;
-    }
-    
-    if (!accident_occurred) {
-        person_a.savings -= person_a.automobile.fuel_cost;
-        person_a.savings -= person_a.automobile.maintenance;
-    } else {
-        person_a.savings -= person_a.automobile.fuel_cost / 3;
+void alice_food()
+{
+    alice.bank_account -= alice.food;
+    alice.food *= (1 + (inflation / 100) / 12);
+}
+
+
+void alice_clothes()
+{
+    alice.bank_account -= alice.clothes;
+    alice.clothes *= (1 + (inflation / 100) / 12);
+}
+
+
+void alice_mortgage()
+{
+    alice.bank_account -= alice.monthly_payment;
+}
+
+
+void alice_tax()
+{
+    alice.bank_account -= alice.tax;
+    alice.tax *= (1 + (inflation / 100) / 12);
+}
+
+
+void alice_fuel()
+{
+    alice.bank_account -= alice.fuel;
+    alice.fuel *= (1 + (inflation / 100) / 12);
+}
+
+
+void alice_car_fix(const int month)
+{
+    if(month == 3) {
+        alice.bank_account -= alice.car_fix;  
+        alice.car_fix *= (1 + (inflation / 100));
     }
 }
 
-void process_vehicle_b(int current_year, int current_month) {
-    if (current_month == 1) {
-        person_b.automobile.vehicle_cost = (person_b.automobile.vehicle_cost * 95 * 107) / 10000;
-        person_b.automobile.fuel_cost = (person_b.automobile.fuel_cost * 107) / 100;
-        person_b.automobile.maintenance = (person_b.automobile.maintenance * 107) / 100;
-        person_b.savings -= person_b.automobile.coverage_cost;
-    }
 
-    static char vehicle_upgrade_count = 0;
-    if ((current_year >= 2031 && vehicle_upgrade_count == 0 && 
-         person_b.savings > 11000000) ||
-        (current_year >= 2041 && vehicle_upgrade_count == 1 && 
-         person_b.savings > 11000000)) {
-        person_b.automobile.vehicle_cost += 10000000;
-        person_b.savings -= 10000000;
-        vehicle_upgrade_count++;
-    }
-
-    person_b.savings -= person_b.automobile.fuel_cost;
-    person_b.savings -= person_b.automobile.maintenance;
-}
-
-void process_housing_a(int current_month) {
-    CURRENCY monthly_payment = 550540;
-    person_a.savings -= monthly_payment;
-    if (current_month == 1) {
-        person_a.housing.property_value = (person_a.housing.property_value * 107) / 100;
+void alice_trip(const int month)
+{
+    if(month == 6) {
+        alice.bank_account -= alice.trip;  
+        alice.trip *= (1 + (inflation / 100));
     }
 }
 
-void process_housing_b(int current_year, int current_month) {
-    if ((current_year == 2030 && current_month == 11) || 
-        (current_year == 2040 && current_month == 11)) {
-        person_b.housing.monthly_rent = (person_b.housing.monthly_rent * 125) / 100;
-    }
-    person_b.savings -= person_b.housing.monthly_rent;
+
+void alice_unexpected_costs()
+{
+    alice.bank_account -= alice.unexpected_costs;
+    alice.unexpected_costs *= (1 + (inflation / 100) / 12);
 }
 
-void apply_interest_a() {
-    person_a.savings = (person_a.savings * 1005) / 1000;
-}
 
-void apply_interest_b() {
-    person_b.savings = (person_b.savings * 1005) / 1000;
-}
-
-void verify_funds(int current_year, int current_month) {
-    if (person_a.savings < 0 || person_b.savings < 0) {
-        printf("%d, %d \n", current_year, current_month);
-        printf("Person A savings = %lld \n", person_a.savings);
-        printf("Person B savings = %lld \n", person_b.savings);
-        printf("\n");
+void alice_insurance(const int month)
+{
+    if (month == 4) {
+        alice.bank_account -= alice.insurance;
+        alice.insurance *= (1 + (inflation / 100));
     }
 }
 
-void run_simulation() {
+
+void alice_deposit(const int month)
+{
+   if (alice.bank_account > alice.initial_capital) {
+        RUB extra_money = alice.bank_account - alice.initial_capital;
+        alice.bank_account = alice.initial_capital;  
+        alice.deposit += extra_money;  
+    }
+
+    if (month == 10) {
+        alice.deposit *= (1 + deposit_rate / 100);
+    }
+}
+
+
+void alice_flat_cost_increase(const int month)
+{
+    if (month == 7) {
+        alice.flat_cost *= (1 + inflation / 100);
+    }
+}
+
+
+void alice_car_cost_change(const int month)
+{
+    if (month == 7) {
+        alice.car_cost *= (1 - car_loss_rate / 100);
+        alice.car_cost *= (1 + inflation / 100);
+    }
+}
+
+
+void alice_car(const int month)
+{
+    alice_car_fix(month);
+    alice_insurance(month);
+    alice_tax();
+    alice_fuel();
+    alice_car_cost_change(month);
+}
+
+
+void alice_flat(const int year, const int month)
+{
+    alice_mortgage();
+    alice_flat_cost_increase(month);
+}
+
+
+void alice_household_expenses()
+{
+    alice_clothes();
+    alice_food();
+}
+
+
+void alice_simulation()
+{
     int current_year = 2025;
     int current_month = 9;
 
     while (!(current_year == 2045 && current_month == 9)) {
-        process_income_a(current_year, current_month);
-        process_housing_a(current_month);
-        process_expenses_a(current_year, current_month);
-        process_vacation_a(current_month);
-        process_vehicle_a(current_year, current_month);
-        apply_interest_a();
-
-        process_income_b(current_year, current_month);
-        process_housing_b(current_year, current_month);
-        process_expenses_b(current_year, current_month);
-        process_vacation_b(current_month);
-        process_vehicle_b(current_year, current_month);
-        apply_interest_b();
-
-        verify_funds(current_year, current_month);
-
-        current_month++;
-        if (current_month > 12) {
-            current_year++;
+        alice_income(current_year, current_month);
+        alice_car(current_month);
+        alice_flat(current_year, current_month);
+        alice_household_expenses();
+        alice_trip(current_month);
+        alice_unexpected_costs();
+        alice_deposit(current_month);
+     
+        ++current_month;
+        if (current_month == 13) {
             current_month = 1;
+            ++current_year;
         }
     }
 }
 
-int main() {
-    initialize_person_a();
-    initialize_person_b();
-    
-    run_simulation();
 
-    display_person_a();
-    display_person_b();
+void bob_income(const int year, const int month)
+{
+    if(month == 9){
+        bob.income = bob.income * 1.07;
+    }
+        
+    if(year == 2030 && month == 3){
+        bob.income *= 1.5;
+    }
+    
+    bob.bank_account += bob.income;
+}
+
+
+void bob_food()
+{
+    bob.bank_account -= bob.food;
+    bob.food *= (1 + (inflation / 100) / 12);
+}
+
+
+void bob_clothes()
+{
+    bob.bank_account -= bob.clothes;
+    bob.clothes *= (1 + (inflation / 100) / 12);
+}
+
+
+void bob_deposit(const int month)
+{
+   if (bob.bank_account > bob.initial_capital) {
+        RUB remaining_cash = bob.bank_account - bob.initial_capital;
+        bob.bank_account = bob.initial_capital;  
+        bob.deposit += remaining_cash;  
+    }
+
+    if (month == 10) {
+        bob.deposit *= (1 + deposit_rate / 100);
+    }
+}
+
+
+void bob_tax()
+{
+    bob.bank_account -= bob.tax;
+    bob.tax *= (1 + (inflation / 100) / 12);
+}
+
+
+void bob_fuel()
+{
+    bob.bank_account -= bob.fuel;
+    bob.fuel *= (1 + (inflation / 100) / 12);
+}
+
+
+void bob_car_fix(const int month)
+{
+    if(month == 3) {
+        bob.bank_account -= bob.car_fix;  
+        bob.car_fix *= (1 + (inflation / 100));
+    }
+}
+
+
+void bob_trip(const int month)
+{
+    if(month == 6) {
+        bob.bank_account -= bob.trip;  
+        bob.trip *= (1 + (inflation / 100));
+    }
+}
+
+
+void bob_unexpected_costs()
+{
+    bob.bank_account -= bob.unexpected_costs;
+    bob.unexpected_costs *= (1 + (inflation / 100) / 12);
+}
+
+
+void bob_insurance(const int month)
+{
+    if (month == 4) {
+        bob.bank_account -= bob.insurance;
+        bob.insurance *= (1 + (inflation / 100));
+    }
+}
+
+
+void bob_flat_rent(const int month)
+{
+    bob.bank_account -= bob.rent_fee;
+    if (month == 11) {
+        bob.rent_fee *= (1 + (inflation / 100));
+    }
+}
+
+
+void bob_buying_flat(const int year, const int month)
+{
+    if (year == 2045 && month == 8) {
+        bob.deposit -= bob.flat_cost;
+    }
+}
+
+
+void bob_flat_cost_increase(const int month)
+{
+    if (month == 7) {
+        bob.flat_cost *= (1 + inflation / 100);
+    }
+}
+
+
+void bob_car_cost_change(const int month)
+{
+    if (month == 7) {
+        bob.car_cost *= (1 - car_loss_rate / 100);
+        bob.car_cost *= (1 + inflation / 100);
+    }
+}
+
+
+void bob_car(const int month)
+{
+    bob_car_fix(month);
+    bob_insurance(month);
+    bob_tax();
+    bob_fuel();
+    bob_car_cost_change(month);
+}
+
+
+void bob_household_expenses()
+{
+    bob_clothes();
+    bob_food();
+}
+
+
+void bob_flat(const int year, const int month)
+{
+    bob_flat_rent(month);
+    bob_flat_cost_increase(month);
+    bob_buying_flat(year, month);
+}
+
+
+void bob_simulation()
+{
+    int current_year = 2025;
+    int current_month = 9;
+   
+    while( !(current_year == 2045 && current_month == 9) ) {
+        bob_income(current_year, current_month);
+        bob_trip(current_month);
+        bob_unexpected_costs();
+        bob_car(current_month);
+        bob_household_expenses();
+        bob_flat(current_year, current_month);
+
+        bob_deposit(current_month);             
+        
+        ++current_month;
+        if(current_month == 13){
+            current_month = 1;
+            ++current_year;
+        }
+    }
+}
+
+
+void print_alice_info()
+{
+    printf("Alice's funds = %d RUB\n", alice.bank_account);
+    printf("Alice's deposit = %d RUB\n", alice.deposit);
+    printf("Alice's flat cost = %d RUB\n", alice.flat_cost);
+    printf("Alice's car cost = %d RUB\n", alice.car_cost);
+    printf("\n");
+}
+
+
+void print_bob_info()
+{
+    printf("Bob's funds = %d RUB\n", bob.bank_account);
+    printf("Bob's deposit = %d RUB\n", bob.deposit);
+    printf("Bob's flat cost = %d RUB\n", bob.flat_cost);
+    printf("Bob's car cost = %d RUB\n", bob.car_cost);
+}
+
+
+void alice_init()
+{
+    alice.bank_account = 1000 * 1000;
+    alice.initial_capital = alice.bank_account;
+    alice.monthly_payment = 125 * 1000;
+    alice.income = 200 * 1000;
+    alice.food = 30000;
+    alice.clothes = 1000;
+    alice.tax = 20000 / 12;
+    alice.car_cost = 2500 * 1000;
+    alice.fuel = 15000;
+    alice.car_fix = 35000;
+    alice.trip = 300 * 1000;
+    alice.unexpected_costs = 10000;
+    alice.insurance = 40000;
+    alice.flat_cost = 8000 * 1000;
+}
+
+
+void bob_init()
+{
+    bob.bank_account = 1000 * 1000;
+    bob.initial_capital = bob.bank_account;
+    bob.monthly_payment = 125 * 1000;
+    bob.income = 200 * 1000;
+    bob.food = 35000;
+    bob.clothes = 1000;
+    bob.tax = 20000 / 12;
+    bob.car_cost = 2000*1000;
+    bob.fuel = 15000;
+    bob.car_fix = 35000;
+    bob.trip = 300 * 1000;
+    bob.unexpected_costs = 10000;
+    bob.insurance = 40000;
+    bob.deposit = 1500 * 1000;
+    bob.rent_fee = 80000;
+    bob.flat_cost = 8000 * 1000;
+}
+
+
+int main()
+{
+    alice_init();
+    alice_simulation();
+    print_alice_info();
+
+    bob_init();
+    bob_simulation();
+    print_bob_info();
     
     return 0;
 }
