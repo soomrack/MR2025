@@ -53,10 +53,23 @@ void calibrate() {
     l_black = readSmooth(SENSOR_L);
     r_black = readSmooth(SENSOR_R);
 
-    l_minVal = l_black;
-    l_maxVal = l_white;
-    r_minVal = r_black;
-    r_maxVal = r_white;
+    if (l_black < l_white) {
+        l_minVal = l_black;
+        l_maxVal = l_white;
+    }
+    else {
+        l_minVal = l_white;
+        l_maxVal = l_black;
+    }
+
+    if (r_black < r_white) {
+        r_minVal = r_black;
+        r_maxVal = r_white;
+    }
+    else {
+        r_minVal = r_white;
+        r_maxVal = r_black;
+    }
 
     float ratio = 0.3; // 30% порог, более "мягкий"
     l_threshold = l_black + (l_white - l_black) * ratio;
