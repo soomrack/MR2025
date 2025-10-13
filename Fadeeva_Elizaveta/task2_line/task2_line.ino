@@ -4,8 +4,8 @@
 #define MOTOR_R_PWM 5
 #define MOTOR_R_DIR 4
 #define BUTTON_PIN 12
-#define SENSOR_L A1
-#define SENSOR_R A0
+#define SENSOR_L A0
+#define SENSOR_R A1
 
 // Коэффициенты ПД-регулятора
 float Kp = 3.0; 
@@ -93,7 +93,7 @@ void followTrack() {
     int l_val = map(readSmooth(SENSOR_L), l_minVal, l_maxVal, 0, 100);
     int r_val = map(readSmooth(SENSOR_R), r_minVal, r_maxVal, 0, 100);
 
-    float error = l_val - r_val;
+    float error = r_val - l_val;
     float correction = Kp * error + Kd * (error - lastError);
 
     // Ограничим коррекцию, чтобы не крутился на месте
