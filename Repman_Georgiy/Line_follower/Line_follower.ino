@@ -13,7 +13,6 @@ struct IRSensorConfig {
     bool invertLogic;
     int activationThreshold;
     int finishLineThreshold;
-    unsigned long finishDebounceTime;
 };
 
 struct PIDConfig {
@@ -37,7 +36,7 @@ struct RobotConfig {
     float turnAggression;
     bool useHardTurns;
     
-    int finishConfirmationCount;
+    unsigned long finishConfirmationTime;  // Время подтверждения финишной линии (мс)
     unsigned long sharpTurnFilterTime;
     
     PIDConfig defaultPID;
@@ -54,8 +53,7 @@ namespace Config {
         .weights = {-3.0f, -1.5f, 0.0f, 1.5f, 3.0f},
         .invertLogic = true,
         .activationThreshold = 1,
-        .finishLineThreshold = 5,
-        .finishDebounceTime = 150
+        .finishLineThreshold = 5  // Все 5 датчиков видят линию
     };
 
     // ПИД-коэффициенты
@@ -69,16 +67,16 @@ namespace Config {
 
     // Конфигурация робота
     const RobotConfig ROBOT = {
-        .baseSpeed = 200,
-        .maxSpeed = 255,
+        .baseSpeed = 200U,
+        .maxSpeed = 255U,
         .controlInterval = 2,
         .ledPin = 13,
         .searchTimeout = 3000,
         .searchDirectionChangeTime = 800,
-        .searchSpeed = 180,
+        .searchSpeed = 180U,
         .turnAggression = 0.8f,
         .useHardTurns = true,
-        .finishConfirmationCount = 3,
+        .finishConfirmationTime = 1500,  // Финишная линия должна наблюдаться 1 секунду
         .sharpTurnFilterTime = 100,
         .defaultPID = DEFAULT_PID
     };
@@ -258,19 +256,13 @@ private:
     float previousError_;
     bool initialized_;
 
-    unsigned long lastFinishDetection_;
-    bool finishDebounceActive_;
-    int finishConfirmationCounter_;
-
     bool readSensor(int pin) const {
         bool state = digitalRead(pin);
         return config_.invertLogic ? !state : state;
     }
 
 public:
-    IRSensorArray() : previousError_(0), initialized_(false), 
-                     lastFinishDetection_(0), finishDebounceActive_(false),
-                     finishConfirmationCounter_(0) {}
+    IRSensorArray() : previousError_(0), initialized_(false) {}
 
     void init(const IRSensorConfig& config) {
         config_ = config;
@@ -302,28 +294,9 @@ public:
 
     const bool* getSensorStates() const { return readings_.states; }
 
-    bool isFinishLine(int confirmationCount, unsigned long debounceTime) {
+    bool isFinishLineDetected() const {
         if (!initialized_) return false;
-        
-        bool rawFinishDetected = (readings_.activeCount >= config_.finishLineThreshold);
-        unsigned long currentTime = millis();
-        
-        if (rawFinishDetected) {
-            if (!finishDebounceActive_) {
-                finishDebounceActive_ = true;
-                lastFinishDetection_ = currentTime;
-                finishConfirmationCounter_ = 1;
-            } else if (currentTime - lastFinishDetection_ <= debounceTime) {
-                finishConfirmationCounter_++;
-            } else {
-                finishDebounceActive_ = false;
-            }
-        } else {
-            finishDebounceActive_ = false;
-            finishConfirmationCounter_ = 0;
-        }
-        
-        return (finishConfirmationCounter_ >= confirmationCount);
+        return (readings_.activeCount >= config_.finishLineThreshold);
     }
 
     bool isSharpTurn() const {
@@ -347,6 +320,8 @@ public:
         for (int i = 0; i < 5; i++) {
             Serial.print(readings_.states[i] ? "█" : "░");
         }
+        Serial.print(" | Active: ");
+        Serial.print(readings_.activeCount);
         Serial.print(" | Position: ");
         Serial.print(getLinePosition(), 2);
         Serial.println();
@@ -393,6 +368,11 @@ private:
     bool searchStarted_;
     bool sharpTurnFilterActive_;
 
+    // Обработка финишной линии
+    unsigned long finishLineFirstDetection_;
+    bool finishLineConfirmed_;
+    bool finishLineProcessing_;
+
     // Вспомогательные методы
     void updateLED() {
         if (config_.ledPin == -1) return;
@@ -433,6 +413,53 @@ private:
                   (millis() - lastSharpTurnTime_ > config_.sharpTurnFilterTime)) {
             sharpTurnFilterActive_ = false;
         }
+    }
+
+    bool checkFinishLine() {
+        // Если финиш уже подтвержден или обрабатывается, не проверяем снова
+        if (finishLineConfirmed_ || finishLineProcessing_) {
+            return false;
+        }
+        
+        // Проверяем, видим ли мы финишную линию в данный момент
+        if (sensors_.isFinishLineDetected()) {
+            unsigned long currentTime = millis();
+            
+            // Если это первое обнаружение, запоминаем время
+            if (finishLineFirstDetection_ == 0) {
+                finishLineFirstDetection_ = currentTime;
+                Serial.println(F("=== FINISH LINE DETECTED - STARTING CONFIRMATION ==="));
+            } 
+            // Проверяем, наблюдаем ли мы линию достаточно долго
+            else if (currentTime - finishLineFirstDetection_ >= config_.finishConfirmationTime) {
+                Serial.println(F("=== FINISH LINE CONFIRMED ==="));
+                finishLineConfirmed_ = true;
+                finishLineFirstDetection_ = 0; // Сбрасываем для следующего использования
+                return true;
+            }
+            
+            // Выводим прогресс подтверждения
+            if (currentTime - lastDebugTime_ > 200) {
+                unsigned long elapsed = currentTime - finishLineFirstDetection_;
+                unsigned long remaining = config_.finishConfirmationTime - elapsed;
+                Serial.print(F("Finish confirmation: "));
+                Serial.print(elapsed);
+                Serial.print(F("ms / "));
+                Serial.print(config_.finishConfirmationTime);
+                Serial.print(F("ms ("));
+                Serial.print((elapsed * 100) / config_.finishConfirmationTime);
+                Serial.println(F("%)"));
+                lastDebugTime_ = currentTime;
+            }
+        } else {
+            // Если линия пропала, сбрасываем таймер подтверждения
+            if (finishLineFirstDetection_ != 0) {
+                Serial.println(F("=== FINISH LINE LOST - RESETTING CONFIRMATION ==="));
+                finishLineFirstDetection_ = 0;
+            }
+        }
+        
+        return false;
     }
 
     MotorSpeeds calculateMotorSpeeds(float linePosition) {
@@ -482,7 +509,10 @@ public:
           searchDirection_(1),
           initialized_(false),
           searchStarted_(false),
-          sharpTurnFilterActive_(false) {
+          sharpTurnFilterActive_(false),
+          finishLineFirstDetection_(0),
+          finishLineConfirmed_(false),
+          finishLineProcessing_(false) {
     }
 
     void init(const RobotConfig& robotConfig) {
@@ -522,9 +552,7 @@ public:
                 return;
             }
             
-            // Обнаружение финишной линии
-            if (sensors_.isFinishLine(config_.finishConfirmationCount, 
-                                    Config::SENSORS.finishDebounceTime)) {
+            if (checkFinishLine()) {
                 setState(STATE_AT_FINISH_LINE);
             }
             
@@ -568,8 +596,7 @@ private:
             initializeSearch();
         }
         
-        // Поиск линии
-        performSearch();
+        sensors_.update();
         
         // Проверка условий выхода из поиска
         if (sensors_.isOnLine()) {
@@ -577,10 +604,17 @@ private:
             return;
         }
         
+        // Проверка таймаута поиска
         if (currentTime - searchStartTime_ > config_.searchTimeout) {
+            Serial.print(F("Search timeout: "));
+            Serial.print(currentTime - searchStartTime_);
+            Serial.println(F(" ms"));
             endSearch("=== SEARCH TIMEOUT ===", STATE_STOPPED);
             return;
         }
+        
+        // Поиск линии с изменением направления
+        performSearch();
         
         if (currentTime - lastDirectionChangeTime_ > config_.searchDirectionChangeTime) {
             changeSearchDirection();
@@ -590,16 +624,28 @@ private:
     void initializeSearch() {
         searchStartTime_ = millis();
         lastDirectionChangeTime_ = searchStartTime_;
-        searchDirection_ = (sensors_.getLinePosition() > 0) ? 1 : -1;
+        
+        // Определяем направление поиска на основе последней известной позиции линии
+        float lastPosition = sensors_.getLinePosition();
+        searchDirection_ = (lastPosition > 0) ? 1 : -1;
+        if (lastPosition == 0) {
+            // Если позиция неизвестна, выбираем случайное направление
+            searchDirection_ = (random(2) == 0) ? 1 : -1;
+        }
+        
         searchStarted_ = true;
         Serial.println(F("=== SEARCH STARTED ==="));
+        Serial.print(F("Initial search direction: "));
+        Serial.println(searchDirection_ > 0 ? "RIGHT" : "LEFT");
     }
 
     void performSearch() {
         if (searchDirection_ > 0) {
+            // Поиск вправо
             leftMotor_.setSpeed(config_.searchSpeed);
             rightMotor_.setBackward(config_.searchSpeed);
         } else {
+            // Поиск влево
             leftMotor_.setBackward(config_.searchSpeed);
             rightMotor_.setSpeed(config_.searchSpeed);
         }
@@ -608,28 +654,35 @@ private:
     void changeSearchDirection() {
         searchDirection_ = -searchDirection_;
         lastDirectionChangeTime_ = millis();
-        Serial.println(F("=== DIRECTION CHANGED ==="));
+        Serial.print(F("=== DIRECTION CHANGED to: "));
+        Serial.println(searchDirection_ > 0 ? "RIGHT" : "LEFT");
     }
 
     void endSearch(const char* message, State nextState) {
         Serial.println(message);
+        stopMotors();
         searchStarted_ = false;
         setState(nextState);
     }
 
     void handleFinishLine() {
-        Serial.println(F("=== FINISH LINE CONFIRMED ==="));
-        
-        // Плавная остановка
-        for (int speed = config_.baseSpeed; speed >= 0; speed -= 20) {
-            leftMotor_.setSpeed(speed);
-            rightMotor_.setSpeed(speed);
-            delay(30);
+        if (!finishLineProcessing_) {
+            Serial.println(F("=== PROCESSING FINISH LINE ==="));
+            finishLineProcessing_ = true;
+            
+            // Плавная остановка
+            /*for (int speed = config_.baseSpeed; speed >= 0; speed -= 20) {
+                leftMotor_.setSpeed(speed);
+                rightMotor_.setSpeed(speed);
+                delay(30);
+            }*/
+            
+            leftMotor_.brake();
+            rightMotor_.brake();
+            
+            Serial.println(F("=== ROBOT STOPPED AT FINISH LINE ==="));
+            setState(STATE_STOPPED);
         }
-        
-        leftMotor_.brake();
-        rightMotor_.brake();
-        setState(STATE_STOPPED);
     }
 
     void printDebugInfo(float position, const MotorSpeeds& speeds) {
@@ -653,6 +706,18 @@ private:
 public:
     void setState(State newState) {
         if (currentState_ != newState) {
+            // Останавливаем моторы при переходе в состояние STOPPED
+            if (newState == STATE_STOPPED) {
+                stopMotors();
+            }
+            
+            // Сброс состояний финишной линии при переходе в режим следования
+            if (newState == STATE_FOLLOWING_LINE) {
+                finishLineFirstDetection_ = 0;
+                finishLineConfirmed_ = false;
+                finishLineProcessing_ = false;
+            }
+            
             currentState_ = newState;
             stateStartTime_ = millis();
             
@@ -711,6 +776,8 @@ void setup() {
     Serial.println(F("=== LINE FOLLOWER ROBOT ==="));
     Serial.println(F("Initializing..."));
     
+    randomSeed(analogRead(0)); // Для случайного выбора направления поиска
+    
     robot.init(Config::ROBOT);
     
     Serial.println(F("Robot ready!"));
@@ -735,6 +802,7 @@ void serialEvent() {
             case '1': robot.setPIDTunings(30.0f, 0.1f, 10.0f); break;
             case '2': robot.setPIDTunings(60.0f, 0.3f, 20.0f); break;
             case '3': robot.setPIDTunings(90.0f, 0.5f, 30.0f); break;
+            case ' ': robot.setState(LineFollowerRobot::STATE_STOPPED); break;
         }
     }
 }
