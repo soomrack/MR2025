@@ -1,0 +1,258 @@
+#include <stdio.h>
+#include <cmath>
+
+typedef long long int RUB;
+
+
+const double INDEXATION = 1.07;
+const double INFLATION = 1.07;
+const double MORTGAGE_RATE =1.2;
+const double DEPOSIT_INDEX = 0.1;
+const double INDEX_OF_PROMOTION = 1.2;
+
+
+struct Apartment {
+    RUB apartment_cost;
+    RUB mortgage;
+    RUB rent;
+    RUB first_bet;
+    RUB bills;
+};
+
+
+
+
+
+struct Person {
+    RUB bank_account;
+    RUB income;
+    RUB food_;
+    RUB tax_;
+    RUB trip_;
+    RUB clothes_;
+    Apartment apart;
+    RUB deposit;
+
+    bool has_apartment;
+    bool first_bet_done;
+
+    void add_to_deposit();
+    void food(const int month);
+    void tax(const int month);
+    void trip(const int month);
+    void clothes(const int month);
+    void first_pay();
+    void buy_apartment();
+    RUB reprice_apartment_cost( const int month);
+};
+
+Person alice;
+Person bob;
+
+void Person::add_to_deposit()
+{
+    deposit = deposit * (1+DEPOSIT_INDEX/12)+bank_account;
+    bank_account = 0;
+}
+
+
+RUB Person::reprice_apartment_cost(const int month)
+{
+    if (month == 9){
+        apart.apartment_cost = static_cast<RUB>(apart.apartment_cost * INFLATION);
+    }
+    
+    if(month == 9){
+        apart.bills = static_cast<RUB>(apart.bills * INFLATION);
+    }
+    
+    bank_account -= apart.bills;
+    
+    bank_account -= apart.mortgage;
+    
+    if(!has_apartment){
+        if (month == 10){
+            apart.rent = static_cast<RUB>(apart.rent * INFLATION);
+        }
+        bank_account -= apart.rent;
+    }   
+
+    return apart.apartment_cost;
+}
+
+
+void Person::first_pay()
+{
+    if (bank_account >= apart.first_bet && first_bet_done == false){
+        bank_account -= apart.first_bet;
+        first_bet_done = true;
+    }
+}
+
+
+void Person::buy_apartment()
+{
+    if (deposit >= apart.apartment_cost && has_apartment == false){
+        deposit -= apart.apartment_cost;
+        has_apartment = true;
+    }
+}
+
+
+void bob_add_income(const int year, const int month) 
+{
+    if(month == 10) {
+        bob.income = static_cast<RUB>(bob.income * INDEXATION);  // Indexation
+    }
+
+    if (month == 9 && year >= 2025 && year <= 2045 && (year - 2025) % 3 == 0) {
+        bob.income = static_cast<RUB>(bob.income * INDEX_OF_PROMOTION);
+    } // Promotion
+    
+    
+    bob.bank_account += bob.income;
+    
+}
+
+
+void alice_add_income(const int year, const int month) 
+{
+    if(month == 10) {
+        alice.income = static_cast<RUB>(alice.income * INDEXATION);  // Indexation
+    }
+
+    if (month == 9 && year >= 2025 && year <= 2045 && (year - 2025) % 5 == 0) {
+        alice.income = static_cast<RUB>(alice.income * INDEX_OF_PROMOTION);
+    } // Promotion
+    
+    
+    alice.bank_account += alice.income;
+    
+}
+
+
+
+void Person::food(const int month)
+{
+    if(month == 10) {
+        food_ = static_cast<RUB>(food_ * INFLATION);
+    }
+    bank_account -= food_;
+}
+
+
+void Person::tax(const int month) {
+    if (month == 10){
+        tax_ = static_cast<RUB>(tax_ * INFLATION);
+    }
+    bank_account -= tax_; 
+}
+
+
+void Person::trip(const int month) {
+    if(month == 4) {
+        bank_account -= static_cast<RUB>(trip_ * INFLATION);
+    }
+}
+
+
+void Person::clothes(const int month) {
+    if(month == 10){
+        bank_account -= static_cast<RUB>(clothes_ * INFLATION);
+    }
+}
+
+
+
+
+void simulation()
+{
+    int year = 2025;
+    int month = 9;
+    while( !(year == 2045 && month == 9) ) {
+
+        alice_add_income(year,month);
+        alice.food(month);
+        alice.clothes(month);
+        alice.tax(month);
+        alice.trip(month);
+        alice.reprice_apartment_cost(month);
+        alice.add_to_deposit();
+        
+
+        bob_add_income(year,month);
+        bob.food(month);
+        bob.clothes(month);
+        bob.tax(month);
+        bob.trip(month);
+        bob.reprice_apartment_cost(month);
+        bob.add_to_deposit();
+        bob.buy_apartment();
+
+        ++month;
+        if(month == 13) {
+            month = 1;
+            ++year;
+        }   
+    }
+}
+
+
+void print_alice_bob_info()
+{
+    printf("Alice capital = %d RUR\n", alice.deposit);
+    printf("Bob capital = %d RUR\n", bob.deposit);
+}
+
+
+void alice_init()
+{
+    alice.bank_account = 1000 * 1000;
+    alice.deposit = 0;
+    alice.apart.bills = 6500;
+    alice.income = 200 * 1000;
+    alice.food_ = 30000;
+    alice.apart.apartment_cost = 10 *pow(10,6);
+    alice.apart.mortgage = static_cast<RUB>((alice.apart.apartment_cost * MORTGAGE_RATE) / (20 * 12));
+    alice.tax_ = 10000;
+    alice.trip_ = 40000;
+    alice.apart.rent = 0;
+    alice.clothes_ = 25000;
+    alice.apart.first_bet = 1000 * 1000;
+    alice.has_apartment = true;
+    alice.first_bet_done = false;
+
+    alice.first_pay();
+}
+
+
+void bob_init() {
+    bob.bank_account = 1000*1000;
+    bob.income = 200* 1000;
+    bob.deposit = 0;
+    bob.apart.bills = 6500;
+    bob.food_ = 30000;
+    bob.apart.apartment_cost = 10*pow(10,6);
+    bob.apart.mortgage = 0;
+    bob.tax_ = 10000;
+    bob.trip_ = 40000;
+    bob.clothes_ = 25000;
+    bob.apart.rent = 40000;
+    bob.apart.first_bet = 0;
+    bob.apart.first_bet = false;
+    bob.has_apartment = false;
+}
+
+
+int main()
+{
+    
+    alice_init();
+    bob_init();
+
+    simulation();
+
+    print_alice_bob_info();
+    
+    return 0;
+}
