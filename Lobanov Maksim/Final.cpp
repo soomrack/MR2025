@@ -12,6 +12,8 @@ struct Apartment {
     RUB apart_price;
     RUB rent;
     RUB bills;
+    RUB mortgage;
+    bool apart; //Наличие квартиры (True - есть, False - ее нет);
 };
 
 
@@ -20,8 +22,6 @@ struct Person {
     RUB income;
     RUB food;
     RUB clothes;
-    RUB mortgage;
-    bool apart; //Наличие квартиры (True - есть, False - ее нет);
 };
 
 
@@ -50,7 +50,7 @@ void alice_init() {
     alice.income = 200 * 1000;
     alice.food = 30000;
     alice.clothes = 10000;
-    alice.apart = false;
+    alice_home.apart = false;
 }
 
 
@@ -60,7 +60,7 @@ void bob_init() {
     bob.income = 150 * 1000;
     bob.food = 25000;
     bob.clothes = 20000;
-    bob.mortgage = 100 * 1000;
+    bob_home.mortgage = 100 * 1000;
 }
 
 
@@ -103,10 +103,10 @@ void bob_spend_on_clothes(int month) {
 // Начисление доходов с учётом индексации и премий у Алисы
 void alice_add_income(int year, const int month) {
     if (month == 10) {
-        alice.income = static_cast<RUB>(alice.income * INDEXICATION_RATE);  // Индексация на 7%
+        alice.income = alice.income * INDEXICATION_RATE;  // Индексация на 7%
     }
     if (year == 2030 && month == 3) {
-         alice.income = static_cast<RUB>(alice.income * 1.5);   // Повышение
+         alice.income = alice.income * 1.5;   // Повышение
     }
     alice.bank_account += alice.income;
 }
@@ -125,8 +125,8 @@ void bob_add_income(int year, const int month) {
 
 
 // Выплаты ипотеки
-void pay_mortgage() {
-    bob.bank_account -= bob.mortgage;
+void bob_pay_mortgage() {
+    bob.bank_account -= bob_home.mortgage;
 }
 
 
@@ -150,9 +150,9 @@ void bob_pay_bills(int month) {
 
 // Покупка квартиры
 void alice_buying_apart(){
-    if ((alice.bank_account >= alice_home.apart_price)&&(not(alice.apart))){
+    if ((alice.bank_account >= alice_home.apart_price)&&(not(alice_home.apart))){
         alice.bank_account -= alice_home.apart_price;
-        alice.apart = true;
+        alice_home.apart = true;
     }
 
 }
@@ -160,7 +160,7 @@ void alice_buying_apart(){
 
 //Платит аренду, пока нет квартиры
 void alice_rent(int month){
-    if (not(alice.apart))
+    if (not(alice_home.apart))
     {
         if (month == 10) {
             alice_home.rent *=  INFLATION_RATE;
@@ -171,7 +171,7 @@ void alice_rent(int month){
 }
 
 //Увеличение цены на квартиру
-void reprice_apart(int month){
+void alice_reprice_apart(int month){
     if (month == 10) {
         alice_home.apart_price *=  INFLATION_RATE;  // Инфляция 5%
 }
@@ -189,16 +189,14 @@ void simulate() {
         alice_spend_on_clothes(month);
         alice_rent(month);
         alice_buying_apart();
-        reprice_apart(month);
+        alice_reprice_apart(month);
         alice_pay_bills(month);
 
         bob_add_income(year, month);
         bob_spend_on_food(month);
         bob_spend_on_clothes(month);
-        pay_mortgage(); 
+        bob_pay_mortgage(); 
         bob_pay_bills(month);
-
-
 
         ++month;
         if (month == 13) {
