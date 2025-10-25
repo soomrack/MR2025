@@ -2,23 +2,29 @@
 #define motor_left_dir 7
 #define motor_right_pwm 5
 #define motor_right_dir 4
-#define BUTTON_PIN 12
-#define LEFT_SENSOR_PIN A0
-#define RIGHT_SENSOR_PIN A1
+#define sound_pin 9
+#define button_pin A2           // кнопка для старта/паузы
+#define sensor_left_pin A0      // левый датчик линии
+#define sensor_right_pin A1     // правый датчик линии
 
-float gain_p = 8.0;
-float gain_d = 5.0;
-int speed = 180;
+#define gain_p 8.0
+#define gain_d 5.0
+#define base_speed 70
+#define search_speed 90
 
-int sensorL_min = 1023, sensorL_max = 0;  // magic numbers
-int sensorR_min = 1023, sensorR_max = 0;  // also
+int sensorL_min = 1023, sensorL_max = 0;
+int sensorR_min = 1023, sensorR_max = 0;
 
 int last_error = 0;
+int last_dir = 0;
+
 bool is_bot_active = false;
 bool button_old = HIGH;
+bool is_searching = false;
+bool spiral_dir = false;
 
-int white_L, white_R, black_L, black_R;
-int tresholdL, tresholdR;
+int light_threshold_L = 50;
+int light_threshold_R = 50;
 
 
 void move_motors(int leftSpeed, int rightSpeed) {
@@ -26,125 +32,149 @@ void move_motors(int leftSpeed, int rightSpeed) {
   digitalWrite(motor_right_dir, rightSpeed > 0);
   analogWrite(motor_left_pwm, abs(leftSpeed));
   analogWrite(motor_right_pwm, abs(rightSpeed));
-}
 
-
-int midArifm(int pin) {
-  long sum = 0;
-  for (int i = 0; i < 20; i++)
-    sum += analogRead(pin);
-  return (sum / 20);
+  Serial.print("Motors -> L:");
+  Serial.print(leftSpeed);
+  Serial.print(" R:");
+  Serial.println(rightSpeed);
 }
 
 
 void sensor_calibration() {
-  Serial.println("Calibration started");
+  Serial.println("Calibration");
 
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
-  pinMode(LEFT_SENSOR_PIN, INPUT);
-  pinMode(RIGHT_SENSOR_PIN, INPUT);
+  // Калибровка фона
+  Serial.println("Place robot on background");
+  delay(2000);
+  sensorL_max = analogRead(sensor_left_pin);
+  sensorR_max = analogRead(sensor_right_pin);
+  Serial.print("Background L:");
+  Serial.print(sensorL_max);
+  Serial.print(" R:");
+  Serial.println(sensorR_max);
 
-  while (digitalRead(BUTTON_PIN)) {delay(10);}  // Ожидание первого нажатия клавиши
-  while (!digitalRead(BUTTON_PIN)) {delay(10);} // Ожидание когда кнопку отпустят
+  // Калибровка линии
+  Serial.println("Place robot on line");
+  delay(2000);
+  sensorL_min = analogRead(sensor_left_pin);
+  sensorR_min = analogRead(sensor_right_pin);
+  Serial.print("Line L:");
+  Serial.print(sensorL_min);
+  Serial.print(" R:");
+  Serial.println(sensorR_min);
 
-  white_L = midArifm(LEFT_SENSOR_PIN); // Запись значения белого с левого датчика
-  white_R = midArifm(RIGHT_SENSOR_PIN); // Запись значения белого с правого датчика
-    
-  while (digitalRead(BUTTON_PIN)) {delay(10);}  // Ожидание второго нажатия клавиши
-  while (!digitalRead(BUTTON_PIN)) {delay(10);} // Ожидание когда кнопку отпустят
+  // Автоматический порог
+  light_threshold_L = (sensorL_min + sensorL_max) / 2;
+  light_threshold_R = (sensorR_min + sensorR_max) / 2;
 
-  black_L = midArifm(LEFT_SENSOR_PIN); // Запись значения чёрного с левого датчика
-  black_R = midArifm(RIGHT_SENSOR_PIN); // Запись значения чёрного с правого датчика
-
-  while (digitalRead(BUTTON_PIN)) {delay(10);}  // Ожидание третьего нажатия клавиши
-
-  sensorL_min = black_L;  // минимальное значение (тёмная линия)
-  sensorL_max = white_L;  // максимальное значение (светлый фон)
-  sensorR_min = black_R;
-  sensorR_max = white_R;
-
-  float threshold_ratio = 0.05; // 5% от диапазона
-  tresholdL = black_L + (white_L - black_L) * threshold_ratio;
-  tresholdR = black_R + (white_R - black_R) * threshold_ratio;
-
-
-  Serial.print("L: "); Serial.print(sensorL_min); Serial.print(" - "); Serial.println(sensorL_max);
-  Serial.print("R: "); Serial.print(sensorR_min); Serial.print(" - "); Serial.println(sensorR_max);
-  Serial.print("Threshold L: "); Serial.println(tresholdL);
-  Serial.print("Threshold R: "); Serial.println(tresholdR);
+  Serial.print("Threshold L:");
+  Serial.print(light_threshold_L);
+  Serial.print(" R:");
+  Serial.println(light_threshold_R);
 }
 
 
-void line_following() {
-  int value_left = map(analogRead(LEFT_SENSOR_PIN), sensorL_min, sensorL_max, 0, 100);
-  int value_right = map(analogRead(RIGHT_SENSOR_PIN), sensorR_min, sensorR_max, 0, 100);
-
-  float error = value_left - value_right;
-  float correct = error * gain_p + (error - last_error) * gain_d;
-
-  move_motors(constrain(speed + correct, -250, 250),
-             constrain(speed - correct, -250, 250));
-
-  last_error = error;
+void start_search() {
+  is_searching = true;
+  spiral_dir = (last_dir == 0) ? 1 : 0;
+  Serial.print("Search start ");
+  Serial.println(spiral_dir ? "R" : "L");
 }
 
 
-bool is_line_lost() {
-  int value_left = map(analogRead(LEFT_SENSOR_PIN), sensorL_min, sensorL_max, 0, 100);
-  int value_right = map(analogRead(RIGHT_SENSOR_PIN), sensorR_min, sensorR_max, 0, 100);
+void spiral_search() {
+  int t = (millis() / 200) % 100; // плавный поворот
+  int bias = t * 2;               // больше bias → больший радиус
 
-  return (value_left < tresholdL && value_right < tresholdR);
+  int left = constrain(search_speed - bias, 0, search_speed);
+  int right = search_speed;
+
+  if (spiral_dir) move_motors(left, right);
+  else move_motors(right, left);
+
+  Serial.print("Spiral bias:");
+  Serial.println(bias);
 }
 
 
-void searching_line() {
-  for (int i = 0; i < 3; i++) {
-    if (last_error > 0) {
-      move_motors(80, -80);
-    }
-    else if (last_error < 0) {
-      move_motors(-80, 80);
-    }
-    else {
-      move_motors(-80, -80);
-    }
+void line_following(int sL, int sR) {
+  float err = sL - sR;
+  float corr = err * gain_p + (err - last_error) * gain_d;
+  move_motors(constrain(base_speed + corr, -250, 250),
+              constrain(base_speed - corr, -250, 250));
+  last_error = err;
 
-    delay(150);    // короткий поворот/движение
-    move_motors(0,0); // остановка
+  Serial.print("Follow L:");
+  Serial.print(sL);
+  Serial.print(" R:");
+  Serial.print(sR);
+  Serial.print(" Err:");
+  Serial.print(err);
+  Serial.print(" Corr:");
+  Serial.println(corr);
+}
 
-    if (!is_line_lost()) break; // линия найдена, выход из цикла
+
+void check_sensors() {
+  int valL = map(analogRead(sensor_left_pin), sensorL_min, sensorL_max, 0, 100);
+  int valR = map(analogRead(sensor_right_pin), sensorR_min, sensorR_max, 0, 100);
+
+  Serial.print("Sensors L:");
+  Serial.print(valL);
+  Serial.print(" R:");
+  Serial.println(valR);
+
+  if (is_searching) {
+    if (valL > light_threshold_L || valR > light_threshold_R) {
+      is_searching = false;
+      last_dir = (valL > light_threshold_L) ? 0 : 1;
+      Serial.println("Line found");
+    } else spiral_search();
+  } else {
+    if (valL < light_threshold_L && valR < light_threshold_R) {
+      Serial.println("Line lost");
+      start_search();
+    } else line_following(valL, valR);
   }
 }
 
 
 void setup() {
   Serial.begin(9600);
+  Serial.println("Setup");
 
   pinMode(motor_left_pwm, OUTPUT);
   pinMode(motor_left_dir, OUTPUT);
   pinMode(motor_right_pwm, OUTPUT);
   pinMode(motor_right_dir, OUTPUT);
-  pinMode(BUTTON_PIN, INPUT_PULLUP);  // пинмоды на каждый, на button подаем 1
+  pinMode(sound_pin, OUTPUT);
+  pinMode(button_pin, INPUT_PULLUP);
 
   sensor_calibration();
 
-  while (digitalRead(BUTTON_PIN) == HIGH) {}
+  Serial.println("Wait button");
+  while (digitalRead(button_pin) == HIGH) {}
+
+  tone(sound_pin, 1000, 200);
+  delay(200);
+  Serial.println("Ready");
 
   is_bot_active = true;
 }
 
+
 void loop() {
-  bool button_state = digitalRead(BUTTON_PIN);
+  bool button_state = digitalRead(button_pin);
 
   if (button_state == LOW && button_old == HIGH) {
     is_bot_active = !is_bot_active;
+    is_searching = false;
     delay(30);
+    Serial.print("Button ");
+    Serial.println(is_bot_active ? "ON" : "OFF");
   }
 
   button_old = button_state;
 
-  if (is_bot_active) {
-    if (is_line_lost()) searching_line();
-    else line_following();
-  }
+  if (is_bot_active) check_sensors();
 }
