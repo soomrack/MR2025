@@ -60,11 +60,11 @@ public:
 
     void income(Date current_date) {
         salary();
-        payment();
         sell_picture(current_date.year, current_date.month);
     }
 
     void spend(Date current_date) {
+        payment();
         food();
         home();
     }
