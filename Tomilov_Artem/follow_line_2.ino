@@ -7,8 +7,8 @@
 #define left_sensor A0
 #define right_sensor A1
 
-#define k_p 8.0
-#define k_d 6.0
+#define gain_p 8.0
+#define gain_d 6.0
 #define base_speed 90
 #define search_speed 110
 
@@ -70,7 +70,7 @@ void spiral_search() {
 
 void line_following(int s1, int s2) {
   double err = (s1 - s2);
-  double u = err * k_p + (err - errold) * k_d;
+  double u = err * gain_p + (err - errold) * gain_d;
   drive(constrain(base_speed + u, -250, 250), 
         constrain(base_speed - u, -250, 250));
   errold = err;
