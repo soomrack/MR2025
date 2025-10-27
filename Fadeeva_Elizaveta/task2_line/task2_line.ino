@@ -1,4 +1,4 @@
-// Настройки пинов
+// Пины
 #define MOTOR_L_PWM 6
 #define MOTOR_L_DIR 7
 #define MOTOR_R_PWM 5
@@ -10,7 +10,7 @@
 // Коэффициенты ПД-регулятора
 float Kp = 5;
 float Kd = 2;
-int baseSpeed = 100;
+int baseSpeed = 150;
 int searchSpeed = 120;
 
 // Переменные для калибровки 
@@ -19,10 +19,10 @@ int l_threshold, r_threshold;
 int l_minVal = 1023, l_maxVal = 0;
 int r_minVal = 1023, r_maxVal = 0;
 
-// Прочие переменные
-float lastError = 0; float integral = 0;
+// Другие переменные
+float lastError = 0; 
 bool systemActive = false;
-bool lastButtonState = LOW; // чтобы при первом запуске нажимать только 1 раз
+bool lastButtonState = LOW; 
 
 // Управление моторами 
 void setMotors(int left, int right) {
@@ -36,7 +36,7 @@ void setMotors(int left, int right) {
 // Усреднённое считывание аналогового сигнала 
 int readSmooth(int pin) {
     long total = 0;
-    const char attempts = 15;
+    const char attempts = 17;
     for (int i = 0; i < attempts; i++) total += analogRead(pin);
     return total / attempts;
 }
@@ -67,27 +67,27 @@ void calibrate() {
     r_threshold = r_black + (r_white - r_black) * ratio;
 
     Serial.println("Calibration completed:");
-    Serial.print("L: "); Serial.print(l_minVal); Serial.print(" - "); Serial.println(l_maxVal);
-    Serial.print("R: "); Serial.print(r_minVal); Serial.print(" - "); Serial.println(r_maxVal);
-    Serial.print("Thresholds: "); Serial.print(l_threshold); Serial.print(" / "); Serial.println(r_threshold);
+    Serial.print("L: "); Serial.print(l_minVal); Serial.print(" , "); Serial.println(l_maxVal);
+    Serial.print("R: "); Serial.print(r_minVal); Serial.print(" , "); Serial.println(r_maxVal);
+    Serial.print("Thresholds: "); Serial.print(l_threshold); Serial.print(" , "); Serial.println(r_threshold);
 }
 
-// Проверка потери линии
+// Проверка потряна ли ниния
 bool lineLost() {
-    int l_read = map(analogRead(SENSOR_L), l_minVal, l_maxVal, 0, 100);
-    int r_read = map(analogRead(SENSOR_R), r_minVal, r_maxVal, 0, 100);
+    int l_read = analogRead(SENSOR_L);
+    int r_read = analogRead(SENSOR_R);
     return (l_read < l_threshold && r_read < r_threshold);
 }
 
-// Поиск линии, если она потеряна 
+// Поиск линии при потере
 void findLine() {
   Serial.println("Поиск линии");
-  isSearching = true;
+  bool isSearching = true;
   unsigned long startTime = millis();
 
-  while (isSearching && millis() - startTime < 7000) {
-    if (lastError > 0) moveMotors(searchSpeed, -searchSpeed);
-    else moveMotors(-searchSpeed, searchSpeed);
+  while (isSearching && millis() - startTime < 5000) {
+    if (lastError > 0) setMotors(searchSpeed, -searchSpeed);
+    else setMotors(-searchSpeed, searchSpeed);
 
     if (!lineLost()) {
       Serial.println("Line found");
@@ -96,7 +96,7 @@ void findLine() {
     }
   }
 
-  moveMotors(0, 0);
+  setMotors(0, 0);
   Serial.println("Line lost");
   isSearching = false;
 }
@@ -133,7 +133,7 @@ void setup() {
     systemActive = true;
 }
 
-// Основной цикл
+// Основа
 void loop() {
     bool btnState = digitalRead(BUTTON_PIN);
 
@@ -144,8 +144,10 @@ void loop() {
     lastButtonState = btnState;
 
     if (systemActive) {
-        // if (lineLost()) recoverLine();
-        // else 
+        if (lineLost()){ 
+            findLine();
+         }
+         else 
         followTrack();
     }
 }
