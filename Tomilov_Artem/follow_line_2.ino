@@ -1,149 +1,144 @@
-#define LEFT_PWM 6
-#define LEFT_DIR 7
-#define RIGHT_PWM 5
-#define RIGHT_DIR 4
-#define SOUND 9
+#define left_pwm 6
+#define left_dir 7
+#define right_pwm 5
+#define right_dir 4
+#define sound 9
+#define button A2
+#define left_sensor A0
+#define right_sensor A1
 
-#define K_P 8.0
-#define K_D 5.0
-#define BASE_SPEED 100
-#define SEARCH_SPEED 150
+#define k_p 8.0
+#define k_d 6.0
+#define base_speed 90
+#define search_speed 110
 
-#define LIGHT_THRESHOLD 60  // Порог обнаружения линии
-#define SPIRAL_INCREASE 5   // Шаг увеличения радиуса спирали
-#define SPIRAL_INTERVAL 100 // Интервал изменения спирали (мс)
+#define light_threshold 50
+#define spiral_increase 3
+#define spiral_interval 50
 
-long long int TIME_SOUND = 0;
-int LEFT_MIN = 1023;
-int LEFT_MAX = 0;
-int RIGHT_MIN = 1023;
-int RIGHT_MAX = 0;
+long long int time_sound = 0;
+int left_min = 1023;
+int left_max = 0;
+int right_min = 1023;
+int right_max = 0;
 
-int LAST_DIRECTION = 0;
-int ERROLD = 0;
+int last_direction = 0;
+int errold = 0;
 
-bool IS_ACTIVE = false;     // Флаг активности робота
-bool BUTTON_OLD = 1;
-bool SEARCHING = false;     // Флаг поиска линии
-bool SPIRAL_DIRECTION = 0;  // Направление спирали (0-влево, 1-вправо)
-int spiral_step = 0;        // Текущий шаг спирали
+bool is_active = false; 
+bool button_old = 1;
+bool searching = false;   
+bool spiral_direction = 0;
+int spiral_step = 0;        
 unsigned long spiral_timer = 0;
 
 void drive(int left, int right) {
-  digitalWrite(LEFT_DIR, left > 0);
-  digitalWrite(RIGHT_DIR, right > 0);
-  analogWrite(LEFT_PWM, abs(left));
-  analogWrite(RIGHT_PWM, abs(right));
+  digitalWrite(left_dir, left > 0);
+  digitalWrite(right_dir, right > 0);
+  analogWrite(left_pwm, abs(left));
+  analogWrite(right_pwm, abs(right));
 }
 
 void calibrate() {
-  drive(120, -120); // Вращение на месте
+  drive(120, -120);
   delay(4000);
   drive(0, 0);
 }
 
-void startSearch() {
-  SEARCHING = true;
+void start_search() {
+  searching = true;
   spiral_step = 0;
   spiral_timer = millis();
-  SPIRAL_DIRECTION = (LAST_DIRECTION == 0) ? 1 : 0; // Направление спирали
+  spiral_direction = (last_direction == 0) ? 1 : 0;
 }
 
-void spiralSearch() {
-  if (millis() - spiral_timer > SPIRAL_INTERVAL) {
-    spiral_step += SPIRAL_INCREASE;
+void spiral_search() {
+  if (millis() - spiral_timer > spiral_interval) {
+    spiral_step += spiral_increase;
     spiral_timer = millis();
   }
 
-  int left_speed = SEARCH_SPEED - spiral_step;
-  int right_speed = SEARCH_SPEED - spiral_step;
+  int left_speed = search_speed - spiral_step;
+  int right_speed = search_speed - spiral_step;
 
-  if (SPIRAL_DIRECTION) {
-    drive(left_speed, SEARCH_SPEED);
+  if (spiral_direction) {
+    drive(left_speed, search_speed);
   } else {
-    drive(SEARCH_SPEED, right_speed);
+    drive(search_speed, right_speed);
   }
 }
 
-void lineFollowing(int s1, int s2) {
+void line_following(int s1, int s2) {
   double err = (s1 - s2);
-  double u = err * K_P + (err - ERROLD) * K_D;
-  drive(constrain(BASE_SPEED + u, -250, 250), 
-        constrain(BASE_SPEED - u, -250, 250));
-  ERROLD = err;
+  double u = err * k_p + (err - errold) * k_d;
+  drive(constrain(base_speed + u, -250, 250), 
+        constrain(base_speed - u, -250, 250));
+  errold = err;
 }
 
-void checkSensors() {
-  int s1 = map(analogRead(A0), LEFT_MIN, LEFT_MAX, 0, 100);
-  int s2 = map(analogRead(A1), RIGHT_MIN, RIGHT_MAX, 0, 100);
+void check_sensors() {
+  int s1 = map(analogRead(left_sensor), left_min, left_max, 0, 100);
+  int s2 = map(analogRead(right_sensor), right_min, right_max, 0, 100);
 
-  if (SEARCHING) {
-    if (s1 > LIGHT_THRESHOLD || s2 > LIGHT_THRESHOLD) {
-      // Обнаружена линия, завершаем поиск
-      SEARCHING = false;
-      LAST_DIRECTION = (s1 > LIGHT_THRESHOLD) ? 0 : 1;
+  if (searching) {
+    if (s1 > light_threshold || s2 > light_threshold) {
+      searching = false;
+      last_direction = (s1 > light_threshold) ? 0 : 1;
     } else {
-      spiralSearch();
+      spiral_search();
     }
   } else {
-    if (s1 < LIGHT_THRESHOLD && s2 < LIGHT_THRESHOLD) {
-      startSearch();
+    if (s1 < light_threshold && s2 < light_threshold) {
+      start_search();
     } else {
-      lineFollowing(s1, s2);
+      line_following(s1, s2);
     }
   }
 }
 
 void setup() {
-  // Инициализация пинов управления моторами
-  pinMode(LEFT_PWM, OUTPUT);
-  pinMode(LEFT_DIR, OUTPUT);
-  pinMode(RIGHT_PWM, OUTPUT);
-  pinMode(RIGHT_DIR, OUTPUT);
-  pinMode(SOUND, OUTPUT);
+  pinMode(left_pwm, output);
+  pinMode(left_dir, output);
+  pinMode(right_pwm, output);
+  pinMode(right_dir, output);
+  pinMode(sound, output);
   
-  // Инициализация пина кнопки (подтяжка к питанию)
-  pinMode(A2, INPUT_PULLUP);
+  pinMode(button, input_pullup);
   
-  // Калибровка датчиков (вращение на месте и запись min/max значений)
   int tim = millis();
   while (millis() - tim < 4000) {
-    drive(120, -120);  // Вращение на месте
-    int left = analogRead(A0);
-    int right = analogRead(A1);
+    drive(120, -120);
+    int left = analogRead(left_sensor);
+    int right = analogRead(right_sensor);
     
-    // Обновление минимальных и максимальных значений
-    if (left < LEFT_MIN) LEFT_MIN = left;
-    if (left > LEFT_MAX) LEFT_MAX = left;
-    if (right < RIGHT_MIN) RIGHT_MIN = right;
-    if (right > RIGHT_MAX) RIGHT_MAX = right;
+    if (left < left_min) left_min = left;
+    if (left > left_max) left_max = left;
+    if (right < right_min) right_min = right;
+    if (right > right_max) right_max = right;
   }
-  drive(0, 0);  // Остановка после калибровки
+  drive(0, 0);
   
-  // Ожидание нажатия кнопки для старта
   while (true) {
-    if (digitalRead(A2) == LOW) {  // Кнопка нажата (используем INPUT_PULLUP)
-      delay(50);  // Дебаунс
-      if (digitalRead(A2) == LOW) {
+    if (digitalRead(button) == low) { 
+      delay(50);
+      if (digitalRead(button) == low) {
         break;
       }
     }
   }
   
-  // Короткий звуковой сигнал о готовности
-  tone(SOUND, 1000, 200);
+  tone(sound, 1000, 200);
   delay(200);
 }
 
 void loop() {
-  if (IS_ACTIVE) {
-    checkSensors();
+  if (is_active) {
+    check_sensors();
   }
   
-  // Обработка кнопки
-  if (digitalRead(A2) == HIGH && BUTTON_OLD == LOW) {
-    IS_ACTIVE = !IS_ACTIVE;
-    SEARCHING = false;
+  if (digitalRead(button) == high && button_old == low) {
+    is_active = !is_active;
+    searching = false;
   }
-  BUTTON_OLD = digitalRead(A2);
+  button_old = digitalRead(button);
 }
