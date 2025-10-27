@@ -97,13 +97,13 @@ void check_sensors() {
 }
 
 void setup() {
-  pinMode(left_pwm, output);
-  pinMode(left_dir, output);
-  pinMode(right_pwm, output);
-  pinMode(right_dir, output);
-  pinMode(sound, output);
+  pinMode(left_pwm, OUTPUT);
+  pinMode(left_dir, OUTPUT);
+  pinMode(right_pwm, OUTPUT);
+  pinMode(right_dir, OUTPUT);
+  pinMode(sound, OUTPUT);
   
-  pinMode(button, input_pullup);
+  pinMode(button, INPUT_PULLUP);
   
   int tim = millis();
   while (millis() - tim < 4000) {
@@ -119,9 +119,9 @@ void setup() {
   drive(0, 0);
   
   while (true) {
-    if (digitalRead(button) == low) { 
+    if (digitalRead(button) == LOW) { 
       delay(50);
-      if (digitalRead(button) == low) {
+      if (digitalRead(button) == LOW) {
         break;
       }
     }
@@ -136,7 +136,7 @@ void loop() {
     check_sensors();
   }
   
-  if (digitalRead(button) == high && button_old == low) {
+  if (digitalRead(button) == HIGH && button_old == LOW) {
     is_active = !is_active;
     searching = false;
   }
