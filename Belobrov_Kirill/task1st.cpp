@@ -24,6 +24,7 @@ RUB food_average_price = 8000;                          // Цены на про�
 RUB car_service_average_price = 5000;                   // Затраты на автомобиль
 int mortgage_month = 20 * 12;                           // Срок по ипотеке
 
+
 // Структура - Человек;
 struct Person {
     const std::string name;                             // Имя
@@ -35,13 +36,8 @@ struct Person {
     RUB bank_saves;
     bool is_bankrot;
 
-    Person(std::string n, bankSaving t, bool car, RUB p, RUB account, RUB inc)
-        : name(n), type(t), isHasCar(car), payment(p), bank_account(account), income(inc)
-    {
-        bank_saves = (type == bankSaving::mortgage ? -appartament_price : 0);
-        is_bankrot = false;
-    }
 };
+
 
 // Расчёт ежемесячной оплаты ипотеки
 RUB month_payout(double percent, int sum, int months) {
@@ -49,11 +45,13 @@ RUB month_payout(double percent, int sum, int months) {
         / (pow((1 + percent / 12.0), months) - 1)));
 }
 
+
 // Итоговый вывод счёта у людей
 void person_print(Person person) {
     std::cout << person.name << " bank account = " << person.bank_account
-        + appartament_price + (person.isHasCar ? car_price : 0 ) << " rub.\n";
+        + appartament_price + (person.isHasCar ? car_price : 0 ) + person.bank_saves << " rub.\n";
 }
+
 
 // Начисления людей + повышение ( отдельные функции на каждого)
 void alice_income(Person& person, const int& year, const int& month) {
@@ -66,6 +64,7 @@ void alice_income(Person& person, const int& year, const int& month) {
     }
 }
 
+
 void bob_income(Person& person, const int year, const int month) {
     if (year == 2030 && month == 10) {
         person.income *= 1.5; //Promotion
@@ -76,23 +75,28 @@ void bob_income(Person& person, const int year, const int month) {
     }
 }
 
+
 // Затраты на еду
 void alice_food(Person& person) {
     person.bank_account -= (food_average_price * inflation);
 }
 
+
 void bob_food(Person& person) {
     person.bank_account -= (food_average_price * inflation);
 }
+
 
 // Затраты на одежду
 void alice_clothes(Person& person) {
     person.bank_account -= (clothes_average_price * inflation);
 }
 
+
 void bob_clothes(Person& person) {
     person.bank_account -= (clothes_average_price * inflation);
 }
+
 
 // Затраты на аренду жилья или ипотеки
 void alice_housing(Person& person) {
@@ -104,6 +108,7 @@ void alice_housing(Person& person) {
     }
 }
 
+
 void bob_housing(Person& person) {
     if (person.type == bankSaving::mortgage)
         person.bank_account -= person.payment;
@@ -113,21 +118,25 @@ void bob_housing(Person& person) {
     }
 }
 
+
 // Затраты на автомобиль (при его наличии)
 void alice_car(Person& person) {
     if (person.isHasCar)
         person.bank_account -= (car_service_average_price * inflation);
 }
 
+
 void bob_car(Person& person) {
     if (person.isHasCar)
         person.bank_account -= (car_service_average_price * inflation);
 }
 
+
 // Затраты на коммунальные услуги
 void alice_public_utilities(Person& person) {
     person.bank_account -= (public_utilities_average_price * inflation);
 }
+
 
 void bob_public_utilities(Person& person) {
     person.bank_account -= (public_utilities_average_price * inflation);
@@ -140,6 +149,7 @@ void is_bankort(Person& person)
     std::cout << person.name << " can\'t handle this life" << std::endl;
 }
 
+
 void alice_contribution(Person& person)
 {
     if (person.type == bankSaving::contribution) {
@@ -148,6 +158,7 @@ void alice_contribution(Person& person)
         person.bank_saves *= (1 + (banks_percent / 12.0));
     }
 }
+
 
 void bob_contribution(Person& person)
 {
@@ -158,10 +169,37 @@ void bob_contribution(Person& person)
     }
 }
 
+
 void price_raise() {
     appartament_price *= pow(1 + percent_inflation, 12);
     car_price *= pow(1 + percent_inflation, 12);
 }
+
+
+void accuruals(persons) {
+    for (auto& person : persons) {
+        // Вложение на вклад + начисления процентов на него ( у каждого человека есть сбережения и депозит)
+        if (person.type == bankSaving::mortgage && person.bank_saves > 0)
+        {
+            person.type == bankSaving::contribution;
+        }
+    }
+
+
+
+    bool moneycheck(Persons & persons) {
+        if (persons[0].bank_account < 0) {
+            is_bankort(persons[0]);
+            retun 1;
+        }
+        else if (persons[1].bank_account < 0) {
+            is_bankort(persons[1]);
+            return 1;
+        }
+        else 
+            return 0;
+    }
+
 
 // Симуляция течения времени: начислений и трат
 void simulation(std::vector<Person>& persons) {
@@ -186,22 +224,11 @@ void simulation(std::vector<Person>& persons) {
         bob_public_utilities(persons[1]);
         bob_contribution(persons[1]);
 
-        for (auto& person : persons) {
-            // Вложение на вклад + начисления процентов на него ( у каждого человека есть сбережения и депозит)
-            if (person.type == bankSaving::mortgage && person.bank_saves > 0)
-            {
-                person.type == bankSaving::contribution;
-            }
-        }
-        // При недостаточном количестве средств
-        if (persons[0].bank_account < 0) {
-            is_bankort(persons[0]);
+        accuruals(persons);
+
+        if (moneycheck(persons))
             break;
-        }
-        else if (persons[1].bank_account < 0) {
-            is_bankort(persons[1]);
-            break;
-        }
+      
 
         // + месяц
         month++;
@@ -216,21 +243,15 @@ void simulation(std::vector<Person>& persons) {
             price_raise();
         }
 
-        for (Person person : persons)
-        {
-            // Снятие средств со вклада
-            if (person.type == bankSaving::contribution) {
-               person.bank_account +=person.bank_saves;
-            }
-        }
     }
 
 }
 
+
 int main() {
-    double month_payout_alice = month_payout(banks_percent, appartament_price, mortgage_month);
-    Person alice = Person("Alice", bankSaving::mortgage, true, month_payout_alice, 0, 135000); //сделать раздельно, т.е слишком много
-    Person bob = Person("Bob", bankSaving::mortgage, true, 75000, 0, 100000);
+    RUB month_payout_alice = month_payout(banks_percent, appartament_price, mortgage_month);
+    Person alice{ "Alice", bankSaving::mortgage, true, month_payout_alice, 0, 135000 }; 
+    Person bob{"Bob", bankSaving::mortgage, true, 75000, 0, 100000};
 
     std::vector<Person> persons;
     persons.push_back(alice);
