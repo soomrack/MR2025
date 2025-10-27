@@ -9,7 +9,7 @@
 
 // Коэффициенты ПД-регулятора
 float Kp = 5;
-float Kd = 0;
+float Kd = 2;
 float Ki = 0;
 int baseSpeed = 200;
 
