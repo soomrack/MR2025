@@ -182,3 +182,131 @@ void payment_rent_flat(RUB first_flat, RUB second_flat) {
     second_flat_cost = second_flat;
     bob.payment = first_flat;
 }
+
+
+void bob_salary(const int month, const int year) {
+    bob.balance += bob.salary;
+    if ((year - 2025) % 5 == 0 && month == 9 && year != 2025) {
+        bob.salary += 30 * 1000;
+    }
+}
+
+
+void bob_payment(const int year) {
+    if (year >= 2035) bob.payment = second_flat_cost;
+    bob.balance -= bob.payment;
+}
+
+
+void bob_dog(const int month) {
+    if (month == 12) bob.balance -= dog_hospital;
+    if (month %  2 == 0) bob.balance -= dog_food;
+}
+
+
+void bob_computer_game(const int month) {
+    if (month == 12) bob.balance -= computer_game;
+}
+
+
+void bob_car() {
+    bob.balance -= car;
+}
+
+
+void bob_clothes(const int month) {
+    if (month % 3 == 0) bob.balance -= clothes;
+}
+
+
+void bob_communal_flat() {
+    bob.balance -= communal_flat;
+}
+
+
+void bob_hospital(const int month) {
+    if (month == 12) {
+        bob.balance -= hospital;
+    }
+}
+
+
+void bob_savings(const int month, const int year) {
+    if (bob.balance <= 0) {
+        remittance = -bob.balance;
+        if (bob.savings >= remittance) {
+            bob.savings -= remittance;
+            bob.balance = 0;
+        }
+        else {
+            bob.balance -= bob.savings;
+            bob.savings = 0;
+          //  printf("bob need a part-time job %lld, month %lld, year %lld \n", bob.balance, month, year);
+         //   printf("bob need a part-time job %lld \n", bob.savings);
+        }
+    }
+    else {
+        bob.savings += bob.balance;
+        bob.balance = 0;
+    }
+}
+
+
+void bob_deposit(double deposit) {
+    bob.savings += bob.savings * deposit/12;
+}
+
+
+void calculate_inf_dep(double inflation, double deposit) {
+    int month = 9;
+    int year = 2025;
+
+    while (!(month == 9 && year == 2045)) {
+
+        alice_salary(month, year);
+        alice_payment();
+        alice_food();
+        alice_cosmetic(month);
+        alice_cat(month);
+        alice_communal_flat();
+        alice_clothes(month);
+        alice_relaxation(month);
+        alice_hospital(month);
+        alice_savings(month, year);
+        alice_deposit(deposit);
+        if  (alice.balance < 0) printf("alice need a part-time job %lld, month %lld, year %lld \n", alice.balance, month, year);
+
+        bob_salary(month, year);
+        bob_payment(year);
+        bob_dog(month);
+        bob_computer_game(month);
+        bob_car();
+        bob_clothes(month);
+        bob_communal_flat();
+        bob_hospital(month);
+        bob_savings(month, year);
+        bob_deposit(deposit);
+
+
+        inflation_do(year, month, inflation);
+
+        month++;
+        if (month == 13) {
+            year++;
+            month = 1;
+        }
+    }
+}
+
+
+int main() {
+    init(115 * 1000, 600 * 1000);
+    print1();
+
+    payment_mortgage(10 * 1000 * 1000, 0.13);
+    payment_rent_flat(45 * 1000, 70 * 1000);
+
+    calculate_inf_dep(1.3,0.15);
+
+    print2();
+}
