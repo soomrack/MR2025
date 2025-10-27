@@ -184,7 +184,7 @@ void Dirt_humidity::get_data()
 }
 
 
-bool control_temperature(Thermometer &thermometer, Fan &fan, Heater &heater) {
+void control_temperature(Thermometer &thermometer, Fan &fan, Heater &heater) {
   if (thermometer.temperature > climate.tempMax) {
     fan.on_hot = true;
     heater.on_temperature = false;
@@ -201,7 +201,7 @@ bool control_temperature(Thermometer &thermometer, Fan &fan, Heater &heater) {
 }
 
 
-bool ventilation_by_time(Fan &fan)
+void ventilation_by_time(Fan &fan)
 {
   static unsigned long lastVentTime = 0;
   static unsigned long startVentTime = 0;
@@ -226,7 +226,7 @@ bool ventilation_by_time(Fan &fan)
 }
 
 
-bool control_light(LightSen &lightSen, Lamp &lamp) 
+void control_light(LightSen &lightSen, Lamp &lamp) 
 {
   if ( TIME / HOUR_LENGTH > LIGHT_ON_HOUR && TIME / HOUR_LENGTH < LIGHT_OFF_HOUR ) {
     if (lightSen.lightValue > climate.minLight) {
@@ -241,7 +241,7 @@ bool control_light(LightSen &lightSen, Lamp &lamp)
 }
 
 
-bool control_air_humidity(Fan &fan, Air_humidity &air_humidity) {
+void control_air_humidity(Fan &fan, Air_humidity &air_humidity) {
   if ( air_humidity.humidity > climate.maxHum) {
     fan.on_humidity = true;
   } else {
@@ -250,7 +250,7 @@ bool control_air_humidity(Fan &fan, Air_humidity &air_humidity) {
 }
 
 
-bool control_dirt_humidity(Pump &pump, Dirt_humidity &dirt_humidity) {
+void control_dirt_humidity(Pump &pump, Dirt_humidity &dirt_humidity) {
   static unsigned long lastWaterTime = 0;
   static unsigned long startWaterTime = 0;
   static bool watering = false;
