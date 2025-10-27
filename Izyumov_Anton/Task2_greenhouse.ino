@@ -1,10 +1,10 @@
 #include <DHT11.h>
 
 
-#define TEMP_HUM_SENSOR 12     // temperature and humidity sensor
+#define TEMP_HUM_SENSOR_PIN 12     // temperature and humidity sensor
 
 
-DHT11 dht11(TEMP_HUM_SENSOR);
+DHT11 dht11(TEMP_HUM_SENSOR_PIN);
 
 
 #define HOUR_LENGTH 3600000UL // 1 hour in millis
@@ -32,7 +32,7 @@ struct ClimateConditions {
 };
 
 
-ClimateConditions climate = {700, 500, 20, 30, 60};
+ClimateConditions climate = {400, 500, 20, 30, 60};
 
 
 class Fan {
@@ -79,6 +79,24 @@ class Thermometer {
     int temperature;   // Celsius
   public:
     void get_data();
+};
+
+
+class Thermometer_ran {
+  public:
+    int temperature;   // Celsius
+  public:
+    void get_data();
+};
+
+
+class Thermometer_merge: public Thermometer {
+  public:
+    int* t1;
+    int* t2;
+    int* t3;
+  public:
+    void calculate();
 };
 
 
@@ -159,6 +177,12 @@ void Thermometer::get_data()
   if (temperature == DHT11::ERROR_CHECKSUM || temperature == DHT11::ERROR_TIMEOUT) {
        Serial.println(DHT11::getErrorString(temperature));
   }
+}
+
+
+void Thermometer_ran::get_data()
+{
+  temperature = random(0, 50);
 }
 
 
@@ -274,6 +298,18 @@ void control_dirt_humidity(Pump &pump, Dirt_humidity &dirt_humidity) {
 }
 
 
+void Thermometer_merge::calculate() {
+  int a = *t1;
+  int b = *t2;
+  int c = *t3;
+  int temp;
+  if (a > b) { temp = a; a = b; b = temp; }
+  if (b > c) { temp = b; b = c; c = temp; }
+  if (a > b) { temp = a; a = b; b = temp; }
+  temperature = b;
+}
+
+
 void printStatus(Thermometer &thermometer, LightSen &lightSen, Air_humidity &air_humidity, Dirt_humidity &dirt_humidity, unsigned long TIME) {
   Serial.print("Temperature: ");
   Serial.print(thermometer.temperature);
@@ -284,13 +320,16 @@ void printStatus(Thermometer &thermometer, LightSen &lightSen, Air_humidity &air
   Serial.print(" Dirt_hum: ");
   Serial.print(dirt_humidity.humidity);
   Serial.print(" Time (hour): ");
-  Serial.println(TIME);    // при ускорении времени / HOUR_LENGTH
+  Serial.println(TIME/HOUR_LENGTH);    // при ускорении времени / HOUR_LENGTH
 }
 
 
 Fan fan;
 Heater heater;
-Thermometer thermometer;
+Thermometer thermometer1;
+Thermometer thermometer2;
+Thermometer_ran thermometer3;
+Thermometer_merge thermometer;
 Lamp lamp;
 Pump pump;
 LightSen lightSen;
@@ -307,14 +346,21 @@ void setup() {
   pinMode(pump.pin, OUTPUT);
   pinMode(heater.pin, OUTPUT);
 
+  thermometer.t1 = &thermometer1.temperature;
+  thermometer.t2 = &thermometer2.temperature;
+  thermometer.t3 = &thermometer3.temperature;
+
   Serial.begin(9600);
 }
 
 
 void loop() {
-  TIME = millis();  // * 900 для ускорения
+  TIME = millis()*900;  // * 900 для ускорения
 
-  thermometer.get_data();
+  thermometer1.get_data();
+  thermometer2.get_data();
+  thermometer3.get_data();
+  thermometer.calculate();
   lightSen.get_data();
   air_humidity.get_data();
   dirt_humidity.get_data();
@@ -331,6 +377,15 @@ void loop() {
   pump.power();
 
   delay(10);
+
+  // Serial.print("Temperature1: ");
+  // Serial.print(thermometer1.temperature);
+  // Serial.print(" Temperature2: ");
+  // Serial.print(thermometer2.temperature);
+  // Serial.print(" Temperature3: ");
+  // Serial.print(thermometer3.temperature);
+  // Serial.print(" Temperature: ");
+  // Serial.println(thermometer.temperature);
 
   printStatus(thermometer, lightSen, air_humidity, dirt_humidity, TIME);
 }
