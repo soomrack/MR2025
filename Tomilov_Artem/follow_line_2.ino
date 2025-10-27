@@ -15,6 +15,7 @@
 #define light_threshold 50
 #define spiral_increase 3
 #define spiral_interval 50
+#define search_timeout 10000  // 10 секунд
 
 long long int time_sound = 0;
 int left_min = 1023;
@@ -31,6 +32,9 @@ bool searching = false;
 bool spiral_direction = 0;
 int spiral_step = 0;        
 unsigned long spiral_timer = 0;
+unsigned long search_start_time = 0;
+
+//--------------------------------------------------
 
 void drive(int left, int right) {
   digitalWrite(left_dir, left > 0);
@@ -39,18 +43,34 @@ void drive(int left, int right) {
   analogWrite(right_pwm, abs(right));
 }
 
+//--------------------------------------------------
+
+void stop_robot() {
+  drive(0, 0);
+  is_active = false;
+  searching = false;
+  tone(sound, 500, 500); // звуковой сигнал остановки
+}
+
+//--------------------------------------------------
+
 void calibrate() {
   drive(120, -120);
   delay(4000);
   drive(0, 0);
 }
 
+//--------------------------------------------------
+
 void start_search() {
   searching = true;
   spiral_step = 0;
   spiral_timer = millis();
   spiral_direction = (last_direction == 0) ? 1 : 0;
+  search_start_time = millis();  // фиксируем время начала поиска
 }
+
+//--------------------------------------------------
 
 void spiral_search() {
   if (millis() - spiral_timer > spiral_interval) {
@@ -68,6 +88,8 @@ void spiral_search() {
   }
 }
 
+//--------------------------------------------------
+
 void line_following(int s1, int s2) {
   double err = (s1 - s2);
   double u = err * gain_p + (err - errold) * gain_d;
@@ -76,11 +98,18 @@ void line_following(int s1, int s2) {
   errold = err;
 }
 
+//--------------------------------------------------
+
 void check_sensors() {
   int s1 = map(analogRead(left_sensor), left_min, left_max, 0, 100);
   int s2 = map(analogRead(right_sensor), right_min, right_max, 0, 100);
 
   if (searching) {
+    if (millis() - search_start_time > search_timeout) {
+      stop_robot(); // если линия не найдена >10 секунд
+      return;
+    }
+
     if (s1 > light_threshold || s2 > light_threshold) {
       searching = false;
       last_direction = (s1 > light_threshold) ? 0 : 1;
@@ -96,15 +125,17 @@ void check_sensors() {
   }
 }
 
+//--------------------------------------------------
+
 void setup() {
   pinMode(left_pwm, OUTPUT);
   pinMode(left_dir, OUTPUT);
   pinMode(right_pwm, OUTPUT);
   pinMode(right_dir, OUTPUT);
   pinMode(sound, OUTPUT);
-  
   pinMode(button, INPUT_PULLUP);
-  
+
+  // Калибровка
   int tim = millis();
   while (millis() - tim < 4000) {
     drive(120, -120);
@@ -118,18 +149,19 @@ void setup() {
   }
   drive(0, 0);
   
+  // Ожидание нажатия кнопки
   while (true) {
     if (digitalRead(button) == LOW) { 
       delay(50);
-      if (digitalRead(button) == LOW) {
-        break;
-      }
+      if (digitalRead(button) == LOW) break;
     }
   }
   
   tone(sound, 1000, 200);
   delay(200);
 }
+
+//--------------------------------------------------
 
 void loop() {
   if (is_active) {
