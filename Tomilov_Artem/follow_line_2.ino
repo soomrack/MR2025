@@ -136,8 +136,8 @@ void setup() {
   pinMode(button, INPUT_PULLUP);
 
   // Калибровка
-  int tim = millis();
-  while (millis() - tim < 4000) {
+  int time = millis();
+  while (millis() - time < 4000) {
     drive(120, -120);
     int left = analogRead(left_sensor);
     int right = analogRead(right_sensor);
