@@ -127,17 +127,15 @@ void light_control(const bool light_on){
 void heat_control(const bool heat_on){
   if (heat_on == true){
     digitalWrite(HEAT , HIGH);
-    digitalWrite(VENT, HIGH); //При включении нагревателя должен включаться вентилятор
   }
   else{
     digitalWrite(HEAT , LOW);
-    digitalWrite(VENT, LOW);
   }
 }
 
 
-void vent_control(const bool vent_on){
-  if (vent_on == true){
+void vent_control(const bool vent_on, const bool heat_on){
+  if (vent_on == true || heat_on == true){
     digitalWrite(VENT , HIGH);
   }
   else{
@@ -158,7 +156,7 @@ void pump_control(const bool pump_on){
 void actuator_control(){
   light_control(light_on);
   heat_control(heat_on);
-  vent_control(vent_on);
+  vent_control(vent_on, heat_on);
   pump_control(pump_on);
 }
 
@@ -177,14 +175,14 @@ void initialization(){
 
 
 void serial_output(){
-  Serial.print("Температура: ");
-  Serial.println(temperature);
-  Serial.print("Влажность воздуха: ");
-  Serial.println(air_humidity);
-  Serial.print("Освещенность: ");
-  Serial.println(lighting);
-  Serial.print("Влажность почвы: ");
-  Serial.println(soil_moisture);
+  Serial.println("Температура: ");
+  Serial.print(temperature);
+  Serial.println("Влажность воздуха: ");
+  Serial.print(air_humidity);
+  Serial.println("Освещенность: ");
+  Serial.print(lighting);
+  Serial.println("Влажность почвы: ");
+  Serial.print(soil_moisture);
   Serial.println("-------------------");
 }
 
