@@ -1,0 +1,300 @@
+#include <stdio.h>
+#include <math.h>
+#include <Windows.h>
+#include <iostream>
+
+typedef long long int Money; // В нашем случае валюта - рубли
+
+// Константы задаем
+const double INFLATION = 0.07;
+const int START_MONTH = 9;
+const int START_YEAR = 2025;
+const int YEARS = 20;
+
+// Структуры
+
+struct Mortgage // Ипотека
+{ 
+    double rate; // Ставка
+    Money payment; // Платеж
+};
+
+struct Human // Человек 
+{ 
+    Money salary; // Зарплата 
+    Money account; // Банковский счет
+    double bank_percent; // Процент в банке
+    Money wastes; // Расходы ежемесячные
+    Money rent; // Аренда
+    Money communal_payments; // Коммунальные платежи
+    Money flat_value; // Рыночная стоимость квартиры
+    Money mortgage_debt; // Остаток долга по ипотеке
+    struct Mortgage mortgage; // Параметры ипотеки
+    Money initial_savings; // Первоначальные сбережения
+};
+
+struct Human Alice;
+struct Human Bob;
+
+void calculate_mortgage() 
+{
+    double monthly_rate = Alice.mortgage.rate / 12; // Расчет месячной процентной ставки
+    int months = YEARS * 12; // Количество месяцев ипотеки
+    double coefficient = (monthly_rate * pow(1 + monthly_rate, months)) /
+        (pow(1 + monthly_rate, months) - 1); // Формула аннуитетного коэффициента
+
+    // Ипотека на сумму квартиры минус первоначальный взнос
+    Money mortgage_amount = Alice.flat_value - Alice.initial_savings; // Сумма кредита
+    Alice.mortgage.payment = mortgage_amount * coefficient; // Ежемесячный платеж
+    Alice.mortgage_debt = mortgage_amount; // Начальный долг
+}
+
+void Alice_init() 
+{ 
+    Alice.initial_savings = 800000;     // 800к накоплений
+    Alice.flat_value = 8000000;         // Квартира 8 млн 
+    Alice.account = 100000;             // 100к на руках после взноса
+    Alice.salary = 170000;              // Зарплата 150к
+    Alice.bank_percent = 0.06;          // Процент в банке 6 %
+    Alice.wastes = 40000;               // 40к на еду и базовые расходы
+    Alice.communal_payments = 8000;     // 8к коммунальные платежи
+    Alice.mortgage.rate = 0.09;         // Годовая ставка по ипотеке
+
+    calculate_mortgage();
+}
+
+void Bob_init() 
+{
+    Bob.account = 800000;              // На счете у Боба
+    Bob.salary = 170000;               // Зарплата 170к
+    Bob.bank_percent = 0.06;           // Процент в банке 6 %
+    Bob.wastes = 40000;                // Базовые расходы 40к
+    Bob.rent = 35000;                  // Аренда 35к (скромнее)
+    Bob.communal_payments = 3000;      // Часть комуналки включена в аренду
+    Bob.flat_value = 0;
+}
+
+void Alice_salary(const int year, const int month) 
+{
+    Alice.account += Alice.salary;
+
+    // Индексация раз в 2 года
+    if (month == 1 && year % 2 == 0 && year > START_YEAR) 
+    {
+        Alice.salary += Alice.salary * 0.03;
+    }
+}
+
+void Bob_salary(const int year, const int month)
+{
+    Bob.account += Bob.salary; // Начисление зарплаты
+
+    if (month == 1 && year % 2 == 0 && year > START_YEAR)
+    { // Индексация
+        Bob.salary += Bob.salary * 0.03;
+    }
+}
+
+void Alice_deposite(const int year, const int month) 
+{
+    // Проценты на весь остаток
+    if (month % 3 == 0) 
+    {  // Раз в квартал
+        Alice.account += Alice.account * (Alice.bank_percent / 12 * 3);
+    }
+}
+
+void Bob_deposite(const int year, const int month) // Начисление процентов по вкладу
+{ 
+    if (month % 3 == 0)
+    {
+        Bob.account += Bob.account * (Bob.bank_percent / 12 * 3);
+    }
+}
+
+void Alice_flat_expenses(const int year, const int month) 
+{
+    // Квартирные расходы только если есть деньги
+    if (month == 6 && (year == 2030 || year == 2035) && Alice.account > 100000) 
+    {
+        //       printf("Alice: major repair -150,000 rub\n");
+        Alice.account -= 150000;
+    }
+
+    // Мелкие домашние расходы
+    if (month == 8 && Alice.account > 50000) 
+    {
+        Alice.account -= 15000;
+    }
+}
+
+void Alice_expenses(const int year, const int month)
+{
+    // Базовые расходы(еда, средства первой необходимости и одежда)
+    Money basic_expenses = Alice.wastes + Alice.communal_payments;
+    if (Alice.account >= basic_expenses)
+    {
+        Alice.account -= basic_expenses;
+    }
+
+    // Ипотечный платеж 
+    if (Alice.account >= Alice.mortgage.payment)
+    {
+        Alice.account -= Alice.mortgage.payment;
+        Alice.mortgage_debt -= Alice.mortgage.payment;
+    }
+
+    // Инфляция расходов раз в год
+    if (month == 1 && year > START_YEAR)
+    {
+        Alice.wastes += Alice.wastes * 0.05; // Ниже общей инфляции
+        Alice.communal_payments += Alice.communal_payments * 0.07;
+    }
+}
+
+void Bob_expenses(const int year, const int month) 
+{
+    // Базовые расходы(еда, средства первой необходимости и одежда)
+    Money basic_expenses = Bob.wastes + Bob.rent + Bob.communal_payments;
+    if (Bob.account >= basic_expenses) 
+    {
+        Bob.account -= basic_expenses;
+    }
+
+    // Инфляция
+    if (month == 1 && year > START_YEAR) 
+    {
+        Bob.wastes += Bob.wastes * 0.05;
+        Bob.rent += Bob.rent * 0.07;
+    }
+}
+
+void Alice_life_events(const int year, const int month)
+{
+    // Отпуск только если есть деньги
+    if (month == 7 && Alice.account > 100000)
+    {
+        //  printf("Alice: vacation -50,000 rub\n");
+        Alice.account -= 50000;
+    }
+
+    // Мелкие непредвиденные расходы
+    if (month == 3 && year % 3 == 0 && Alice.account > 30000)
+    {
+        Alice.account -= 20000;
+    }
+}
+
+void Bob_life_events(const int year, const int month) 
+{
+    // Отпуск
+    if (month == 7 && Bob.account > 100000) 
+    {
+        //  printf("Bob: vacation -60,000 rub\n");
+        Bob.account -= 50000;
+    }
+
+    // Развлечения поскромнее
+    if (month % 2 == 0 && Bob.account > 30000) 
+    {
+        Bob.account -= 8000;
+    }
+}
+
+void property_taxes(const int year, const int month) 
+{
+    if (month == 12) 
+    {
+        // Налог на имущество Алисы (только если есть деньги)
+        if (Alice.account > 10000) 
+        {
+            Money alice_tax = Alice.flat_value * 0.001;
+            if (alice_tax > Alice.account) alice_tax = Alice.account / 2;
+            Alice.account -= alice_tax;
+        }
+    }
+}
+
+void adjust_for_inflation(const int year) 
+{
+    // Стоимость недвижимости растет
+    if (year == 2030 || year == 2040) 
+    {
+        Alice.flat_value += Alice.flat_value * 0.08;
+    }
+}
+
+void print_results() 
+{
+    printf("\n=== РЕЗУЛЬТАТЫ ЗА %d ЛЕТ ===\n", YEARS);
+
+    // У Алисы остался долг по ипотеке 
+    Money alice_equity = Alice.flat_value - Alice.mortgage_debt;
+    if (alice_equity < 0) alice_equity = 0;
+
+    printf("Элис (ипотека):\n");
+    printf("  Накопления: %lld руб\n", Alice.account);
+    printf("  Стоимость квартиры: %lld руб\n", Alice.flat_value);
+    printf("  Остаток долга: %lld руб\n", Alice.mortgage_debt);
+    printf("  Чистая стоимость: %lld руб\n", alice_equity);
+    printf("  ОБЩИЙ КАПИТАЛ: %lld руб\n\n", Alice.account + alice_equity);
+
+    printf("Боб (аренда):\n");
+    printf("  Накопления: %lld руб\n", Bob.account);
+    printf("  ОБЩИЙ КАПИТАЛ: %lld руб\n\n", Bob.account);
+
+    if ((Alice.account + alice_equity) > (Bob.account)) 
+    {
+        printf(" В итоге жизнь лучше у Элис");
+    }
+    else 
+    {
+        printf(" В итоге жизнь лучше у Боба");
+    }
+}
+
+void simulation() 
+{
+    int month = START_MONTH;
+    int year = START_YEAR;
+
+    printf("Симуляция жизни двух людей\n\n");
+
+    while (!(year == START_YEAR + YEARS && month == 9)) 
+    {
+        //Накопления и расходы Алисы
+        Alice_salary(year, month);// Зарплата Алисы
+        Alice_deposite(year, month);// Расчет процентов Алисы
+        Alice_expenses(year, month);// Расчет расходов Алисы на еду, средства первой необходимости и одежду
+        Alice_flat_expenses(year, month);// Расходы на события в 
+        Alice_life_events(year, month);// жизни Алисы
+
+        //Накопления и расходы Боба
+        Bob_salary(year, month);// Зарплата Боба
+        Bob_deposite(year, month);// Расчет процентов Боба
+        Bob_expenses(year, month);// Расчет расходов Боба на еду, средства первой необходимости и одежду
+        Bob_life_events(year, month);// Расходы на события в жизни Боба
+ 
+        // Следующий месяц
+        month++;
+        if (month > 12) 
+        {
+            year++;
+            month = 1;
+        }
+    }
+}
+
+int main() 
+{
+    SetConsoleCP(1251);
+    SetConsoleOutputCP(1251);
+
+    Alice_init();
+    Bob_init();
+
+    simulation();
+    print_results();
+
+    return 0;
+}
