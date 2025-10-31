@@ -6,18 +6,24 @@
 #define BUTTON_PIN 12
 #define SENSOR_L A0
 #define SENSOR_R A1
+#define SENSOR_BACK A2
 
 // Коэффициенты ПД-регулятора
-float Kp = 5;
-float Kd = 2;
-float Ki = 0;
-int baseSpeed = 200;
+const float Kp = 5;
+const float Kd = 2;
+const float Ki = 0;
+const int baseSpeed = 200;
 
 // Переменные для калибровки 
-int l_white, r_white, l_black, r_black;
-int l_threshold, r_threshold;
+int l_white, r_white, l_black, r_black, b_white, b_black;
+int l_threshold, r_threshold, b_threshold;
 int l_minVal = 1023, l_maxVal = 0;
 int r_minVal = 1023, r_maxVal = 0;
+
+// Счётчик потери линии
+unsigned long line_seen_millis = 0;
+const int line_seen_threshold_ms = 1500;
+// const int line_seen_threshold_2_ms = 5000; // for 2nd stage of searching
 
 // Прочие переменные
 float lastError = 0; float integral = 0;
@@ -62,9 +68,13 @@ void calibrate() {
     r_minVal = r_black;
     r_maxVal = r_white;
 
+    b_white = (l_white + r_white) / 2;
+    b_black = (l_black + r_black) / 2;
+
     const float ratio = 0.1; // порог потери линии
     l_threshold = l_black + (l_white - l_black) * ratio;
     r_threshold = r_black + (r_white - r_black) * ratio;
+    b_threshold = b_black + (b_white - b_black) * ratio;
 
     Serial.println("Calibration completed:");
     Serial.print("L: "); Serial.print(l_minVal); Serial.print(" - "); Serial.println(l_maxVal);
@@ -76,23 +86,89 @@ void calibrate() {
 bool lineLost() {
     int l_read = map(analogRead(SENSOR_L), l_minVal, l_maxVal, 0, 100);
     int r_read = map(analogRead(SENSOR_R), r_minVal, r_maxVal, 0, 100);
-    return (l_read < l_threshold && r_read < r_threshold);
+    bool lost = (l_read < l_threshold && r_read < r_threshold);
+    if (!lost) line_seen_millis=millis();
+    return lost;
+}
+
+bool is_aligned() {
+    int l_read = map(analogRead(SENSOR_L), l_minVal, l_maxVal, 0, 100);
+    int r_read = map(analogRead(SENSOR_R), r_minVal, r_maxVal, 0, 100);
+    int back = map(analogRead(SENSOR_BACK), r_minVal, r_maxVal, 0, 100);
+    return ((l_read >= l_threshold || r_read >= r_threshold) && back >= b_threshold);
+}
+
+bool back_is_on_line() {
+    int back = map(analogRead(SENSOR_BACK), r_minVal, r_maxVal, 0, 100);
+    return (back >= b_threshold);
+}
+
+float tanh(unsigned long x) {
+    const float e2x=exp(2*x);
+    return (e2x-1.0)/(e2x-1.0);
 }
 
 // Поиск линии, если она потеряна 
 void recoverLine() {
-    for (int k = 0; k < 3; k++) {
-        if (lastError > 0)
-            setMotors(80, -80);
-        else if (lastError < 0)
-            setMotors(-80, 80);
-        else
-            setMotors(-60, -60);
-
-        delay(120);
-        setMotors(0, 0);
-        if (!lineLost()) break;
+    float radius_coeff; // Коэффциент кривизны поворота: от -1 (вращение на месте) до +1 (прямая линия)
+    const int recover_start_ms = millis();
+    while (!lineLost()) {
+        radius_coeff = 2*tanh((millis()-recover_start_ms)/4)-1;
+        const int left_speed = 80;
+        const int right_speed = left_speed * radius_coeff;
+        setMotors(left_speed, right_speed);
+        delay(1);
     }
+
+    // Линия найдена. Останавливаемся и вращаемся.
+    setMotors(0, 0);
+    while (!is_aligned()) {
+        if (!lineLost()) { // Передний датчик на линии
+            int started_going_ms = millis();
+            setMotors(80, 80);
+            while( millis() - started_going_ms <= 100 ) {
+                if (back_is_on_line()) break;
+                if (lineLost()) break;
+                delay(1); // go forward
+            }
+            
+            started_going_ms = millis();
+            setMotors(80, -80);
+            while ( millis() - started_going_ms <= 100 ) {
+                if (back_is_on_line()) break;
+                if (!lineLost()) break;
+                delay(1); // turn right
+            }
+        }
+        else if (back_is_on_line()) { // Задний датчик на линии
+            int started_going_ms = millis();
+            setMotors(-80, -80);
+            while( millis() - started_going_ms <= 100 ) {
+                if (!back_is_on_line()) break;
+                if (!lineLost()) break;
+                delay(1); // go backward
+            }
+            
+            started_going_ms = millis();
+            setMotors(80, -80);
+            while ( millis() - started_going_ms <= 100 ) {
+                if (back_is_on_line()) break;
+                if (!lineLost()) break;
+                delay(1); // turn right
+            }
+        }
+        else { // линия между датчиками
+            int started_going_ms = millis();
+            setMotors(80, 80);
+            while( millis() - started_going_ms <= 100 ) {
+                if (back_is_on_line()) break;
+                if (lineLost()) break;
+                delay(1); // go forward
+            }
+        }
+    }
+    setMotors(0, 0);
+    // Линия выровнена
 }
 
 // Следование по линии
@@ -139,8 +215,7 @@ void loop() {
     lastButtonState = btnState;
 
     if (systemActive) {
-        // if (lineLost()) recoverLine();
-        // else 
-        followTrack();
+        if (lineLost() && (millis() - line_seen_millis >= line_seen_threshold_ms)) recoverLine();
+        else followTrack();
     }
 }
