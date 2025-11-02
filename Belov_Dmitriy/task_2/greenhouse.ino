@@ -1,7 +1,7 @@
 #include <DHT.h>
 #include <Adafruit_Sensor.h>
 
-// === Аппаратная распиновка (оставлена как было) ===
+// === Аппаратная распиновка ===
 #define PUMP_PIN 5
 #define LIGHT_PIN 6
 #define HEAT_PIN 4
@@ -207,7 +207,7 @@ void evaluateLighting() {
 // ПРОВЕРКА ТЕМПЕРАТУРЫ (DHT)
 // -------------------------------------------------------------
 void evaluateTemperature() {
-  if (!air.is_normal) return; // нет корректных данных
+  if (!air.is_normal) return; // если нет корректных данных
   if (air.temperature < heater.limits.minVal) heater.is_on = true;
   else if (air.temperature > heater.limits.maxVal) heater.is_on = false;
 }
@@ -287,7 +287,7 @@ void controlVentilation() {
 }
 
 // -------------------------------------------------------------
-// SERIAL / ЛОГИРОВАНИЕ
+// ЛОГИРОВАНИЕ
 // -------------------------------------------------------------
 void serialLog() {
   if (millis() - lastSerial < serialInterval) return;
@@ -324,7 +324,7 @@ void setup() {
 
   // Инициализация параметров, порогов и т.п.
   Parameter_Initialization();
-  // Установим все реле в ноль (безопасно)
+  // Установим все реле в ноль для запуска по условиям
   digitalWrite(pump.pin, LOW);
   digitalWrite(lamp.pin, LOW);
   digitalWrite(heater.pin, LOW);
