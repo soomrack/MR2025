@@ -1,7 +1,7 @@
 #include <DHT.h>
 #include <Adafruit_Sensor.h>
 
-// === Аппаратная распиновка ===
+// === Аппаратная распиновка  ===
 #define PUMP_PIN 5
 #define LIGHT_PIN 6
 #define HEAT_PIN 4
@@ -62,14 +62,14 @@ struct LightCtrl {
   int pin;
   bool is_on;
   Range limits;      // можно дублировать или брать из LightSensors.limits
-  unsigned long nightStart; // для симуляции дня/ночи (не обязательно)
+  unsigned long nightStart; // для симуляции дня/ночи 
 };
 
 // === Устройство: нагреватель ===
 struct Heater {
   int pin;
   bool is_on;
-  Range limits; // min = включить при < min, max = выключить при > max
+  Range limits; 
 };
 
 // === Устройство: вентиляция ===
@@ -113,7 +113,7 @@ void Parameter_Initialization() {
   lights.count = 1;
   lights.pins[0] = DEFAULT_LIGHT_SENSOR_PIN;
   lights.values[0] = 0;
-  lights.limits.minVal = 200;  // если ниже — темно
+  lights.limits.minVal = 405;  // если ниже — темно
   lights.limits.maxVal = 800;  // если выше — ярко
   lights.shouldBeOn = false;
 
@@ -121,13 +121,13 @@ void Parameter_Initialization() {
   soils.count = 1;
   soils.pins[0] = DEFAULT_SOIL_SENSOR_PIN;
   soils.values[0] = 0;
-  soils.limits.minVal = 850;  // сухо (больше — суше)
-  soils.limits.maxVal = 300;  // влажно (меньше — влажно)
+  soils.limits.minVal = 500;  // сухо (больше — суше)
+  soils.limits.maxVal = 600;  // влажно (меньше — влажно)
   soils.pumpNeeded = false;
   soils.lastPumpStart = 0;
-  soils.pumpMaxDuration = 30000UL; // 30s макс полив (безопасность)
+  soils.pumpMaxDuration = 30000UL; // 30s макс полив 
 
-  // Лампа — дублируем пороги в контроллере освещения (по желанию)
+  // Лампа — дублируем пороги в контроллере освещения 
   lamp.limits = lights.limits;
 
   // Нагреватель
@@ -206,8 +206,8 @@ void evaluateLighting() {
 // -------------------------------------------------------------
 // ПРОВЕРКА ТЕМПЕРАТУРЫ (DHT)
 // -------------------------------------------------------------
-void evaluateTemperature() {
-  if (!air.is_normal) return; // если нет корректных данных
+void evaluateTemperature() {// min = включить при < min, max = выключить при > max
+  if (!air.is_normal) return; // нет корректных данных
   if (air.temperature < heater.limits.minVal) heater.is_on = true;
   else if (air.temperature > heater.limits.maxVal) heater.is_on = false;
 }
@@ -348,3 +348,4 @@ void loop() {
   controlPump();
   controlVentilation();
   serialLog();
+}
