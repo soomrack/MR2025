@@ -95,7 +95,7 @@ void spiralSearch() {
   
   // Вычисляет скорости моторов для спирального движения
   int left_speed = SEARCH_SPEED - spiral_step;  // Левый мотор замедляется на величину шага
-  int right_speed = SEARCH_SPEED - spiral_step; // Правый мотор замедляется на величину шага
+  int right_speed = SEARCH_SPEED - spiral_step; // Правый
   
   // Применяет спиральное движение в зависимости от направления
   if (spiral_direction) {
@@ -109,13 +109,10 @@ void spiralSearch() {
 
 // PID-регулятор для плавного движения по линии
 void lineFollowing(int left_sensor, int right_sensor) {
-  // Вычисляет ошибку как разность показаний датчиков
-  // Положительная ошибка - смещение вправо, отрицательная - влево
+  // Вычисляет ошибку как разность показаний датчиков, + вправо, - влево
   int error = (left_sensor - right_sensor);
   
-  // Вычисляет управляющий сигнал PID-регулятора:
-  // P-составляющая: пропорциональна текущей ошибке
-  // D-составляющая: пропорциональна скорости изменения ошибки
+  // Вычисляет управляющий сигнал PID-регулятора, P = текущей ошибке, D = скорости изменения ошибки
   double control_signal = error * PID_GAIN_P + (error - error_old) * PID_GAIN_D;
   
   // Применяет управляющий сигнал к моторам:
@@ -142,7 +139,6 @@ void readSensors(int& left_value, int& right_value) {
   int right_raw = analogRead(RIGHT_SENSOR_PIN);
   
   // Преобразует значения в нормализованный диапазон 0-100
-  // используя калибровочные значения (min/max)
   left_value = map(left_raw, left_min, left_max, 0, 100);
   right_value = map(right_raw, right_min, right_max, 0, 100);
   
@@ -158,7 +154,7 @@ void calibrateSensors() {
   
   // Сбрасывает калибровочные значения к начальным
   left_min = 1023; right_min = 1023; // Устанавливает высокие минимальные значения
-  left_max = 0; right_max = 0;       // Устанавливает низкие максимальные значения
+  left_max = 0; right_max = 0;       // Низкие
   
   // Запоминает время начала калибровки
   unsigned long calibration_start = millis();
@@ -203,13 +199,13 @@ void handleButton() {
     }
   }
   
-  // Сохраняет текущее состояние кнопки для следующей итерации
+  // Сохраняет текущее состояние кнопки 
   button_old_state = current_button_state;
 }
 
-// Функция управления состояниями робота с использованием switch-case
+// Функция управления состояниями
 void updateStateMachine() {
-  // Сбор данных с датчиков для принятия решений
+  // Сбор данных с датчиков
   int left_value, right_value;
   readSensors(left_value, right_value);
   
@@ -233,8 +229,8 @@ void updateStateMachine() {
       
     case STATE_CALIBRATING:
       // Автоматический переход после завершения калибровки
-      calibrateSensors();              // Выполняем калибровку датчиков
-      currentState = STATE_FOLLOW_LINE; // Переходим в состояние следования за линией
+      calibrateSensors();              // Калибровка датчиков
+      currentState = STATE_FOLLOW_LINE; // Переход в состояние следования за линией
       tone(SOUND_PIN, 2000, 300);      // Сигнал готовности к работе
       break;
       
@@ -252,7 +248,7 @@ void updateStateMachine() {
       }
       // Если линия обнаружена, то продолжаем движение
       else {
-        lineFollowing(left_value, right_value); // Выполняем PID-регулирование движения по линии
+        lineFollowing(left_value, right_value); // PID-регулирование движения по линии
       }
       break;
       
@@ -273,12 +269,12 @@ void updateStateMachine() {
       // Если кнопка остановки нажата
       else if (button_pressed) {
         button_pressed = false;        // Сбрасываем флаг нажатия
-        currentState = STATE_IDLE;     // Переходим в состояние ожидания
-        stopRobot();                   // Останавливаем робота
+        currentState = STATE_IDLE;     // Переход в состояние ожидания
+        stopRobot();                   // Остановка робота
       }
       // Если продолжаем поиск линии
       else {
-        spiralSearch();                // Выполняем спиральный алгоритм поиска
+        spiralSearch();                // Спиральный алгоритм поиска
       }
       break;
   }
@@ -295,7 +291,7 @@ void setup() {
   // Настройка пина звука как выхода
   pinMode(SOUND_PIN, OUTPUT);
   
-  // Настройка пина кнопки как входа с подтяжкой к питанию
+  // Настройка пина кнопки как входа 
   pinMode(CALIBRATE_BUTTON_PIN, INPUT_PULLUP);
 
   // Сигнал запуска системы: два коротких звука
@@ -307,12 +303,11 @@ void setup() {
   currentState = STATE_IDLE;
 }
 
-// Главный цикл программы - только вызовы функций
-// Выполняется бесконечно в цикле после setup()
+// Главный цикл 
 void loop() {
   // Обработка ввода (состояние кнопки)
   handleButton();
   
-  // Обновление состояний робота через state machine
+  // Обновление состояний робота
   updateStateMachine();
 }
