@@ -7,7 +7,7 @@
 #define DIRT_HUMIDITY_PIN   A3
 #define HEATER_PIN          4
 #define FAN_PIN             7
-
+#define PUMP_PIN            5
 
 DHT11 dht11(TEMP_HUM_SENSOR_PIN);
 
@@ -15,6 +15,11 @@ DHT11 dht11(TEMP_HUM_SENSOR_PIN);
 #define HOUR_LENGTH 3600000UL   // 1 hour in millis
 #define LIGHT_ON_HOUR 6         // turn light on at 6:00
 #define LIGHT_OFF_HOUR 22       // turn light off at 22:00
+#define TIME_NOW 12             // TIME_NOW
+
+
+#define WATERING_TIME   2000 // 5 sec
+#define NO_WATERING_TIME   10000 // 30 sec
 
 
 unsigned long TIME = 0;
@@ -35,13 +40,12 @@ Conditions climate = {400, 500, 20, 30, 60};
 class Fan {
   public:
     void power();
-    void set_pin(int pin);
     void set_on_heater(bool data);
     void set_on_timetable(bool data);
     void set_on_hot(bool data);
     void set_on_humidity(bool data);
   private:
-    int pin;
+    int pin = 7;
     bool on_heater;
     bool on_timetable;
     bool on_hot;
@@ -63,10 +67,9 @@ class Heater {
 class Lamp {
   public:
     void power();
-    void set_pin(int pin);
     void set_on_lamp(bool data);
   private:
-    int pin;
+    int pin = 6;
     bool on_lamp;
 };
 
@@ -77,35 +80,38 @@ class Pump {
     void set_pin(int pin);
     void set_on_pump(bool data);
   private:
-    int pin;
+    int pin = 5;
     bool on_pump;
 };
 
 
 class Thermometer_AirHumidity {
   public:
+    void get_data();
     int get_temperature();
     int get_humidity();
   private:
+    int hum;
+    int temp;
 };
 
 
 class Light_Sen {
   public:
-    void set_pin(int pin);
+    void get_data();
     int get_light_value();
   private:
-    int pin;
+    int pin = A0;
     int light_value;
 };
 
 
 class Dirt_Humidity {
   public:
-    int get_data();
-    void set_pin(int pin);
+    void get_data();
+    int get_dirt_hum();
   private:
-    int pin;
+    int pin = A3;
     int humidity;
 };
 
@@ -117,12 +123,6 @@ void Fan::power() {
   } else {
     digitalWrite(pin, LOW);
   }
-}
-
-
-void Fan::set_pin(int pin) {
-  pin = pin;
-  pinMode(pin, OUTPUT);
 }
 
 
@@ -155,12 +155,6 @@ void Heater::power() {
 }
 
 
-void Heater::set_pin(int pin) {
-  pin = pin;
-  pinMode(pin, OUTPUT);
-}
-
-
 void Heater::set_on_temperature(bool data) {
   on_temperature = data;
 }
@@ -172,12 +166,6 @@ void Lamp::power() {
   } else {
     analogWrite(pin, 0);
   }
-}
-
-
-void Lamp::set_pin(int pin) {
-  pin = pin;
-  pinMode(pin, OUTPUT);
 }
 
 
@@ -195,51 +183,46 @@ void Pump::power() {
 }
 
 
-void Pump::set_pin(int pin) {
-  pin = pin;
-  pinMode(pin, OUTPUT);
-}
-
-
 void Pump::set_on_pump(bool data) {
   on_pump = data;
 }
 
 
+
+void Thermometer_AirHumidity::get_data() {
+  temp = dht11.readTemperature();
+  hum = dht11.readHumidity();
+}
+
+
 int Thermometer_AirHumidity::get_temperature() {
-  return dht11.readTemperature();
+  return temp;
 }
 
 
 int Thermometer_AirHumidity::get_humidity() {
-  return dht11.readHumidity();
-}
-
-
-void Light_Sen::set_pin(int pin) {
-  pin = pin;
-  pinMode(pin, INPUT);
+  return hum;
 }
 
 
 int Light_Sen::get_light_value() {
-  light_value = analogRead(pin);
   return light_value;
 }
 
 
-void Dirt_Humidity::set_pin(int pin) {
-  pin = pin;
-  pinMode(pin, INPUT);
+void Light_Sen::get_data(){
+  light_value = analogRead(pin);
 }
 
 
-int Dirt_Humidity::get_data() {
+void Dirt_Humidity::get_data() {
   humidity = analogRead(pin);
+}
+
+
+int Dirt_Humidity::get_dirt_hum() {
   return humidity;
 }
-
-
 
 
 void control_temperature (Thermometer_AirHumidity &thermometer, Fan &fan, Heater &heater) {
@@ -259,7 +242,7 @@ void control_temperature (Thermometer_AirHumidity &thermometer, Fan &fan, Heater
 
 void control_light (Light_Sen &lightSen, Lamp &lamp) {
   if ( TIME / HOUR_LENGTH > LIGHT_ON_HOUR && TIME / HOUR_LENGTH < LIGHT_OFF_HOUR ) {
-    if ( lightSen.get_light_value() < climate.minLight) {
+    if ( lightSen.get_light_value() > climate.minLight) {
       lamp.set_on_lamp(true);
     } else {
       lamp.set_on_lamp(false);
@@ -280,11 +263,35 @@ void control_air_humidity (Fan &fan, Thermometer_AirHumidity &thermometer) {
 
 
 void control_dirt_humidity(Pump &pump, Dirt_Humidity &dirt_humidity) {
-  if (dirt_humidity.get_data() < climate.minMoisture) {
-    pump.set_on_pump(true);
+  static unsigned long lastWaterTime = 0;
+  static unsigned long startWaterTime = 0;
+  static bool watering = false;
+
+    if ( !watering && dirt_humidity.get_dirt_hum() < climate.minMoisture && TIME - lastWaterTime >= NO_WATERING_TIME ) {
+    watering = true;
+    startWaterTime = TIME;
+  }
+
+  if ( watering ) {
+    if (TIME - startWaterTime < WATERING_TIME) {
+      pump.set_on_pump(true);
+    } else {
+      pump.set_on_pump(false);
+      watering = false; // end of watering
+      lastWaterTime = TIME;
+    }
   } else {
     pump.set_on_pump(false);
   }
+}
+
+
+
+
+void get_all_data( Thermometer_AirHumidity &thermometer, Light_Sen &lightSen, Dirt_Humidity &dirt_humidity ){
+  thermometer.get_data();
+  lightSen.get_data();
+  dirt_humidity.get_data();
 }
 
 
@@ -304,6 +311,19 @@ void multi_power( Fan &fan, Heater &heater, Lamp &lamp, Pump &pump ){
 }
 
 
+void print_all_data( Thermometer_AirHumidity &thermometer, Light_Sen &lightSen, Dirt_Humidity &dirt_humidity ){
+  Serial.print("Light_Sen  ");
+  Serial.println(lightSen.get_light_value());
+  Serial.print("Air_Hum  ");
+  Serial.println(thermometer.get_humidity());
+  Serial.print("Temp  ");
+  Serial.println(thermometer.get_temperature());
+  Serial.print("dirt_Hum  ");
+  Serial.println(dirt_humidity.get_dirt_hum());
+  Serial.println("--------------------");
+}
+
+
 Fan fan;
 Heater heater;
 Thermometer_AirHumidity thermometer;
@@ -314,20 +334,28 @@ Dirt_Humidity dirt_humidity;
 
 
 void setup() {
-  fan.set_pin(FAN_PIN);
-  heater.set_pin(HEATER_PIN);
-  lamp.set_pin(LAMP_PIN);
-  lightSen.set_pin(LIGHT_SEN_PIN);
-  dirt_humidity.set_pin(DIRT_HUMIDITY_PIN);
+  pinMode(LIGHT_SEN_PIN, INPUT);
+  pinMode(DIRT_HUMIDITY_PIN, INPUT);
+
+
+  pinMode(FAN_PIN, OUTPUT);
+  pinMode(HEATER_PIN, OUTPUT);
+  pinMode(LAMP_PIN, OUTPUT);
+
+  Serial.begin(9600);
 }
 
 
 void loop() {
-  TIME = millis();
+  TIME = millis() + TIME_NOW * HOUR_LENGTH;
+
+  get_all_data(thermometer, lightSen, dirt_humidity);
 
   multi_control(thermometer, fan, heater, lightSen, lamp, pump, dirt_humidity);
 
   multi_power(fan, heater, lamp, pump);
+
+  print_all_data(thermometer, lightSen, dirt_humidity);\
 
   delay(10);
 }
