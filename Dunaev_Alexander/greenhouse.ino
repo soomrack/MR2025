@@ -286,8 +286,6 @@ void control_dirt_humidity(Pump &pump, Dirt_Humidity &dirt_humidity) {
 }
 
 
-
-
 void get_all_data( Thermometer_AirHumidity &thermometer, Light_Sen &lightSen, Dirt_Humidity &dirt_humidity ){
   thermometer.get_data();
   lightSen.get_data();
@@ -337,7 +335,6 @@ void setup() {
   pinMode(LIGHT_SEN_PIN, INPUT);
   pinMode(DIRT_HUMIDITY_PIN, INPUT);
 
-
   pinMode(FAN_PIN, OUTPUT);
   pinMode(HEATER_PIN, OUTPUT);
   pinMode(LAMP_PIN, OUTPUT);
@@ -355,7 +352,7 @@ void loop() {
 
   multi_power(fan, heater, lamp, pump);
 
-  print_all_data(thermometer, lightSen, dirt_humidity);\
+  print_all_data(thermometer, lightSen, dirt_humidity);
 
   delay(10);
 }
