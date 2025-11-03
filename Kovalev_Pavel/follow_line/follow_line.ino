@@ -4,6 +4,7 @@
 #define MOTOR_R_PWM 5
 #define MOTOR_R_DIR 4
 #define BUTTON_PIN 12
+#define SOUND_PIN 9
 #define SENSOR_L A0
 #define SENSOR_R A1
 #define SENSOR_BACK A2
@@ -22,7 +23,7 @@ int r_minVal = 1023, r_maxVal = 0;
 
 // Счётчик потери линии
 unsigned long line_seen_millis = 0;
-const int line_seen_threshold_ms = 1500;
+const int line_seen_threshold_ms = 700;
 // const int line_seen_threshold_2_ms = 5000; // for 2nd stage of searching
 
 // Прочие переменные
@@ -32,7 +33,7 @@ bool lastButtonState = LOW; // чтобы при первом запуске н�
 
 // Управление моторами 
 void setMotors(int left, int right) {
-    Serial.print("Motor L:"); Serial.print(left); Serial.print(" R:"); Serial.println(right);
+    // Serial.print("Motor L:"); Serial.print(left); Serial.print(" R:"); Serial.println(right);
     digitalWrite(MOTOR_L_DIR, left >= 0);
     digitalWrite(MOTOR_R_DIR, right >= 0);
     analogWrite(MOTOR_L_PWM, constrain(abs(left), 0, 255));
@@ -84,22 +85,22 @@ void calibrate() {
 
 // Проверка потери линии
 bool lineLost() {
-    int l_read = map(analogRead(SENSOR_L), l_minVal, l_maxVal, 0, 100);
-    int r_read = map(analogRead(SENSOR_R), r_minVal, r_maxVal, 0, 100);
+    int l_read = analogRead(SENSOR_L);
+    int r_read = analogRead(SENSOR_R);
     bool lost = (l_read < l_threshold && r_read < r_threshold);
     if (!lost) line_seen_millis=millis();
     return lost;
 }
 
 bool is_aligned() {
-    int l_read = map(analogRead(SENSOR_L), l_minVal, l_maxVal, 0, 100);
-    int r_read = map(analogRead(SENSOR_R), r_minVal, r_maxVal, 0, 100);
-    int back = map(analogRead(SENSOR_BACK), r_minVal, r_maxVal, 0, 100);
+    int l_read = analogRead(SENSOR_L);
+    int r_read = analogRead(SENSOR_R);
+    int back = analogRead(SENSOR_BACK);
     return ((l_read >= l_threshold || r_read >= r_threshold) && back >= b_threshold);
 }
 
 bool back_is_on_line() {
-    int back = map(analogRead(SENSOR_BACK), r_minVal, r_maxVal, 0, 100);
+    int back = analogRead(SENSOR_BACK);
     return (back >= b_threshold);
 }
 
@@ -110,11 +111,13 @@ float tanh(unsigned long x) {
 
 // Поиск линии, если она потеряна 
 void recoverLine() {
+    Serial.println("Line lost.");
+    tone(SOUND_PIN, 500, 500);
     float radius_coeff; // Коэффциент кривизны поворота: от -1 (вращение на месте) до +1 (прямая линия)
-    const int recover_start_ms = millis();
-    while (!lineLost()) {
-        radius_coeff = 2*tanh((millis()-recover_start_ms)/4)-1;
-        const int left_speed = 80;
+    const unsigned long recover_start_ms = millis();
+    while (lineLost()) {
+        radius_coeff = 2*tanh((millis()-recover_start_ms)*1000/4)-1;
+        const int left_speed = 120;
         const int right_speed = left_speed * radius_coeff;
         setMotors(left_speed, right_speed);
         delay(1);
@@ -122,10 +125,16 @@ void recoverLine() {
 
     // Линия найдена. Останавливаемся и вращаемся.
     setMotors(0, 0);
+    Serial.println("Line found. Stop and rotate.");
+    tone(SOUND_PIN, 500, 100);
+    delay(50);
+    tone(SOUND_PIN, 500, 100);
+    const int adjusting_speed = 120;
     while (!is_aligned()) {
         if (!lineLost()) { // Передний датчик на линии
-            int started_going_ms = millis();
-            setMotors(80, 80);
+            Serial.println("On line: Front");
+            unsigned long started_going_ms = millis();
+            setMotors(adjusting_speed, adjusting_speed);
             while( millis() - started_going_ms <= 100 ) {
                 if (back_is_on_line()) break;
                 if (lineLost()) break;
@@ -133,7 +142,7 @@ void recoverLine() {
             }
             
             started_going_ms = millis();
-            setMotors(80, -80);
+            setMotors(adjusting_speed, -adjusting_speed);
             while ( millis() - started_going_ms <= 100 ) {
                 if (back_is_on_line()) break;
                 if (!lineLost()) break;
@@ -141,8 +150,9 @@ void recoverLine() {
             }
         }
         else if (back_is_on_line()) { // Задний датчик на линии
-            int started_going_ms = millis();
-            setMotors(-80, -80);
+            Serial.println("On line: Back");
+            unsigned long started_going_ms = millis();
+            setMotors(-adjusting_speed, -adjusting_speed);
             while( millis() - started_going_ms <= 100 ) {
                 if (!back_is_on_line()) break;
                 if (!lineLost()) break;
@@ -150,7 +160,7 @@ void recoverLine() {
             }
             
             started_going_ms = millis();
-            setMotors(80, -80);
+            setMotors(adjusting_speed, -adjusting_speed);
             while ( millis() - started_going_ms <= 100 ) {
                 if (back_is_on_line()) break;
                 if (!lineLost()) break;
@@ -158,8 +168,9 @@ void recoverLine() {
             }
         }
         else { // линия между датчиками
-            int started_going_ms = millis();
-            setMotors(80, 80);
+            Serial.println("On line: Between sensors");
+            unsigned long started_going_ms = millis();
+            setMotors(adjusting_speed, adjusting_speed);
             while( millis() - started_going_ms <= 100 ) {
                 if (back_is_on_line()) break;
                 if (lineLost()) break;
@@ -167,7 +178,13 @@ void recoverLine() {
             }
         }
     }
+    Serial.println("Alligned.");
     setMotors(0, 0);
+    tone(SOUND_PIN, 500, 100);
+    delay(100);
+    tone(SOUND_PIN, 500, 100);
+    delay(100);
+    tone(SOUND_PIN, 500, 100);
     // Линия выровнена
 }
 
