@@ -6,8 +6,8 @@
 #define SENSOR_L A0
 #define SENSOR_R A1
 
-#define spiralInc 10             
-#define spiralInt 100           
+#define spiralInc 10        // Увеличение шага спирали при поиске линии             
+#define spiralInt 100       // Интервал времени между увеличениями спирали в миллисекундах
 
 
 // Коэффициенты ПД-регулятора
@@ -40,6 +40,7 @@ void setMotors(int left, int right) {
     analogWrite(MOTOR_R_PWM, constrain(abs(right), 0, 255));
 }
 
+
 // Считывание аналогового сигнала с усреднением
 int readAnalog(int pin) {
     long total = 0;
@@ -48,6 +49,7 @@ int readAnalog(int pin) {
       total += analogRead(pin);}
     return total / attempts;
 }
+
 
 // Калибровка датчиков 
 void calibrateDat() {
@@ -75,7 +77,8 @@ void calibrateDat() {
     r_threshold = r_black + (r_white - r_black) * corect;
 }
 
-// Следование по линии
+
+// Следование по линии с помощью ПД-регулятора
 void followLine() {
     int l_val = map(analogRead(SENSOR_L), l_min, l_max, 0, 100);
     int r_val = map(analogRead(SENSOR_R), r_min, r_max, 0, 100);
@@ -89,6 +92,7 @@ void followLine() {
 
     setMotors(leftPower, rightPower);
 }
+
 
 // Поиск линии при потере по спирали
 void findLine() {
@@ -115,6 +119,7 @@ void findLine() {
     systemActive = false;
 }
 
+
 // Проверка потряна ли линия
 bool lineLost() {
     int l_read = readAnalog(SENSOR_L);
@@ -122,6 +127,7 @@ bool lineLost() {
 
     return (r_read < r_threshold && l_read < l_threshold);
 }
+
 
 // Инициализация
 void setup() {
@@ -140,22 +146,28 @@ void setup() {
     systemActive = true;
 }
 
-// Основа
-void loop() {
-    bool btnState = digitalRead(BUTTON_PIN);
+
+void button() {
+        bool btnState = digitalRead(BUTTON_PIN);
 
     if (btnState == LOW && buttonState == HIGH) {
         systemActive = !systemActive;
-        delay(80);
     }
 
     buttonState = btnState;
+}
+
+
+// Основа
+void loop() {
+
+    button()
 
     if (systemActive) {
         if (lineLost()){ 
             findLine();
-         }
-         else 
-        followLine();
+        }
+            else 
+                followLine();
     }
 }
