@@ -23,8 +23,8 @@ int r_minVal = 1023, r_maxVal = 0;
 
 // Счётчик потери линии
 unsigned long line_seen_millis = 0;
-const int line_seen_threshold_ms = 700;
-// const int line_seen_threshold_2_ms = 5000; // for 2nd stage of searching
+const int line_seen_threshold_ms = 800;
+const int line_seen_threshold_2_ms = 5000; // for 2nd stage of searching
 
 // Прочие переменные
 float lastError = 0; float integral = 0;
@@ -104,9 +104,9 @@ bool back_is_on_line() {
     return (back >= b_threshold);
 }
 
-float tanh(unsigned long x) {
-    const float e2x=exp(2*x);
-    return (e2x-1.0)/(e2x-1.0);
+double tanh(double x) {
+    const double e2x=exp(2*x);
+    return (e2x-1.0)/(e2x+1.0);
 }
 
 // Поиск линии, если она потеряна 
@@ -114,9 +114,12 @@ void recoverLine() {
     Serial.println("Line lost.");
     tone(SOUND_PIN, 500, 500);
     float radius_coeff; // Коэффциент кривизны поворота: от -1 (вращение на месте) до +1 (прямая линия)
+    // TODO: заменить спираль на квадратную
+    // TODO: изменить threshold линии?
     const unsigned long recover_start_ms = millis();
     while (lineLost()) {
-        radius_coeff = 2*tanh((millis()-recover_start_ms)*1000/4)-1;
+        radius_coeff = 2*tanh(((millis()-recover_start_ms)/1000.0)/4.0)-1;
+        Serial.println(radius_coeff);
         const int left_speed = 120;
         const int right_speed = left_speed * radius_coeff;
         setMotors(left_speed, right_speed);
@@ -127,15 +130,20 @@ void recoverLine() {
     setMotors(0, 0);
     Serial.println("Line found. Stop and rotate.");
     tone(SOUND_PIN, 500, 100);
-    delay(50);
+    delay(200);
     tone(SOUND_PIN, 500, 100);
-    const int adjusting_speed = 120;
+    const int adjusting_speed = 90;
+    const int wiggle_timeout_ms = 300; // Сколько мс робот будет ехать вперёд/назад до разворота
+    unsigned long line_seen_wiggle_millis = millis(); 
+    // Аналогично line_seen_millis, но для этого этапа.
+    // Предполагаем, что линия рядом, поэтому ставим время сейчас.
     while (!is_aligned()) {
         if (!lineLost()) { // Передний датчик на линии
             Serial.println("On line: Front");
             unsigned long started_going_ms = millis();
+            line_seen_wiggle_millis = millis(); 
             setMotors(adjusting_speed, adjusting_speed);
-            while( millis() - started_going_ms <= 100 ) {
+            while( millis() - started_going_ms <= wiggle_timeout_ms ) {
                 if (back_is_on_line()) break;
                 if (lineLost()) break;
                 delay(1); // go forward
@@ -143,7 +151,7 @@ void recoverLine() {
             
             started_going_ms = millis();
             setMotors(adjusting_speed, -adjusting_speed);
-            while ( millis() - started_going_ms <= 100 ) {
+            while ( millis() - started_going_ms <= wiggle_timeout_ms ) {
                 if (back_is_on_line()) break;
                 if (!lineLost()) break;
                 delay(1); // turn right
@@ -152,8 +160,9 @@ void recoverLine() {
         else if (back_is_on_line()) { // Задний датчик на линии
             Serial.println("On line: Back");
             unsigned long started_going_ms = millis();
+            line_seen_wiggle_millis = millis(); 
             setMotors(-adjusting_speed, -adjusting_speed);
-            while( millis() - started_going_ms <= 100 ) {
+            while( millis() - started_going_ms <= wiggle_timeout_ms ) {
                 if (!back_is_on_line()) break;
                 if (!lineLost()) break;
                 delay(1); // go backward
@@ -161,7 +170,7 @@ void recoverLine() {
             
             started_going_ms = millis();
             setMotors(adjusting_speed, -adjusting_speed);
-            while ( millis() - started_going_ms <= 100 ) {
+            while ( millis() - started_going_ms <= wiggle_timeout_ms ) {
                 if (back_is_on_line()) break;
                 if (!lineLost()) break;
                 delay(1); // turn right
@@ -171,19 +180,24 @@ void recoverLine() {
             Serial.println("On line: Between sensors");
             unsigned long started_going_ms = millis();
             setMotors(adjusting_speed, adjusting_speed);
-            while( millis() - started_going_ms <= 100 ) {
+            while( millis() - started_going_ms <= wiggle_timeout_ms ) {
                 if (back_is_on_line()) break;
                 if (lineLost()) break;
                 delay(1); // go forward
             }
         }
+        if (millis() - line_seen_wiggle_millis >= line_seen_threshold_2_ms ) {
+            // Линия потеряна снова
+            Serial.println("Line lost while aligning");
+            break;
+        }
     }
     Serial.println("Alligned.");
     setMotors(0, 0);
     tone(SOUND_PIN, 500, 100);
-    delay(100);
+    delay(200);
     tone(SOUND_PIN, 500, 100);
-    delay(100);
+    delay(200);
     tone(SOUND_PIN, 500, 100);
     // Линия выровнена
 }
@@ -232,7 +246,7 @@ void loop() {
     lastButtonState = btnState;
 
     if (systemActive) {
-        if (lineLost() && (millis() - line_seen_millis >= line_seen_threshold_ms)) recoverLine();
+        if (lineLost() && (millis() - line_seen_millis )) recoverLine();
         else followTrack();
     }
 }
