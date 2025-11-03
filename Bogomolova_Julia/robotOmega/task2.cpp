@@ -24,19 +24,26 @@
 #define BEEP_INTERVAL 2000          // Как часто пищать при движении
 #define NOTE_DURATION 150           // Длительность ноты
 
+// Состояния робота
+enum RobotState {
+  STATE_IDLE,           // Ожидание - робот выключен
+  STATE_CALIBRATING,    // Калибровка - настраиваем датчики
+  STATE_FOLLOW_LINE,    // Движение по линии - основной режим
+  STATE_SEARCH_LINE     // Поиск линии - потеряли траекторию
+};
+
 // Переменные для калибровки датчиков
 unsigned long last_beep_time = 0;
-int left_sensor_min = 1023;         // Минимум левого датчика (черная линия)
-int left_sensor_max = 0;            // Максимум левого датчика (белый фон)
-int right_sensor_min = 1023;        // Минимум правого датчика
-int right_sensor_max = 0;           // Максимум правого датчика
+int left_sensor_min = 1023;        // Минимум левого датчика (черная линия)
+int left_sensor_max = 0;           // Максимум левого датчика (белый фон)
+int right_sensor_min = 1023;       // Минимум правого датчика
+int right_sensor_max = 0;          // Максимум правого датчика
 
 // Переменные управления
+RobotState current_state = STATE_IDLE; // Текущее состояние робота
 int last_turn_side = 0;             // Куда поворачивали в прошлый раз
 int prev_pid_error = 0;             // Предыдущая ошибка для плавности
-bool is_running = false;            // Включен ли робот
 bool prev_button_state = true;      // Состояние кнопки в прошлый раз
-bool is_searching = false;          // Ищем ли линию
 bool spiral_direction = false;      // Направление спирали
 int spiral_radius = 0;              // Текущий радиус спирали
 unsigned long spiral_timer = 0;     // Таймер для спирали
@@ -44,14 +51,87 @@ unsigned long search_start_time = 0; // Когда начали поиск
 unsigned long last_note_time = 0;   // Когда играли последнюю ноту
 int current_note_index = 0;         // Какую ноту играть следующей
 
-// Мелодия для движения - просто гамма
+// Мелодия
 const int melody_notes[] = {523, 587, 659, 698, 784, 880, 988, 1047};
 const int melody_length = 8;
 
 //--------------------------------------------------
-// Управление моторами
-// Просто подаем скорости на оба мотора
+// Режим ожидания
+void state_idle() {
+  set_motors(0, 0);  // Стоит на месте
+  
+}
+
 //--------------------------------------------------
+// Режим калибровки датчиков
+void state_calibrating() {
+  // Крутимся и запоминаем значения датчиков
+  unsigned long cal_start = millis();
+  while (millis() - cal_start < 4000) {
+    set_motors(120, -120); // Вращение на месте
+    
+    int left_val = analogRead(SENSOR_LEFT_PIN);
+    int right_val = analogRead(SENSOR_RIGHT_PIN);
+    
+    if (left_val < left_sensor_min) left_sensor_min = left_val;
+    if (left_val > left_sensor_max) left_sensor_max = left_val;
+    if (right_val < right_sensor_min) right_sensor_min = right_val;
+    if (right_val > right_sensor_max) right_sensor_max = right_val;
+  }
+  
+  set_motors(0, 0); // Останавливаемся после калибровки
+  tone(BUZZER_PIN, 1500, 500); // Сигнал завершения калибровки
+  
+  // Переходим к движению
+  current_state = STATE_FOLLOW_LINE;
+}
+
+//--------------------------------------------------
+// Движение по линии
+void state_follow_line() {
+  int left_sensor, right_sensor;
+  read_sensors(left_sensor, right_sensor);
+  
+  // Поиск при потере
+  if (left_sensor < LINE_THRESHOLD && right_sensor < LINE_THRESHOLD) {
+    current_state = STATE_SEARCH_LINE;
+    start_line_search();
+    return;
+  }
+  
+  // Двигаемся по линии с PID-регулятором
+  follow_line(left_sensor, right_sensor);
+  periodic_beep();
+}
+
+//--------------------------------------------------
+// Режим поиска
+//--------------------------------------------------
+void state_search_line() {
+  int left_sensor, right_sensor;
+  read_sensors(left_sensor, right_sensor);
+  
+  // Проверяем таймаут поиска
+  if (millis() - search_start_time > SEARCH_TIMEOUT) {
+    stop_robot();
+    return;
+  }
+  
+  // Если нашли линию - возвращаемся к движению
+  if (left_sensor > LINE_THRESHOLD || right_sensor > LINE_THRESHOLD) {
+    last_turn_side = (left_sensor > LINE_THRESHOLD) ? 0 : 1;
+    tone(BUZZER_PIN, 1000, 300); // Сигнал "нашел линию"
+    current_state = STATE_FOLLOW_LINE;
+    return;
+  }
+  
+  // Продолжаем поиск по спирали
+  spiral_search();
+  periodic_beep();
+}
+
+//--------------------------------------------------
+// Управление моторами
 void set_motors(int left_speed, int right_speed) {
   digitalWrite(MOTOR_LEFT_DIR_PIN, left_speed > 0);
   digitalWrite(MOTOR_RIGHT_DIR_PIN, right_speed > 0);
@@ -60,41 +140,28 @@ void set_motors(int left_speed, int right_speed) {
 }
 
 //--------------------------------------------------
-// Полная остановка
-// Выключаем моторы и все сбрасываем
-//--------------------------------------------------
+// Полная остановка 
 void stop_robot() {
   set_motors(0, 0);
-  is_running = false;
-  is_searching = false;
+  current_state = STATE_IDLE;
   tone(BUZZER_PIN, 500, 500);
-  Serial.println("Стоп!");
+  Serial.println("Робот остановлен!");
 }
 
 //--------------------------------------------------
-// Начать поиск линии
-// Готовим все для поиска потерянной линии
-//--------------------------------------------------
+// Начать поиск
 void start_line_search() {
-  is_searching = true;
   spiral_radius = 0;
   spiral_timer = millis();
   spiral_direction = (last_turn_side == 0) ? 1 : 0;
   search_start_time = millis();
   tone(BUZZER_PIN, 300, 200);
-  Serial.println("Ищем линию...");
+  Serial.println("Начат поиск линии...");
 }
 
 //--------------------------------------------------
 // Поиск по спирали
-// Крутимся все шире, пока не найдем линию
-//--------------------------------------------------
 void spiral_search() {
-  if (millis() - search_start_time > SEARCH_TIMEOUT) {
-    stop_robot();
-    return;
-  }
-  
   if (millis() - spiral_timer > SPIRAL_DELAY) {
     spiral_radius += SPIRAL_STEP;
     spiral_timer = millis();
@@ -112,8 +179,6 @@ void spiral_search() {
 
 //--------------------------------------------------
 // Играем мелодию
-// Просто перебираем ноты по кругу
-//--------------------------------------------------
 void play_melody() {
   if (millis() - last_note_time > NOTE_DURATION) {
     tone(BUZZER_PIN, melody_notes[current_note_index], NOTE_DURATION - 20);
@@ -123,9 +188,7 @@ void play_melody() {
 }
 
 //--------------------------------------------------
-// Движение по линии
-// Плавно корректируем чтобы ехать по центру
-//--------------------------------------------------
+// Движение по линии с PID
 void follow_line(int left_value, int right_value) {
   int error = (left_value - right_value);
   double adjustment = error * PID_P_GAIN + (error - prev_pid_error) * PID_D_GAIN;
@@ -137,8 +200,7 @@ void follow_line(int left_value, int right_value) {
 }
 
 //--------------------------------------------------
-// Чтение датчиков с нормализацией
-//--------------------------------------------------
+// Чтение датчиков
 void read_sensors(int& left_out, int& right_out) {
   left_out = map(analogRead(SENSOR_LEFT_PIN), left_sensor_min, left_sensor_max, 0, 100);
   right_out = map(analogRead(SENSOR_RIGHT_PIN), right_sensor_min, right_sensor_max, 0, 100);
@@ -148,20 +210,19 @@ void read_sensors(int& left_out, int& right_out) {
 
 //--------------------------------------------------
 // Обработка кнопки
-//--------------------------------------------------
 void handle_button() {
   bool current_button = digitalRead(BUTTON_PIN);
   
   if (current_button == HIGH && prev_button_state == LOW) {
-    is_running = !is_running;
-    is_searching = false;
-    
-    if (is_running) {
+    // Если были в ожидании - запускаем калибровку
+    if (current_state == STATE_IDLE) {
+      current_state = STATE_CALIBRATING;
       tone(BUZZER_PIN, 1200, 300);
-      Serial.println("Включен");
-    } else {
-      tone(BUZZER_PIN, 500, 500);
-      Serial.println("Выключен");
+      Serial.println("Запуск робота!");
+    } 
+    // Если в любом другом состоянии - останавливаем
+    else {
+      stop_robot();
     }
   }
   prev_button_state = current_button;
@@ -169,7 +230,6 @@ void handle_button() {
 
 //--------------------------------------------------
 // Периодический звуковой сигнал
-//--------------------------------------------------
 void periodic_beep() {
   if (millis() - last_beep_time > BEEP_INTERVAL) {
     tone(BUZZER_PIN, 800, 100);
@@ -178,41 +238,24 @@ void periodic_beep() {
 }
 
 //--------------------------------------------------
-// Основная логика робота
-//--------------------------------------------------
-void robot_logic() {
-  int left_sensor, right_sensor;
-  read_sensors(left_sensor, right_sensor);
-
-  if (is_searching) {
-    if (millis() - search_start_time > SEARCH_TIMEOUT) {
-      stop_robot();
-      return;
-    }
-
-    if (left_sensor > LINE_THRESHOLD || right_sensor > LINE_THRESHOLD) {
-      is_searching = false;
-      last_turn_side = (left_sensor > LINE_THRESHOLD) ? 0 : 1;
-      tone(BUZZER_PIN, 1000, 300);
-      Serial.println("Линия найдена!");
-    } else {
-      spiral_search();
-    }
-  } else {
-    if (left_sensor < LINE_THRESHOLD && right_sensor < LINE_THRESHOLD) {
-      start_line_search();
-    } else {
-      follow_line(left_sensor, right_sensor);
-    }
+// Состояния
+void run_state_robot() {
+  switch (current_state) {
+    case STATE_IDLE:
+      state_idle();
+      break;
+    case STATE_CALIBRATING:
+      state_calibrating();
+      break;
+    case STATE_FOLLOW_LINE:
+      state_follow_line();
+      break;
+    case STATE_SEARCH_LINE:
+      state_search_line();
+      break;
   }
-  
-  periodic_beep();
 }
 
-//--------------------------------------------------
-// Настройка при включении
-// Делается один раз когда включаем питание
-//--------------------------------------------------
 void setup() {
   pinMode(MOTOR_LEFT_PWM_PIN, OUTPUT);
   pinMode(MOTOR_LEFT_DIR_PIN, OUTPUT);
@@ -222,50 +265,13 @@ void setup() {
   pinMode(BUTTON_PIN, INPUT_PULLUP);
 
   Serial.begin(9600);
-  Serial.println("Запускаем робота...");
-
-  // Калибруем датчики
-  Serial.println("Калибруем датчики...");
-  unsigned long cal_start = millis();
-  while (millis() - cal_start < 4000) {
-    set_motors(120, -120);
-    
-    int left_val = analogRead(SENSOR_LEFT_PIN);
-    int right_val = analogRead(SENSOR_RIGHT_PIN);
-    
-    if (left_val < left_sensor_min) left_sensor_min = left_val;
-    if (left_val > left_sensor_max) left_sensor_max = left_val;
-    if (right_val < right_sensor_min) right_sensor_min = right_val;
-    if (right_val > right_sensor_max) right_sensor_max = right_val;
-  }
-  set_motors(0, 0);
-  Serial.println("Калибровка готова");
   
-  // Ждем кнопку для старта
-  Serial.println("Жмем кнопку для старта...");
-  while (digitalRead(BUTTON_PIN) == HIGH) {
-    delay(10);
-  }
-  delay(50);
-  
-  tone(BUZZER_PIN, 1000, 200);
-  delay(200);
-  tone(BUZZER_PIN, 1500, 200);
-  Serial.println("Поехали!");
+  // Начальное состояние - ожидание
+  current_state = STATE_IDLE;
 }
 
-//--------------------------------------------------
-// Главный цикл
-// Выполняется постоянно после setup
-//--------------------------------------------------
 void loop() {
-  handle_button();
-  
-  if (is_running) {
-    robot_logic();
-  } else {
-    set_motors(0, 0);
-  }
-  
-  delay(10);
+  handle_button();       // Проверяем кнопку в любом состоянии
+  run_state_robot();   // Cостояние с помощью "диспечера"
+  delay(10);             // Стабилизируем работу
 }
