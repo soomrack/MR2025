@@ -95,8 +95,8 @@ void calibrate() {
     unsigned long startTime = millis();
   
     while (isSearching && millis() - startTime < 5000) {
-      if (lastError > 0) setMotors(searchSpeed, -searchSpeed);
-      else setMotors(-searchSpeed, searchSpeed);
+      if (lastError > 0) setMotors(baseSpeed, -baseSpeed);
+      else setMotors(-baseSpeed, baseSpeed);
   
       if (!lineLost()) {
         Serial.println("Line found");
