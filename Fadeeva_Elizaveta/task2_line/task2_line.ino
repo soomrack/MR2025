@@ -108,12 +108,11 @@ void findLine() {
         setMotors(l_val, r_val);
     }
 
-    if (lineLost()) {
-        systemActive = false;
-    }
-
+        if (!lineLost()) {
+            return;
+        } 
     setMotors(0, 0);
-    delay(10);
+    systemActive = false;
 }
 
 // Проверка потряна ли линия
