@@ -23,7 +23,6 @@ struct Range {
 
 // === Структура: воздушный датчик (DHT) ===
 struct AirSensor {
-  
   int pin;
   int temperature;   // последняя температура (°C)
   int humidity;      // последняя влажность (%) 
@@ -54,15 +53,13 @@ struct SoilSensors {
 struct Pump {
   int pin;
   bool is_on;
-  // связывается с SoilSensors.pumpNeeded
 };
 
 // === Устройство: освещение ===
 struct LightCtrl {
   int pin;
   bool is_on;
-  Range limits;      // можно дублировать или брать из LightSensors.limits
-  unsigned long nightStart; // для симуляции дня/ночи 
+  Range limits;
 };
 
 // === Устройство: нагреватель ===
@@ -84,6 +81,7 @@ struct Ventilation {
 };
 
 // === Глобальные объекты ===
+unsigned long currentMillis = 0;  // Единый момент времени для всех функций
 DHT dht(DHT_PIN, DHT11);
 AirSensor air = { DHT_PIN, 0, 0, false };
 
@@ -91,9 +89,9 @@ LightSensors lights;
 SoilSensors soils;
 
 Pump pump = { PUMP_PIN, false };
-LightCtrl lamp = { LIGHT_PIN, false, {0,0}, 0 };
+LightCtrl lamp = { LIGHT_PIN, false, {0,0} };
 Heater heater = { HEAT_PIN, false, {0,0} };
-Ventilation vent = { VENT_PIN, false, {30,75}, 0, 3600000UL, 60000UL, false }; // 1 час и 60s
+Ventilation vent = { VENT_PIN, false, {30,75}, 0, 3600000UL, 60000UL, false };
 
 // === Время / дневной цикл (симуляция) ===
 unsigned long cycleStart = 0;
@@ -113,19 +111,19 @@ void Parameter_Initialization() {
   lights.count = 1;
   lights.pins[0] = DEFAULT_LIGHT_SENSOR_PIN;
   lights.values[0] = 0;
-  lights.limits.minVal = 405;  // если ниже — темно
-  lights.limits.maxVal = 800;  // если выше — ярко
+  lights.limits.minVal = 405;
+  lights.limits.maxVal = 800;
   lights.shouldBeOn = false;
 
   // Почвенные датчики — по умолчанию 1
   soils.count = 1;
   soils.pins[0] = DEFAULT_SOIL_SENSOR_PIN;
   soils.values[0] = 0;
-  soils.limits.minVal = 500;  // сухо (больше — суше)
-  soils.limits.maxVal = 600;  // влажно (меньше — влажно)
+  soils.limits.minVal = 500;
+  soils.limits.maxVal = 600;
   soils.pumpNeeded = false;
   soils.lastPumpStart = 0;
-  soils.pumpMaxDuration = 30000UL; // 30s макс полив 
+  soils.pumpMaxDuration = 30000UL;
 
   // Лампа — дублируем пороги в контроллере освещения 
   lamp.limits = lights.limits;
@@ -135,12 +133,12 @@ void Parameter_Initialization() {
   heater.limits.maxVal = 27;
   heater.is_on = false;
 
-  // Вентиляция — уже инициализирована при объявлении (ventInterval, ventDuration)
-  vent.lastVentTime = millis();
+  // Вентиляция
+  vent.lastVentTime = currentMillis;
   vent.timerActive = false;
 
   // Цикл день/ночь
-  cycleStart = millis();
+  cycleStart = currentMillis;
   isNight = false;
 
   // Pump/lamp default off
@@ -151,8 +149,7 @@ void Parameter_Initialization() {
 // -------------------------------------------------------------
 // ЧТЕНИЕ ВСЕХ ДАТЧИКОВ
 // -------------------------------------------------------------
-void readAllSensors() {
-  // DHT
+void readDHT(){
   int humid_data = dht.readHumidity();
   int temp_data = dht.readTemperature();
   if (isnan(humid_data) || isnan(temp_data)) {
@@ -163,15 +160,17 @@ void readAllSensors() {
     air.temperature = temp_data;
     air.is_normal = true;
   }
+}
 
-  // Multiple Light sensors
-  for (int i = 0; i < lights.count; ++i) {
-    lights.values[i] = analogRead(lights.pins[i]);
+void read_Multiple_Light_sensors(){
+  for (int k = 0; k < lights.count; ++k) {
+    lights.values[k] = analogRead(lights.pins[k]);
   }
+}
 
-  //Multiple Soil sensors
-  for (int i = 0; i < soils.count; ++i) {
-    soils.values[i] = analogRead(soils.pins[i]);
+void read_Multiple_Soil_sensors(){
+  for (int k = 0; k < soils.count; ++k) {
+    soils.values[k] = analogRead(soils.pins[k]);
   }
 }
 
@@ -179,14 +178,13 @@ void readAllSensors() {
 // ДНЕВНО-НОЧНОЙ ЦИКЛ (симуляция по millis())
 // -------------------------------------------------------------
 void updateDayNight() {
-  unsigned long now = millis();
-  unsigned long elapsed = now - cycleStart;
+  unsigned long elapsed = currentMillis - cycleStart;
   if (elapsed < dayDuration) {
     isNight = false;
   } else if (elapsed < dayDuration + nightDuration) {
     isNight = true;
   } else {
-    cycleStart = now; // сбросим цикл
+    cycleStart = currentMillis;
     isNight = false;
   }
 }
@@ -194,104 +192,87 @@ void updateDayNight() {
 // -------------------------------------------------------------
 // ПРОВЕРКА ОСВЕЩЕНИЯ (по всем датчикам, берём среднее)
 // -------------------------------------------------------------
-void evaluateLighting() {
+void Algorithm_Lighting() {
   long sum = 0;
-  for (int i = 0; i < lights.count; ++i) sum += lights.values[i];
+  for (int k = 0; k < lights.count; ++k) sum += lights.values[k];
   int avg = (lights.count > 0) ? (sum / lights.count) : 0;
-  // если день и средняя освещённость ниже лимита — нужно включить
   lights.shouldBeOn = (!isNight && avg < lights.limits.minVal);
-  // также обновляем lamp.on по lights.shouldBeOn 
 }
 
 // -------------------------------------------------------------
 // ПРОВЕРКА ТЕМПЕРАТУРЫ (DHT)
 // -------------------------------------------------------------
-void evaluateTemperature() {// min = включить при < min, max = выключить при > max
-  if (!air.is_normal) return; // нет корректных данных
-  if (air.temperature < heater.limits.minVal) heater.is_on = true;
-  else if (air.temperature > heater.limits.maxVal) heater.is_on = false;
-}
-
-// -------------------------------------------------------------
-// ПРОВЕРКА ВЛАЖНОСТИ ВОЗДУХА (DHT)
-// -------------------------------------------------------------
-void evaluateAirHumidity() {
+void Algorithm_Temperature() {
   if (!air.is_normal) return;
-
-  vent.is_on = air.humidity > vent.humidityLimits.maxVal;
-  
-  if (air.humidity > vent.humidityLimits.maxVal) vent.is_on = true;
-  else if (air.humidity < vent.humidityLimits.minVal) vent.is_on = false;
+  heater.is_on = air.temperature < heater.limits.minVal;
 }
 
 // -------------------------------------------------------------
 // ПРОВЕРКА ВЛАЖНОСТИ ПОЧВЫ (по всем датчикам — берем среднее)
 // -------------------------------------------------------------
-void evaluateSoil() {
+void Algorithm_Soil() {
+  if (soils.count == 0) return;
+
   long sum = 0;
   for (int i = 0; i < soils.count; ++i) sum += soils.values[i];
-  int avg = (soils.count > 0) ? (sum / soils.count) : 0;
-  // если avg больше порога minVal — почва сухая => нужен полив
-  soils.pumpNeeded = (avg > soils.limits.minVal);
-  // если насос уже включён дольше, чем максимальное время — выключаем
-  if (pump.is_on && (millis() - soils.lastPumpStart > soils.pumpMaxDuration)) {
+  int avg = sum / soils.count;
+  
+  soils.pumpNeeded = avg > soils.limits.minVal;
+  
+  if (pump.is_on && (currentMillis - soils.lastPumpStart > soils.pumpMaxDuration)) {
     pump.is_on = false;
     soils.pumpNeeded = false;
   }
 }
 
 // -------------------------------------------------------------
+// УПРАВЛЕНИЕ ВЕНТИЛЯЦИЕЙ ПО РАСПИСАНИЮ
+// -------------------------------------------------------------
+void Algorithm_vent_schedule_control(){
+  if (!vent.timerActive && (currentMillis - vent.lastVentTime >= vent.ventInterval)) {
+    vent.timerActive = true;
+    vent.lastVentTime = currentMillis;
+  }
+
+  if (vent.timerActive) {
+    if (currentMillis - vent.lastVentTime >= vent.ventDuration) {
+      vent.timerActive = false;
+      vent.lastVentTime = currentMillis;
+    }
+  }
+}
+
+void Algorithm_pump_state_control(){
+  if (soils.pumpNeeded && !pump.is_on) {
+    pump.is_on = true;
+    soils.lastPumpStart = currentMillis;
+  } else if (!soils.pumpNeeded && pump.is_on) {
+    pump.is_on = false;
+  }
+}
+
+// -------------------------------------------------------------
 // ПРИМЕНЕНИЕ РЕШЕНИЙ К УСТРОЙСТВАМ (включаем/выключаем пины)
 // -------------------------------------------------------------
-void controlLamp() {
-  // Lamp follows lights.shouldBeOn
+void Lamp_power() {
   lamp.is_on = lights.shouldBeOn;
   digitalWrite(lamp.pin, lamp.is_on ? HIGH : LOW);
 }
 
-
-void controlHeater() {
-  // Heater uses heater.on
+void Heater_power() {
   digitalWrite(heater.pin, heater.is_on ? HIGH : LOW);
 }
 
-
-void controlPump() {
-  // Pump: связываем pump.state с soils.pumpNeeded
-  if (soils.pumpNeeded && !pump.is_on) {
-    pump.is_on = true;
-    soils.lastPumpStart = millis();
-  } else if (!soils.pumpNeeded && pump.is_on) {
-    pump.is_on = false;
-  }
+void Pump_power() {
   digitalWrite(pump.pin, pump.is_on ? HIGH : LOW);
 }
 
-// -------------------------------------------------------------
-// УПРАВЛЕНИЕ ВЕНТИЛЯЦИЕЙ (по таймеру + по состояниям)
-// -------------------------------------------------------------
-void controlVentilation() {
-  unsigned long now = millis();
-
-  // Запускаем плановый таймер
-  if (!vent.timerActive && (now - vent.lastVentTime >= vent.ventInterval)) {
-    vent.timerActive = true;
-    vent.lastVentTime = now;
-  }
-
-  // Если плановый таймер активен — включаем вентилятор на ventDuration
-  if (vent.timerActive) {
-    vent.is_on = true;
-    if (now - vent.lastVentTime >= vent.ventDuration) {
-      vent.timerActive = false; // закончилось плановое проветривание
-      vent.lastVentTime = now;  // обновляем для следующего цикла
-      // После окончания планового проветривания — продолжаем учитывать текущие флаги
-    }
-  } else {
-    // Включаем вентилятор, если высокая влажность, или если включен нагрев, или если идёт полив
-    vent.is_on = ( (air.is_normal && air.humidity > vent.humidityLimits.maxVal) || heater.is_on || pump.is_on );
-  }
-
+void Ventilation_power() {
+  bool highHumidity = (air.is_normal 
+                       && air.humidity > vent.humidityLimits.maxVal);
+  bool needVentilation = (vent.timerActive || highHumidity || heater.is_on || pump.is_on);
+  
+  vent.is_on = needVentilation;
   digitalWrite(vent.pin, vent.is_on ? HIGH : LOW);
 }
 
@@ -299,9 +280,11 @@ void controlVentilation() {
 // SERIAL / ЛОГИРОВАНИЕ
 // -------------------------------------------------------------
 void serialLog() {
-  if (millis() - lastSerial < serialInterval) return;
-  lastSerial = millis();
+  if (currentMillis - lastSerial < serialInterval) return;
+  lastSerial = currentMillis;
 
+  bool highHumidity = (air.is_normal && air.humidity > vent.humidityLimits.maxVal);
+  
   Serial.println("=== STATUS ===");
   Serial.print("DHT ok: "); Serial.println(air.is_normal ? "YES" : "NO");
   Serial.print("Temp: "); Serial.print(air.temperature); Serial.print("C  Hum: "); Serial.print(air.humidity); Serial.println("%");
@@ -314,6 +297,10 @@ void serialLog() {
   Serial.print( soils.count ? sumS / soils.count : 0 );
   Serial.print("  Pump on: "); Serial.println(pump.is_on ? "YES" : "NO");
   Serial.print("Vent on: "); Serial.println(vent.is_on ? "YES" : "NO");
+  Serial.print("Vent conditions - Timer: "); Serial.print(vent.timerActive ? "YES" : "NO");
+  Serial.print(" HighHumidity: "); Serial.print(highHumidity ? "YES" : "NO");
+  Serial.print(" Heating: "); Serial.print(heater.is_on ? "YES" : "NO");
+  Serial.print(" Pumping: "); Serial.println(pump.is_on ? "YES" : "NO");
   Serial.println("==============");
 }
 
@@ -322,18 +309,15 @@ void serialLog() {
 // -------------------------------------------------------------
 void setup() {
   Serial.begin(9600);
-  // DHT init
   dht.begin();
 
-  // pinMode для устройств
   pinMode(pump.pin, OUTPUT);
   pinMode(lamp.pin, OUTPUT);
   pinMode(heater.pin, OUTPUT);
   pinMode(vent.pin, OUTPUT);
 
-  // Инициализация параметров, порогов и т.п.
   Parameter_Initialization();
-  // Установим все реле в ноль (безопасно)
+  
   digitalWrite(pump.pin, LOW);
   digitalWrite(lamp.pin, LOW);
   digitalWrite(heater.pin, LOW);
@@ -344,18 +328,24 @@ void setup() {
 // LOOP — только вызовы функций 
 // -------------------------------------------------------------
 void loop() {
-  readAllSensors();
+  currentMillis = millis();
+  
   updateDayNight();
+
+  readDHT();
+  read_Multiple_Light_sensors();
+  read_Multiple_Soil_sensors();
   
-  evaluateLighting();
-  evaluateTemperature();
-  evaluateAirHumidity();
-  evaluateSoil();
+  Algorithm_Lighting();
+  Algorithm_Temperature();
+  Algorithm_Soil();
+  Algorithm_vent_schedule_control();
+  Algorithm_pump_state_control();
   
-  controlLamp();
-  controlHeater();
-  controlPump();
-  controlVentilation();
+  Lamp_power();
+  Heater_power();
+  Pump_power();
+  Ventilation_power();
   
   serialLog();
 }
