@@ -1,0 +1,282 @@
+// Куда воткнуты провода от моторов и датчиков
+#define MOTOR_LEFT_PWM 6        // Скорость левого мотора
+#define MOTOR_LEFT_DIR 7        // Направление левого мотора  
+#define MOTOR_RIGHT_PWM 5       // Скорость правого мотора
+#define MOTOR_RIGHT_DIR 4       // Направление правого мотора
+#define BUZZER_PIN 9            // Динамик для звуков
+#define CONTROL_SWITCH A2       // Кнопка включения
+#define SENSOR_LEFT A0          // Левый датчик линии
+#define SENSOR_RIGHT A1         // Правый датчик линии
+
+// Настройки движения
+#define PROPORTIONAL_GAIN 8.0   // Чувствительность к отклонению от линии
+#define DERIVATIVE_GAIN 6.0     // Плавность поворотов
+#define NORMAL_VELOCITY 90      // Обычная скорость
+#define SEEKING_VELOCITY 110    // Скорость при поиске линии
+
+// Настройки датчиков
+#define DETECTION_LIMIT 50      // Порог срабатывания датчиков
+#define SPIRAL_GROWTH 3         // Шаг увеличения спирали
+#define SPIRAL_DELAY 50         // Пауза между шагами спирали
+#define MAX_SEEK_DURATION 10000 // Максимальное время поиска (10 сек)
+
+// Настройки звуков
+#define BEEP_INTERVAL 2000      // Как часто пищать при движении
+#define MUSIC_NOTE_LENGTH 150   // Длительность ноты
+
+// Переменные для калибровки датчиков
+long long int last_sound_time = 0;
+int sensor_left_dark = 1023;    // Минимум левого датчика (черная линия)
+int sensor_left_light = 0;      // Максимум левого датчика (белый фон)
+int sensor_right_dark = 1023;   // Минимум правого датчика
+int sensor_right_light = 0;     // Максимум правого датчика
+
+// Переменные управления
+int previous_turn = 0;          // Куда поворачивали в прошлый раз
+int previous_error = 0;         // Предыдущая ошибка для плавности
+bool system_active = false;     // Включен ли робот
+bool switch_previous = 1;       // Состояние кнопки в прошлый раз
+bool route_search = false;      // Ищем ли линию
+bool spiral_orientation = 0;    // Направление спирали
+int spiral_amplitude = 0;       // Текущий радиус спирали
+unsigned long spiral_clock = 0; // Таймер для спирали
+unsigned long search_begin_time = 0; // Когда начали поиск
+unsigned long last_note_time = 0;    // Когда играли последнюю ноту
+int current_note_index = 0;     // Какую ноту играть следующей
+
+// Мелодия для движения - просто гамма
+const int tune_notes[] = {523, 587, 659, 698, 784, 880, 988, 1047};
+const int total_notes = 8;
+
+//--------------------------------------------------
+// Управление моторами
+// Просто подаем скорости на оба мотора
+//--------------------------------------------------
+void control_motors(int left_power, int right_power) {
+  digitalWrite(MOTOR_LEFT_DIR, left_power > 0);
+  digitalWrite(MOTOR_RIGHT_DIR, right_power > 0);
+  analogWrite(MOTOR_LEFT_PWM, abs(left_power));
+  analogWrite(MOTOR_RIGHT_PWM, abs(right_power));
+}
+
+//--------------------------------------------------
+// Полная остановка
+// Выключаем моторы и все сбрасываем
+//--------------------------------------------------
+void halt_device() {
+  control_motors(0, 0);
+  system_active = false;
+  route_search = false;
+  tone(BUZZER_PIN, 500, 500); // Низкий гудок остановки
+  Serial.println("Стоп!");
+}
+
+//--------------------------------------------------
+// Калибровка датчиков
+// Крутимся и запоминаем min/max значения
+//--------------------------------------------------
+void sensor_calibration() {
+  control_motors(120, -120);
+  delay(4000);
+  control_motors(0, 0);
+}
+
+//--------------------------------------------------
+// Начать поиск линии
+// Готовим все для поиска потерянной линии
+//--------------------------------------------------
+void initiate_route_search() {
+  route_search = true;
+  spiral_amplitude = 0;
+  spiral_clock = millis();
+  spiral_orientation = (previous_turn == 0) ? 1 : 0;
+  search_begin_time = millis();
+  tone(BUZZER_PIN, 300, 200); // Сигнал "потерял линию"
+  Serial.println("Ищем линию...");
+}
+
+//--------------------------------------------------
+// Поиск по спирали
+// Крутимся все шире, пока не найдем линию
+//--------------------------------------------------
+void execute_spiral_search() {
+  // Если долго ищем - останавливаемся
+  if (millis() - search_begin_time > MAX_SEEK_DURATION) {
+    halt_device();
+    return;
+  }
+  
+  // Увеличиваем радиус спирали
+  if (millis() - spiral_clock > SPIRAL_DELAY) {
+    spiral_amplitude += SPIRAL_GROWTH;
+    spiral_clock = millis();
+  }
+
+  // Двигаемся по спирали
+  int left_power = SEEKING_VELOCITY - spiral_amplitude;
+  int right_power = SEEKING_VELOCITY - spiral_amplitude;
+
+  if (spiral_orientation) {
+    control_motors(left_power, SEEKING_VELOCITY);  // Вправо
+  } else {
+    control_motors(SEEKING_VELOCITY, right_power); // Влево
+  }
+}
+
+//--------------------------------------------------
+// Играем мелодию
+// Просто перебираем ноты по кругу
+//--------------------------------------------------
+void perform_melody() {
+  if (millis() - last_note_time > MUSIC_NOTE_LENGTH) {
+    tone(BUZZER_PIN, tune_notes[current_note_index], MUSIC_NOTE_LENGTH - 20);
+    current_note_index = (current_note_index + 1) % total_notes;
+    last_note_time = millis();
+  }
+}
+
+//--------------------------------------------------
+// Движение по линии
+// Плавно корректируем чтобы ехать по центру
+//--------------------------------------------------
+void follow_trajectory(int left_read, int right_read) {
+  // Считаем насколько отклонились от линии
+  double deviation = (left_read - right_read);
+  double adjustment = deviation * PROPORTIONAL_GAIN + (deviation - previous_error) * DERIVATIVE_GAIN;
+  
+  // Корректируем скорость моторов
+  control_motors(constrain(NORMAL_VELOCITY + adjustment, -250, 250), 
+                 constrain(NORMAL_VELOCITY - adjustment, -250, 250));
+  previous_error = deviation;
+  
+  // Играем музыку пока едем
+  perform_melody();
+}
+
+//--------------------------------------------------
+// Проверяем датчики и решаем что делать
+// Основная логика робота
+//--------------------------------------------------
+void monitor_sensors() {
+  // Читаем и нормализуем датчики
+  int left_value = map(analogRead(SENSOR_LEFT), sensor_left_dark, sensor_left_light, 0, 100);
+  int right_value = map(analogRead(SENSOR_RIGHT), sensor_right_dark, sensor_right_light, 0, 100);
+
+  // Если ищем линию
+  if (route_search) {
+    // Проверяем не пора ли остановиться
+    if (millis() - search_begin_time > MAX_SEEK_DURATION) {
+      halt_device();
+      return;
+    }
+
+    // Если нашли линию - выходим из поиска
+    if (left_value > DETECTION_LIMIT || right_value > DETECTION_LIMIT) {
+      route_search = false;
+      previous_turn = (left_value > DETECTION_LIMIT) ? 0 : 1;
+      tone(BUZZER_PIN, 1000, 300); // Сигнал "нашел линию"
+      Serial.println("Линия найдена!");
+    } else {
+      execute_spiral_search(); // Продолжаем поиск
+    }
+  } 
+  // Если едем по линии
+  else {
+    // Если потеряли линию - начинаем поиск
+    if (left_value < DETECTION_LIMIT && right_value < DETECTION_LIMIT) {
+      initiate_route_search();
+    } else {
+      follow_trajectory(left_value, right_value); // Продолжаем движение
+    }
+  }
+  
+  // Периодически пищим чтобы знать что живой
+  if (millis() - last_sound_time > BEEP_INTERVAL) {
+    tone(BUZZER_PIN, 800, 100);
+    last_sound_time = millis();
+  }
+}
+
+//--------------------------------------------------
+// Настройка при включении
+// Делается один раз когда включаем питание
+//--------------------------------------------------
+void setup() {
+  // Говорим ардуине какие пины куда
+  pinMode(MOTOR_LEFT_PWM, OUTPUT);
+  pinMode(MOTOR_LEFT_DIR, OUTPUT);
+  pinMode(MOTOR_RIGHT_PWM, OUTPUT);
+  pinMode(MOTOR_RIGHT_DIR, OUTPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+  pinMode(CONTROL_SWITCH, INPUT_PULLUP);
+
+  // Включаем монитор порта для отладки
+  Serial.begin(9600);
+  Serial.println("Запускаем робота...");
+
+  // Калибруем датчики - крутимся и запоминаем значения
+  Serial.println("Калибруем датчики...");
+  int start_time = millis();
+  while (millis() - start_time < 4000) {
+    control_motors(120, -120); // Крутимся
+    
+    // Читаем датчики
+    int left_current = analogRead(SENSOR_LEFT);
+    int right_current = analogRead(SENSOR_RIGHT);
+    
+    // Запоминаем минимальные и максимальные значения
+    if (left_current < sensor_left_dark) sensor_left_dark = left_current;
+    if (left_current > sensor_left_light) sensor_left_light = left_current;
+    if (right_current < sensor_right_dark) sensor_right_dark = right_current;
+    if (right_current > sensor_right_light) sensor_right_light = right_current;
+  }
+  control_motors(0, 0); // Перестаем крутиться
+  Serial.println("Калибровка готова");
+  
+  // Ждем когда нажмут кнопку чтобы начать
+  Serial.println("Жмем кнопку для старта...");
+  while (true) {
+    if (digitalRead(CONTROL_SWITCH) == LOW) { 
+      delay(50); // Ждем чтобы кнопка устаканилась
+      if (digitalRead(CONTROL_SWITCH) == LOW) break;
+    }
+  }
+  
+  // Два пика - готов к работе
+  tone(BUZZER_PIN, 1000, 200);
+  delay(200);
+  tone(BUZZER_PIN, 1500, 200);
+  Serial.println("Поехали!");
+}
+
+//--------------------------------------------------
+// Главный цикл
+// Выполняется постоянно после setup
+//--------------------------------------------------
+void loop() {
+  // Если робот включен - работаем
+  if (system_active) {
+    monitor_sensors();
+  }
+  
+  // Обрабатываем кнопку
+  if (digitalRead(CONTROL_SWITCH) == HIGH && switch_previous == LOW) {
+    system_active = !system_active; // Вкл/выкл
+    route_search = false;           // Сбрасываем поиск
+    
+    // Пищим в зависимости от состояния
+    if (system_active) {
+      tone(BUZZER_PIN, 1200, 300); // Высокий - включились
+      Serial.println("Включен");
+    } else {
+      tone(BUZZER_PIN, 500, 500);  // Низкий - выключились
+      Serial.println("Выключен");
+    }
+  }
+  
+  // Запоминаем состояние кнопки для след раза
+  switch_previous = digitalRead(CONTROL_SWITCH);
+  
+  // Маленькая пауза чтобы не глючило
+  delay(10);
+}
