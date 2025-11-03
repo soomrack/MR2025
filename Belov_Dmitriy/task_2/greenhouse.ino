@@ -153,14 +153,14 @@ void Parameter_Initialization() {
 // -------------------------------------------------------------
 void readAllSensors() {
   // DHT
-  int h = dht.readHumidity();//может переименовать?Но как?
-  int t = dht.readTemperature();//<-------|same
-  if (isnan(h) || isnan(t)) {
+  int humid_data = dht.readHumidity();
+  int temp_data = dht.readTemperature();
+  if (isnan(humid_data) || isnan(temp_data)) {
     air.humidity = air.temperature = 0;
     air.is_normal = false;
   } else {
-    air.humidity = h;
-    air.temperature = t;
+    air.humidity = humid_data;
+    air.temperature = temp_data;
     air.is_normal = true;
   }
 
@@ -240,14 +240,16 @@ void evaluateSoil() {
 // -------------------------------------------------------------
 // ПРИМЕНЕНИЕ РЕШЕНИЙ К УСТРОЙСТВАМ (включаем/выключаем пины)
 // -------------------------------------------------------------
-void controlDevices() {
+void controlLamp() {
   // Lamp follows lights.shouldBeOn
   lamp.is_on = lights.shouldBeOn;
   digitalWrite(lamp.pin, lamp.is_on ? HIGH : LOW);
-
+}
+void controlHeater() {
   // Heater uses heater.on
   digitalWrite(heater.pin, heater.is_on ? HIGH : LOW);
-
+}
+void controlPump() {
   // Pump: связываем pump.state с soils.pumpNeeded
   if (soils.pumpNeeded && !pump.is_on) {
     pump.is_on = true;
@@ -287,7 +289,7 @@ void controlVentilation() {
 }
 
 // -------------------------------------------------------------
-// ЛОГИРОВАНИЕ
+// SERIAL / ЛОГИРОВАНИЕ
 // -------------------------------------------------------------
 void serialLog() {
   if (millis() - lastSerial < serialInterval) return;
@@ -324,7 +326,7 @@ void setup() {
 
   // Инициализация параметров, порогов и т.п.
   Parameter_Initialization();
-  // Установим все реле в ноль для запуска по условиям
+  // Установим все реле в ноль (безопасно)
   digitalWrite(pump.pin, LOW);
   digitalWrite(lamp.pin, LOW);
   digitalWrite(heater.pin, LOW);
@@ -341,7 +343,8 @@ void loop() {
   evaluateTemperature();
   evaluateAirHumidity();
   evaluateSoil();
-  controlDevices();
+  controlLamp();
+  controlHeater();
+  controlPump();
   controlVentilation();
   serialLog();
-}
