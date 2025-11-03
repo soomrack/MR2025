@@ -217,6 +217,9 @@ void evaluateTemperature() {// min = включить при < min, max = вык
 // -------------------------------------------------------------
 void evaluateAirHumidity() {
   if (!air.is_normal) return;
+
+  vent.is_on = air.humidity > vent.humidityLimits.maxVal;
+  
   if (air.humidity > vent.humidityLimits.maxVal) vent.is_on = true;
   else if (air.humidity < vent.humidityLimits.minVal) vent.is_on = false;
 }
@@ -245,10 +248,14 @@ void controlLamp() {
   lamp.is_on = lights.shouldBeOn;
   digitalWrite(lamp.pin, lamp.is_on ? HIGH : LOW);
 }
+
+
 void controlHeater() {
   // Heater uses heater.on
   digitalWrite(heater.pin, heater.is_on ? HIGH : LOW);
 }
+
+
 void controlPump() {
   // Pump: связываем pump.state с soils.pumpNeeded
   if (soils.pumpNeeded && !pump.is_on) {
@@ -339,13 +346,16 @@ void setup() {
 void loop() {
   readAllSensors();
   updateDayNight();
+  
   evaluateLighting();
   evaluateTemperature();
   evaluateAirHumidity();
   evaluateSoil();
+  
   controlLamp();
   controlHeater();
   controlPump();
   controlVentilation();
+  
   serialLog();
 }
