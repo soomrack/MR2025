@@ -21,6 +21,8 @@ int lighting[light_sensors_count];
 bool light_on;
 bool heat_on;
 bool vent_on;
+
+bool moisture_low;
 bool pump_on;
 
 unsigned long last_time = 0;
@@ -124,10 +126,10 @@ void check_air_humidity(const int air_humidity){
 
 void check_soil_moisture(const int humidity){
   if (soil_moisture < minimal.soil_moisture){
-    pump_on = true;
+    moisture_low = true;
   }
   else if (soil_moisture >= maximum.soil_moisture){
-    pump_on = false;
+    moisture_low = false;
   }
 }
 
@@ -162,25 +164,25 @@ void vent_control(const bool vent_on, const bool heat_on){
 }
 
 
-void new_pump_control(const bool pump_on){
-  if (pump_on == false){  //Полив не нужен
-    digitalWrite(PUMP_PIN, LOW);
+void decide_pump_on(const bool moisture_low){
+   if (moisture_low == false){  //Полив не нужен
+    pump_on = false;
     watering_in_process = false;
   }
   else {
     if (watering_in_process == true && pump_active == true){  //Полив в процессе, работает насос
       if (current_time - start_watering_time < watering_duration){  //Период полива
-        digitalWrite(PUMP_PIN, HIGH);
+        pump_on = true;
       }
       else{
-        digitalWrite(PUMP_PIN, LOW);  //Переход в режим ожидания
+        pump_on = false;  //Переход в режим ожидания
         pump_active = false;
         stop_watering_time = current_time;
       }
     }
     else if (watering_in_process == true && pump_active == false){  //Режим ожидания
       if (current_time - stop_watering_time < watering_delay){
-          digitalWrite(PUMP_PIN, LOW);
+          pump_on = false;
       }
       else{
           watering_in_process = false;  //Почва была влажной, стала сухой
@@ -191,6 +193,17 @@ void new_pump_control(const bool pump_on){
       start_watering_time = current_time;
       watering_in_process = true;
     }
+  }
+}
+
+
+
+void new_pump_control_2(const bool pump_on){
+    if (pump_on == true){
+    digitalWrite(PUMP_PIN , HIGH);
+  }
+  else{
+    digitalWrite(PUMP_PIN , LOW);
   }
 }
 
@@ -244,7 +257,9 @@ void loop(){
   light_control(light_on);
   heat_control(heat_on);
   vent_control(vent_on, heat_on);
-  new_pump_control(pump_on);
+
+  decide_pump_on(moisture_low);
+  new_pump_control_2(pump_on);
 
   if (current_time - last_serial_time >= serial_interval) {
     serial_output();
