@@ -1,28 +1,51 @@
-#define Sensor_L A0
-#define Sensor_R A1
-#define Button 12
-#define Motor_L_dir 7
-#define Motor_L_pow 6
-#define Motor_R_dir 4
-#define Motor_R_pow 5
+#define SENSOR_L_PIN A1
+#define SENSOR_R_PIN A0
+#define BUTTON_PIN 12
+#define MOTOR_L_DIR 7
+#define MOTOR_L_POW 6
+#define MOTOR_R_DIR 4
+#define MOTOR_R_POW 5
 
-float factor_a = 1.0;
-float factor_b = 1.0;
-int speed = 100;
+// Значения PD контроллера
+float gain_P = 8.0;
+float gain_D = 6.0;
 
-int sensor_L_min, sensor_L_max, sensor_R_min, sensor_R_max;
+int speed = 125;                // Скорость на линии
+int max_speed = 250;            // Максимальная скорость
+int search_speed = 150;         // Скорость поиска линии
+int spiral_strength = 5;        // Сила раскручивания при поиске линии
+int sensor_threshold = 20;      // Чувствительность к потере линии в %
+int search_timeout = 20000;     // Максимальное время поиска линии
 
+struct Sensor_parametrs {
+  int current;
+  int min;
+  int max;
+};
+
+struct Sensor_parametrs sensor_L;
+struct Sensor_parametrs sensor_R;
 int last_error = 0;
+int spiral_speed = 0;
 bool is_bot_active = false;
-bool button_last = HIGT;
+bool is_bot_on_line = false;
 
-void motors (int leftspeed, int rightspeed) {
-  digitalWrite (Motor_L_dir, leftspeed > 0);
-  digitalWrite (Motor_R_dir, rightspeed > 0);
-  analogWrite (Motor_L_pow, abs(leftspeed));
-  analogWrite (Motor_R_pow, abs(rightspeed));
+
+void move_motors (int leftspeed, int rightspeed) {
+  digitalWrite (MOTOR_L_DIR, leftspeed > 0);
+  digitalWrite (MOTOR_R_DIR, rightspeed > 0);
+  analogWrite (MOTOR_L_POW, abs(leftspeed));
+  analogWrite (MOTOR_R_POW, abs(rightspeed));
 }
 
+
+void stop_robot() {
+  move_motors(0, 0);
+  is_bot_active = false;
+}
+
+
+// Усреднение значений при колибровке сенсоров
 int avarage(int Pin) {
   long sum = 0;
   for (int i = 0; i < 10; i++)
@@ -30,73 +53,96 @@ int avarage(int Pin) {
   return (sum / 10);
 }
 
+
 void sensor_calibration() {
-  Serial.println("Calibration started");
+  while (digitalRead(BUTTON_PIN)) delay(10);
+  while (!digitalRead(BUTTON_PIN)) delay(10);
 
-  while (digitalRead(Button)) {delay(10);}
-  while (!digitalRead(Button)) {delay(10);}
-
-  sensor_L_min = avarage(Sensor_L);
-  sensor_R_min = avarage(Sensor_R);
+  sensor_L.min = avarage(SENSOR_L_PIN);
+  sensor_R.min = avarage(SENSOR_R_PIN);
     
-  while (digitalRead(Button)) {delay(10);}
-  while (!digitalRead(Button)) {delay(10);}
+  while (digitalRead(BUTTON_PIN)) delay(10);
+  while (!digitalRead(BUTTON_PIN)) delay(10);
 
-  sensor_L_max = avarage(Sensor_L);
-  sensor_R_max = avarage(Sensor_R);
-
-  Serial.print("L: "); Serial.print(sensor_L_min); Serial.print(" - "); Serial.println(sensor_L_max);
-  Serial.print("R: "); Serial.print(sensor_R_min); Serial.print(" - "); Serial.println(sensor_R_max);
-
-  
+  sensor_L.max = avarage(SENSOR_L_PIN);
+  sensor_R.max = avarage(SENSOR_R_PIN);
 }
 
+
+void sensor_read() {
+  sensor_L.current = map(analogRead(SENSOR_L_PIN), sensor_L.min, sensor_L.max, 0, 100);
+  sensor_R.current = map(analogRead(SENSOR_R_PIN), sensor_R.min, sensor_R.max, 0, 100);
+
+  if (!is_bot_on_line) {
+    // Если бот слишком долго ищет линию — он останавливается
+    unsigned long search_start_time = 0;
+    if (millis() - search_start_time > search_timeout) stop_robot();
+
+    // Проверка — найдена ли линия
+    if (sensor_L.current < sensor_threshold || sensor_R.current < sensor_threshold) {
+        is_bot_on_line = true;
+        spiral_speed = 0;
+    }
+  }
+    // Проверка — потеряна ли линия
+  else {
+    if (sensor_L.current < sensor_threshold && sensor_R.current < sensor_threshold) {
+        is_bot_on_line = false;
+    }
+  }
+}
+
+
 void line_following() {
-  int value_left = map(analogRead(Sensor_L), sensor_L_min, sensor_L_max, 0, 100);
-  int value_right = map(analogRead(Sensor_R), sensor_R_min, sensor_R_max, 0, 100);
+  float error = sensor_L.current - sensor_R.current;
+  float P = error * gain_P;
+  float D = (error - last_error) * gain_D;
+  float correct = P + D;
 
-  float error = value_left - value_right;
-  float correct = error * factor_a + (error - last_error) * factor_b;
-
-  move_motors(constrain(speed + correct, -250, 250), constrain(speed - correct, -250, 250));
+  move_motors(constrain(speed - correct, -max_speed, max_speed), constrain(speed + correct, - max_speed, max_speed));
 
   last_error = error;
 }
 
-void line_lost () {
 
+void line_search() {
+  spiral_speed += spiral_strength;
+
+  if (last_error < 0) {
+    move_motors(search_speed, constrain(spiral_speed, 0, search_speed));    // Вращение вправо
+  } else {
+    move_motors(constrain(spiral_speed, 0, search_speed), search_speed);    // Вращение влево
+  }
 }
+
 
 void setup() {
   Serial.begin(9600);
 
-  pinMode(Motor_L_pow, OUTPUT);
-  pinMode(Motor_L_dir, OUTPUT);
-  pinMode(Motor_R_pow, OUTPUT);
-  pinMode(Motor_R_dir, OUTPUT);
+  pinMode(MOTOR_L_POW, OUTPUT);
+  pinMode(MOTOR_L_DIR, OUTPUT);
+  pinMode(MOTOR_R_POW, OUTPUT);
+  pinMode(MOTOR_R_DIR, OUTPUT);
 
-  pinMode(Button, INPUT_PULLUP);
-  pinMode(Sensor_L, INPUT);
-  pinMode(Sensor_R, INPUT);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  pinMode(SENSOR_L_PIN, INPUT);
+  pinMode(SENSOR_R_PIN, INPUT);
 
   sensor_calibration();
 
-  while (digitalRead(Button) == HIGH) {}
+  while (digitalRead(BUTTON_PIN)) {}
+  while (!digitalRead(BUTTON_PIN)) {}
 
   is_bot_active = true;
 }
 
+
 void loop() {
-  bool button_state = digitalRead(Button);
-
-  if (button_state == LOW && button_old == HIGH) {
-    is_bot_active = !is_bot_active;
-    delay(30);
-  }
-
-  button_last = button_state;
-
   if (is_bot_active) {
+    sensor_read();
+    if (is_bot_on_line)
     line_following();
+    else 
+    line_search();
   }
 }
