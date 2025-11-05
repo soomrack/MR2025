@@ -5,14 +5,12 @@
 
 using namespace std;
 
-typedef long long int RUB;
-typedef bool Logik;
-
+typedef long long int RUB;
 
 struct Cat {
     RUB food;
-    Logik buy_cat;
-    Logik cat_is_alive;
+    bool buy_cat;
+    bool cat_is_alive;
 };
 
 
