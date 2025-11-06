@@ -141,7 +141,15 @@ void sens_calibration() {
   }
   move(0, 0); // Остановка после калибровки
 }
+void button_switch() {
+  int calib_button = digitalRead(CALIBRATE_BOTTON_PIN);
+  if (calib_button == HIGH && CALIBRATE_BOTTON_PIN_old == LOW) {
+    is_turned_on = !is_turned_on;    // Переключаем состояние активности
+    delay(80);
+  }
 
+  CALIBRATE_BOTTON_PIN_old = calib_button; // Обновляем состояние кнопки
+}
 // Начальная настройка 
 void setup() {
   // Настраиваем пины ввода/вывода
@@ -171,13 +179,7 @@ void setup() {
 
 
 void loop() {
-  int calib_button = digitalRead(CALIBRATE_BOTTON_PIN);
-  if (calib_button == HIGH && CALIBRATE_BOTTON_PIN_old == LOW) {
-    is_turned_on = !is_turned_on;    // Переключаем состояние активности
-    delay(80);
-  }
-
-  CALIBRATE_BOTTON_PIN_old = calib_button; // Обновляем состояние кнопки
+  button_switch();
 
   if (is_turned_on) {
     check_sensors(); // Пока робот активен — считываем датчики и управляем движением
