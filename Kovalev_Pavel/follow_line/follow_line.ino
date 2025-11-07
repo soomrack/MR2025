@@ -246,7 +246,10 @@ void loop() {
     lastButtonState = btnState;
 
     if (systemActive) {
-        if (lineLost() && (millis() - line_seen_millis )) recoverLine();
+        if (
+            lineLost() 
+            && (millis() - line_seen_millis) >= line_seen_threshold_ms
+        ) recoverLine();
         else followTrack();
     }
 }
