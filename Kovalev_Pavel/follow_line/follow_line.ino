@@ -114,16 +114,21 @@ double tanh(double x) {
 void recoverLine() {
     Serial.println("Line lost.");
     tone(SOUND_PIN, 500, 500);
-    float radius_coeff; // Коэффциент кривизны поворота: от -1 (вращение на месте) до +1 (прямая линия)
-    // TODO: заменить спираль на квадратную
     const unsigned long recover_start_ms = millis();
+    long i = 0;
     while (lineLost()) {
-        radius_coeff = 2*tanh(((millis()-recover_start_ms)/1000.0)/4.0)-1;
-        Serial.println(radius_coeff);
-        const int left_speed = 120;
-        const int right_speed = left_speed * radius_coeff;
-        setMotors(left_speed, right_speed);
-        delay(1);
+        const int search_speed = 120;
+        const int turn_time_ms = 10;
+        const int curvature = 1; // linear coeff, from zero to infinity
+        int go_forward_ms = (turn_time_ms/2+1) * curvature * i;
+
+        setMotors(-search_speed, search_speed); // turn left
+        delay(turn_time_ms);
+        setMotors(search_speed, search_speed); // go forward
+        delay(go_forward_ms);
+        setMotors(0, 0);
+
+        // delay(1);
         if (millis() - recover_start_ms >= line_search_stop_threshold_ms) {
             // Остановка
             tone(SOUND_PIN, 500, 1000);
@@ -131,6 +136,7 @@ void recoverLine() {
             systemActive = false;
             return;
         }
+        i+=1;
     }
 
     // Линия найдена. Останавливаемся и вращаемся.
