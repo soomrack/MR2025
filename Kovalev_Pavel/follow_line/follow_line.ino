@@ -25,6 +25,7 @@ int r_minVal = 1023, r_maxVal = 0;
 unsigned long line_seen_millis = 0;
 const int line_seen_threshold_ms = 800;
 const int line_seen_threshold_2_ms = 5000; // for 2nd stage of searching
+const int line_search_stop_threshold_ms = 10 * 1000; // Сколько мс робот будет искать линию до остановки.
 
 // Прочие переменные
 float lastError = 0; float integral = 0;
@@ -115,7 +116,6 @@ void recoverLine() {
     tone(SOUND_PIN, 500, 500);
     float radius_coeff; // Коэффциент кривизны поворота: от -1 (вращение на месте) до +1 (прямая линия)
     // TODO: заменить спираль на квадратную
-    // TODO: изменить threshold линии?
     const unsigned long recover_start_ms = millis();
     while (lineLost()) {
         radius_coeff = 2*tanh(((millis()-recover_start_ms)/1000.0)/4.0)-1;
@@ -124,6 +124,13 @@ void recoverLine() {
         const int right_speed = left_speed * radius_coeff;
         setMotors(left_speed, right_speed);
         delay(1);
+        if (millis() - recover_start_ms >= line_search_stop_threshold_ms) {
+            // Остановка
+            tone(SOUND_PIN, 500, 1000);
+            setMotors(0, 0);
+            systemActive = false;
+            return;
+        }
     }
 
     // Линия найдена. Останавливаемся и вращаемся.
