@@ -30,11 +30,14 @@ int spiral_step = 0;
 unsigned long spiral_timer = 0;
 unsigned long search_start_timer = 0;
 
+
 int sensor_left = 0;
 int sensor_right = 0;
 
+
 unsigned long last_serial_time = 0;
 const unsigned long serial_interval = 200;
+
 
 enum RobotState { IDLE, FOLLOW_LINE, SEARCH_LINE };
 RobotState state = IDLE;
@@ -57,6 +60,7 @@ void SetSpeed(int pwm, uint8_t dir_pin, uint8_t pwm_pin){
   analogWrite(pwm_pin, abs(pwm));
 }
 
+
 void SetLSpeed(int speed){
   SetSpeed(speed, LM_DIR, LM_PWM);
 }
@@ -71,6 +75,7 @@ void SetTankSpeed(int L_speed, int R_speed){
   SetLSpeed(L_speed);
   SetRSpeed(R_speed);
 }
+
 
 int midArifm(int pin) {
   long sum = 0;
@@ -111,6 +116,7 @@ void sensor_calibration(){
   state = FOLLOW_LINE;
 }
 
+
 double get_error(){
   sensor_left = analogRead(LS_PIN);
   sensor_right = analogRead(RS_PIN);
@@ -121,12 +127,6 @@ double get_error(){
   Serial.println(error);
 
   return error;
-}
-
-
-void stop_robot() {
-  SetTankSpeed(0, 0);
-  state = IDLE;
 }
 
 
@@ -166,9 +166,11 @@ void search_line() {
   }
 
   if (millis() - search_start_timer > search_timeout) {
-    stop_robot();
+    SetTankSpeed(0, 0);
+    state = IDLE;
   }
 }
+
 
 void update_state(){
   switch (state) {
@@ -184,12 +186,13 @@ void update_state(){
   }
 }
 
+
 void setup() {
   Serial.begin(9600);
   InitMotors();
   sensor_calibration();
-
 }
+
 
 void loop() {
   update_state();
