@@ -1,0 +1,329 @@
+// connection pins
+#define MOTOR_LEFT_PWM_PIN 6        // left motor speed
+#define MOTOR_LEFT_DIR_PIN 7        // left motor direction
+#define MOTOR_RIGHT_PWM_PIN 5       // right motor speed
+#define MOTOR_RIGHT_DIR_PIN 4       // right motor direction
+#define BUZZER_PIN 9                // buzzer for sounds
+#define BUTTON_PIN A2               // activation button
+#define SENSOR_LEFT_PIN A0          // left sensor of the line
+#define SENSOR_RIGHT_PIN A1         // right sensor of the line
+
+// motion parameters
+#define PID_P_GAIN 3.0              // Sensitivity to deviation from the line
+#define PID_D_GAIN 1.5              // Smoothness of turns
+#define BASE_SPEED 80               // Normal speed
+#define SEARCH_SPEED 110            // Speed when searching for a line
+#define MAX_MOTOR_SPEED 250         // Maximum motor speed
+
+// sensor parameters
+#define LINE_THRESHOLD 50           // Sensor response threshold
+#define SPIRAL_STEP 3               // Spiral increase step
+#define SPIRAL_DELAY 50             // Pause between spiral steps
+#define SEARCH_TIMEOUT 10000        // Maximum search time (10 seconds)
+
+// sounds parameters
+#define BEEP_INTERVAL 2000          // How often to squeak when moving
+#define NOTE_DURATION 150           // Note duration
+#define CALIBRATION_DURATION 4000   // Calibration time (4 seconds)
+
+// state of the robot
+enum RobotState {
+  STATE_IDLE,           // Waiting - the robot is turned off
+  STATE_CALIBRATING,    // Calibration - setting up the sensors
+  STATE_FOLLOW_LINE,    // Line movement is the main mode
+  STATE_SEARCH_LINE     // Line search - lost the trajectory
+};
+
+// the structure for keeping calibration data
+struct SensorCalibration {
+  int left_min = 1023;
+  int left_max = 0;
+  int right_min = 1023;
+  int right_max = 0;
+};
+
+// the structure for motor controlling
+struct Motor {
+  int pwm_pin;
+  int dir_pin;
+};
+
+// the structure for searching a line
+struct LineSearch {
+  int radius = 0;
+  bool direction = false;
+  unsigned long timer = 0;
+  unsigned long start_time = 0;
+};
+
+// global values
+RobotState current_state = STATE_IDLE;
+SensorCalibration sensors;
+Motor left_motor = {MOTOR_LEFT_PWM_PIN, MOTOR_LEFT_DIR_PIN};
+Motor right_motor = {MOTOR_RIGHT_PWM_PIN, MOTOR_RIGHT_DIR_PIN};
+LineSearch search;
+
+// controlling values
+int last_turn_side = 0;
+int prev_pid_error = 0;
+bool prev_button_state = true;
+unsigned long last_beep_time = 0;
+unsigned long last_note_time = 0;
+int current_note_index = 0;
+
+// melody
+const int melody_notes[] = {
+  392, 392, 392, 311, 466,
+  392, 311, 466, 392,
+  587, 587, 587, 622, 466,
+  369, 311, 466, 392
+};
+const int melody_durations[] = {
+  500, 500, 500, 350, 150,
+  500, 350, 150, 700,
+  500, 500, 500, 350, 150,
+  500, 350, 150, 700
+};
+const int melody_length = 17;
+
+class RobotController {
+private:
+  void set_motor_speed(const Motor& motor, int speed) {
+    digitalWrite(motor.dir_pin, speed > 0);
+    analogWrite(motor.pwm_pin, abs(speed));
+  }
+
+  void play_note(int frequency, int duration) {
+    tone(BUZZER_PIN, frequency, duration);
+  }
+
+  void update_sensor_calibration(int left_val, int right_val) {
+    if (left_val < sensors.left_min) sensors.left_min = left_val;
+    if (left_val > sensors.left_max) sensors.left_max = left_val;
+    if (right_val < sensors.right_min) sensors.right_min = right_val;
+    if (right_val > sensors.right_max) sensors.right_max = right_val;
+  }
+
+public:
+  // motor controlling
+  void set_motors(int left_speed, int right_speed) {
+    set_motor_speed(left_motor, left_speed);
+    set_motor_speed(right_motor, right_speed);
+  }
+
+  // full stop
+  void stop_robot() {
+    set_motors(0, 0);
+    current_state = STATE_IDLE;
+    play_note(500, 500);
+    Serial.println("робот остановлен");
+  }
+
+  // rreading and normalizing data from the sensors
+  void read_sensors(int& left_out, int& right_out) {
+    int left_raw = analogRead(SENSOR_LEFT_PIN);
+    int right_raw = analogRead(SENSOR_RIGHT_PIN);
+    
+    left_out = map(left_raw, sensors.left_min, sensors.left_max, 0, 100);
+    right_out = map(right_raw, sensors.right_min, sensors.right_max, 0, 100);
+    
+    left_out = constrain(left_out, 0, 100);
+    right_out = constrain(right_out, 0, 100);
+  }
+
+  // following line with PID regulator
+  void follow_line(int left_value, int right_value) {
+    int error = (left_value - right_value);
+    double adjustment = error * PID_P_GAIN + (error - prev_pid_error) * PID_D_GAIN;
+    
+    set_motors(
+      constrain(BASE_SPEED + adjustment, -MAX_MOTOR_SPEED, MAX_MOTOR_SPEED), 
+      constrain(BASE_SPEED - adjustment, -MAX_MOTOR_SPEED, MAX_MOTOR_SPEED)
+    );
+    
+    prev_pid_error = error;
+    play_melody();
+  }
+
+  // spiral search of the line
+  void spiral_search() {
+    if (millis() - search.timer > SPIRAL_DELAY) {
+      search.radius += SPIRAL_STEP;
+      search.timer = millis();
+    }
+
+    int left_speed = SEARCH_SPEED - search.radius;
+    int right_speed = SEARCH_SPEED - search.radius;
+
+    if (search.direction) {
+      set_motors(left_speed, SEARCH_SPEED);
+    } else {
+      set_motors(SEARCH_SPEED, right_speed);
+    }
+  }
+
+  // start line searching
+  void start_line_search() {
+    search.radius = 0;
+    search.timer = millis();
+    search.direction = (last_turn_side == 0);
+    search.start_time = millis();
+    play_note(300, 200);
+    Serial.println("Начат поиск линии...");
+  }
+
+  // playing melody
+   void play_melody() {
+    if (millis() - last_note_time > melody_durations[current_note_index] / 2) {
+      play_note(melody_notes[current_note_index], melody_durations[current_note_index] / 2 - 10);
+      current_note_index = (current_note_index + 1) % melody_length;
+      last_note_time = millis();
+    }
+  }
+
+  // periodical sound signals
+  void periodic_beep() {
+    if (millis() - last_beep_time > BEEP_INTERVAL) {
+      play_note(800, 100);
+      last_beep_time = millis();
+    }
+  }
+
+  // checking disposition on the line
+  bool is_on_line(int left_sensor, int right_sensor) {
+    return (left_sensor > LINE_THRESHOLD || right_sensor > LINE_THRESHOLD);
+  }
+
+  // checking search timeout
+  bool is_search_timed_out() {
+    return (millis() - search.start_time > SEARCH_TIMEOUT);
+  }
+};
+
+RobotController robot;
+
+
+// modes of the robot operating
+
+
+void state_idle() {
+  robot.set_motors(0, 0);  // Стоит на месте
+}
+
+void state_calibrating() {
+  // rolling and memorizeng sensors' data
+  unsigned long cal_start = millis();
+  while (millis() - cal_start < CALIBRATION_DURATION) {
+    robot.set_motors(120, -120); // Вращение на месте
+    
+    int left_val = analogRead(SENSOR_LEFT_PIN);
+    int right_val = analogRead(SENSOR_RIGHT_PIN);
+    
+    robot.update_sensor_calibration(left_val, right_val);
+  }
+  
+  robot.set_motors(0, 0); // Останавливаемся после калибровки
+  robot.play_note(1500, 500); // Сигнал завершения калибровки
+  
+  // switch  state: start following the line
+  current_state = STATE_FOLLOW_LINE;
+}
+
+void state_follow_line() {
+  int left_sensor, right_sensor;
+  robot.read_sensors(left_sensor, right_sensor);
+  
+  // switching to search when the line is lost
+  if (!robot.is_on_line(left_sensor, right_sensor)) {
+    current_state = STATE_SEARCH_LINE;
+    robot.start_line_search();
+    return;
+  }
+  
+  // following the line with PID regulator
+  robot.follow_line(left_sensor, right_sensor);
+  robot.periodic_beep();
+}
+
+void state_search_line() {
+  int left_sensor, right_sensor;
+  robot.read_sensors(left_sensor, right_sensor);
+  
+  // checking search timeout
+  if (robot.is_search_timed_out()) {
+    robot.stop_robot();
+    return;
+  }
+  
+  //  if the robot finds the line it will return to following it
+  if (robot.is_on_line(left_sensor, right_sensor)) {
+    last_turn_side = (left_sensor > LINE_THRESHOLD) ? 0 : 1;
+    robot.play_note(1000, 300); // Сигнал "нашел линию"
+    current_state = STATE_FOLLOW_LINE;
+    return;
+  }
+  
+  // keep spiral searching the line
+  robot.spiral_search();
+  robot.periodic_beep();
+}
+
+
+// button processing
+void handle_button() {
+  bool current_button = digitalRead(BUTTON_PIN);
+  
+  if (current_button == HIGH && prev_button_state == LOW) {
+    //  if we were in expecting(IDLE) - start calibrating
+    if (current_state == STATE_IDLE) {
+      current_state = STATE_CALIBRATING;
+      robot.play_note(1200, 300);
+      Serial.println("Запуск робота!");
+    } 
+    // if we were in any other state - stop robot
+    else {
+      robot.stop_robot();
+    }
+  }
+  prev_button_state = current_button;
+}
+
+
+// Диспетчер состояний
+void run_state_robot() {
+  switch (current_state) {
+    case STATE_IDLE:
+      state_idle();
+      break;
+    case STATE_CALIBRATING:
+      state_calibrating();
+      break;
+    case STATE_FOLLOW_LINE:
+      state_follow_line();
+      break;
+    case STATE_SEARCH_LINE:
+      state_search_line();
+      break;
+  }
+}
+
+void setup() {
+  // pins' inizialization
+  pinMode(MOTOR_LEFT_PWM_PIN, OUTPUT);
+  pinMode(MOTOR_LEFT_DIR_PIN, OUTPUT);
+  pinMode(MOTOR_RIGHT_PWM_PIN, OUTPUT);
+  pinMode(MOTOR_RIGHT_DIR_PIN, OUTPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+
+  Serial.begin(9600);
+  
+  // the initial state - is expecting
+  current_state = STATE_IDLE;
+}
+
+void loop() {
+  handle_button();       //  checking the button in any states
+  run_state_robot();     //  accomplish the current state
+  delay(10);             // stabilize working
+}
