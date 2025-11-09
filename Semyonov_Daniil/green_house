@@ -1,253 +1,311 @@
 #include <DHT.h>
 #include <Adafruit_Sensor.h>
 
-// === Аппаратная распиновка ===
-#define PUMP_PIN 5
-#define LIGHT_PIN 6
-#define HEAT_PIN 4
-#define VENT_PIN 7
-#define DHT_PIN 12
-#define DEFAULT_LIGHT_SENSOR_PIN A0
-#define DEFAULT_SOIL_SENSOR_PIN A3
+#define PUMP_PIN 5           // Пин управления насосом
+#define LIGHT_PIN 6          // Пин управления лампой освещения
+#define HEAT_PIN 4           // Пин управления нагревателем
+#define VENT_PIN 7           // Пин управления вентилятором
+#define DHT_PIN 12           // Пин датчика температуры и влажности DHT
+#define DEFAULT_LIGHT_SENSOR_PIN A0  // Пин аналогового датчика освещенности
+#define DEFAULT_SOIL_SENSOR_PIN A3   // Пин аналогового датчика влажности почвы
 
-const int MAX_LIGHT_SENSORS = 4;
-const int MAX_SOIL_SENSORS = 4;
+const int MAX_LIGHT_SENSORS = 4;     // Максимум 4 датчика освещенности
+const int MAX_SOIL_SENSORS = 4;      // Максимум 4 датчика почвы
+
 
 struct Range {
-  int minVal;
-  int maxVal;
+  int minVal;  // Нижняя граница диапазона
+  int maxVal;  // Верхняя граница диапазона
 };
+
 
 struct AirSensor {
-  int pin;
-  int temperature;
-  int humidity;
-  bool is_normal;
+  int pin;          // Пин подключения датчика
+  int temperature;  // Последнее значение температуры (°C)
+  int humidity;     // Последнее значение влажности (%)
+  bool is_normal;   // Флаг корректности данных датчика
 };
 
+
 struct LightSensors {
-  int pins[MAX_LIGHT_SENSORS];
-  int values[MAX_LIGHT_SENSORS];
-  int count;
-  Range limits;
-  bool shouldBeOn;
+  int pins[MAX_LIGHT_SENSORS];   // Массив пинов датчиков
+  int values[MAX_LIGHT_SENSORS]; // Массив значений датчиков
+  int count;                     // Количество активных датчиков
+  Range limits;                  // Пороги освещенности
+  bool shouldBeOn;               // Флаг необходимости включения света
 };
 
 struct SoilSensors {
-  int pins[MAX_SOIL_SENSORS];
-  int values[MAX_SOIL_SENSORS];
-  int count;
-  Range limits;
-  bool pumpNeeded;
-  unsigned long lastPumpStart;
-  unsigned long pumpMaxDuration;
+  int pins[MAX_SOIL_SENSORS];    // Массив пинов датчиков
+  int values[MAX_SOIL_SENSORS];  // Массив значений датчиков
+  int count;                     // Количество активных датчиков
+  Range limits;                  // Пороги влажности почвы
+  bool pumpNeeded;               // Флаг необходимости полива
+  unsigned long lastPumpStart;   // Время начала последнего полива
+  unsigned long pumpMaxDuration; // Максимальная длительность полива (мс)
 };
 
 struct Pump {
-  int pin;
-  bool is_on;
+  int pin;    // Пин управления насосом
+  bool is_on; // Текущее состояние насоса
 };
 
 struct LightCtrl {
-  int pin;
-  bool is_on;
-  Range limits;
+  int pin;      // Пин управления лампой
+  bool is_on;   // Текущее состояние лампы
+  Range limits; // Пороги управления освещением
 };
 
 struct Heater {
-  int pin;
-  bool is_on;
-  Range limits;
+  int pin;      // Пин управления нагревателем
+  bool is_on;   // Текущее состояние нагревателя
+  Range limits; // Температурные пороги управления
 };
 
 struct Ventilation {
-  int pin;
-  bool is_on;
-  Range humidityLimits;
-  unsigned long lastVentTime;
-  unsigned long ventInterval;
-  unsigned long ventDuration;
-  bool timerActive;
+  int pin;              // Пин управления вентилятором
+  bool is_on;           // Текущее состояние вентилятора
+  Range humidityLimits; // Пороги влажности для управления
+  unsigned long lastVentTime;  // Время последнего проветривания
+  unsigned long ventInterval;  // Интервал между проветриваниями (мс)
+  unsigned long ventDuration;  // Длительность проветривания (мс)
+  bool timerActive;     // Флаг активного таймера проветривания
 };
 
-// === Глобальные объекты ===
-unsigned long currentMillis = 0;
-DHT dht(DHT_PIN, DHT11);
-AirSensor air = {DHT_PIN, 0, 0, false};
-LightSensors lights;
-SoilSensors soils;
-Pump pump = {PUMP_PIN, false};
-LightCtrl lamp = {LIGHT_PIN, false, {0, 0}};
-Heater heater = {HEAT_PIN, false, {0, 0}};
-Ventilation vent = {VENT_PIN, false, {30, 75}, 0, 3600000UL, 60000UL, false};
 
-// === Время / циклы ===
-unsigned long cycleStart = 0;
-const unsigned long dayDuration = 10000UL, nightDuration = 10000UL;
-bool isNight = false;
-unsigned long lastSerial = 0;
-const unsigned long serialInterval = 5000UL;
+unsigned long currentMillis = 0;  // Текущее время для всех функций
+DHT dht(DHT_PIN, DHT11);          // Объект датчика DHT11
 
-// === Инициализация ===
+// Инициализация структур
+AirSensor air = {DHT_PIN, 0, 0, false};  // Датчик воздуха
+LightSensors lights;                      // Датчики освещенности
+SoilSensors soils;                        // Датчики почвы
+Pump pump = {PUMP_PIN, false};            // Насос
+LightCtrl lamp = {LIGHT_PIN, false, {0, 0}};  // Лампа
+Heater heater = {HEAT_PIN, false, {0, 0}};    // Нагреватель
+Ventilation vent = {VENT_PIN, false, {30, 75}, 0, 3600000UL, 60000UL, false};  // Вентиляция
+
+// Параметры времени
+unsigned long cycleStart = 0;                    // Начало цикла день/ночь
+const unsigned long dayDuration = 10000UL;       // Длительность дня 10 секунд
+const unsigned long nightDuration = 10000UL;     // Длительность ночи 10 секунд
+bool isNight = false;                            // Флаг ночного времени
+
+unsigned long lastSerial = 0;                    // Время последнего вывода в Serial
+const unsigned long serialInterval = 5000UL;     // Интервал вывода данных 5 секунд
+
+// Функция инициализации параметров системы 
 void initParams() {
-  // Датчики света
-  lights.count = 1;
-  lights.pins[0] = DEFAULT_LIGHT_SENSOR_PIN;
-  lights.limits = {405, 800};
-  lights.shouldBeOn = false;
+  // Инициализация датчиков освещенности
+  lights.count = 1;                              // Используем 1 датчик
+  lights.pins[0] = DEFAULT_LIGHT_SENSOR_PIN;     // Пин A0
+  lights.limits = {405, 800};                    // Пороги: мин 405, макс 800
+  lights.shouldBeOn = false;                     // Изначально свет не нужен
 
-  // Датчики почвы
-  soils.count = 1;
-  soils.pins[0] = DEFAULT_SOIL_SENSOR_PIN;
-  soils.limits = {500, 600};
-  soils.pumpNeeded = false;
-  soils.pumpMaxDuration = 30000UL;
+  // Инициализация датчиков почвы
+  soils.count = 1;                               // Используем 1 датчик
+  soils.pins[0] = DEFAULT_SOIL_SENSOR_PIN;       // Пин A3
+  soils.limits = {500, 600};                     // Пороги: мин 500, макс 600
+  soils.pumpNeeded = false;                      // Изначально полив не нужен
+  soils.pumpMaxDuration = 30000UL;               // Макс. время полива 30 секунд
 
-  // Устройства
-  lamp.limits = lights.limits;
-  heater.limits = {20, 27};
-  vent.lastVentTime = currentMillis;
+  // Инициализация устройств
+  lamp.limits = lights.limits;                   // Копируем пороги для лампы
+  heater.limits = {20, 27};                      // Нагрев при температуре ниже 20°C
+  vent.lastVentTime = currentMillis;             // Инициализация времени вентиляции
 
-  cycleStart = currentMillis;
+  // Инициализация цикла день ил ночь
+  cycleStart = currentMillis;                    // Запоминаем время начала цикла
 }
 
-// === Чтение датчиков ===
+//Функция чтения всех датчиков
 void readSensors() {
-  // DHT
-  int h = dht.readHumidity();
-  int t = dht.readTemperature();
-  air.is_normal = !isnan(h) && !isnan(t);
-  if (air.is_normal) {
-    air.humidity = h;
-    air.temperature = t;
+  // Чтение датчика DHT (температура и влажность воздуха)
+  int h = dht.readHumidity();                    // Чтение влажности
+  int t = dht.readTemperature();                 // Чтение температуры
+  air.is_normal = !isnan(h) && !isnan(t);        // Проверка корректности данных
+  if (air.is_normal) {                           // Если данные корректны
+    air.humidity = h;                            // Сохраняем влажность
+    air.temperature = t;                         // Сохраняем температуру
   }
 
-  // Свет и почва
+  // Чтение всех датчиков освещенности
   for (int i = 0; i < lights.count; i++)
-    lights.values[i] = analogRead(lights.pins[i]);
+    lights.values[i] = analogRead(lights.pins[i]);  // Чтение аналогового значения
+
+  // Чтение всех датчиков влажности почвы
   for (int i = 0; i < soils.count; i++)
-    soils.values[i] = analogRead(soils.pins[i]);
+    soils.values[i] = analogRead(soils.pins[i]);    // Чтение аналогового значения
 }
 
-// === Алгоритмы управления ===
+// Функция обновления цикла день или ночь 
 void updateDayNight() {
-  unsigned long elapsed = currentMillis - cycleStart;
-  if (elapsed < dayDuration) isNight = false;
-  else if (elapsed < dayDuration + nightDuration) isNight = true;
-  else {
-    cycleStart = currentMillis;
-    isNight = false;
+  unsigned long elapsed = currentMillis - cycleStart;  // Время с начала цикла
+  if (elapsed < dayDuration) {
+    isNight = false;                           // Дневное время
+  } else if (elapsed < dayDuration + nightDuration) {
+    isNight = true;                            // Ночное время
+  } else {
+    cycleStart = currentMillis;                // Сброс цикла
+    isNight = false;                           // Начало нового дня
   }
 }
 
+//  Функция проверки освещенности 
 void checkLight() {
-  long sum = 0;
-  for (int i = 0; i < lights.count; i++) sum += lights.values[i];
+  long sum = 0;                                // Сумма значений датчиков
+  for (int i = 0; i < lights.count; i++) 
+    sum += lights.values[i];                   // Суммируем значения всех датчиков
+  // Включаем свет если: день И средняя освещенность ниже минимума
   lights.shouldBeOn = !isNight && (sum / lights.count < lights.limits.minVal);
 }
 
+//  Функция проверки температуры
 void checkTemp() {
-  if (air.is_normal)
+  if (air.is_normal)                           // Если данные DHT корректны
+    // Включаем нагреватель если температура ниже минимальной
     heater.is_on = air.temperature < heater.limits.minVal;
 }
 
+//  Функция проверки влажности почвы 
 void checkSoil() {
-  if (soils.count == 0) return;
+  if (soils.count == 0) return;                // Если нет датчиков - выходим
   
-  long sum = 0;
-  for (int i = 0; i < soils.count; i++) sum += soils.values[i];
+  long sum = 0;                                // Сумма значений датчиков
+  for (int i = 0; i < soils.count; i++) 
+    sum += soils.values[i];                    // Суммируем значения всех датчиков
+  // Нужен полив если среднее значение выше порога (чем выше значение - тем суше почва)
   soils.pumpNeeded = (sum / soils.count) > soils.limits.minVal;
   
+  // Защита от перелива: выключаем насос после максимального времени работы
   if (pump.is_on && (currentMillis - soils.lastPumpStart > soils.pumpMaxDuration)) {
-    pump.is_on = soils.pumpNeeded = false;
+    pump.is_on = soils.pumpNeeded = false;     // Выключаем насос и сбрасываем флаг
   }
 }
 
+//  Функция проверки вентиляции по расписанию 
 void checkVent() {
+  // Активация таймера если интервал прошел и таймер неактивен
   if (!vent.timerActive && (currentMillis - vent.lastVentTime >= vent.ventInterval)) {
-    vent.timerActive = true;
-    vent.lastVentTime = currentMillis;
+    vent.timerActive = true;                   // Активируем таймер проветривания
+    vent.lastVentTime = currentMillis;         // Запоминаем время начала
   }
 
+  // Деактивация таймера если время проветривания прошло
   if (vent.timerActive && (currentMillis - vent.lastVentTime >= vent.ventDuration)) {
-    vent.timerActive = false;
-    vent.lastVentTime = currentMillis;
+    vent.timerActive = false;                  // Деактивируем таймер
+    vent.lastVentTime = currentMillis;         // Обновляем время последнего проветривания
   }
 }
 
+//  Функция управления насосом 
 void controlPump() {
-  if (soils.pumpNeeded && !pump.is_on) {
-    pump.is_on = true;
-    soils.lastPumpStart = currentMillis;
-  } else if (!soils.pumpNeeded && pump.is_on) {
-    pump.is_on = false;
+  if (soils.pumpNeeded && !pump.is_on) {       // Если нужен полив и насос выключен
+    pump.is_on = true;                         // Включаем насос
+    soils.lastPumpStart = currentMillis;       // Запоминаем время начала полива
+  } else if (!soils.pumpNeeded && pump.is_on) { // Если полив не нужен и насос включен
+    pump.is_on = false;                        // Выключаем насос
   }
 }
 
-// === Управление устройствами ===
+//  Функция управления всеми устройствами 
 void controlDevices() {
+  // Управление лампой: включаем если нужно по освещенности
   digitalWrite(lamp.pin, (lamp.is_on = lights.shouldBeOn));
+  
+  // Управление нагревателем: включаем/выключаем согласно флагу
   digitalWrite(heater.pin, heater.is_on);
+  
+  // Управление насосом: включаем/выключаем согласно флагу
   digitalWrite(pump.pin, pump.is_on);
   
+  // Логика включения вентиляции
   bool highHumidity = air.is_normal && air.humidity > vent.humidityLimits.maxVal;
-  bool needVent = vent.timerActive || highHumidity || heater.is_on || pump.is_on;
-  digitalWrite(vent.pin, (vent.is_on = needVent));
+  bool needVent = vent.timerActive ||    // По расписанию
+                  highHumidity ||        // При высокой влажности
+                  heater.is_on ||        // При работе нагревателя
+                  pump.is_on;            // При работе насоса
+  digitalWrite(vent.pin, (vent.is_on = needVent));  // Управление вентилятором
 }
 
-// === Логирование ===
+//  Функция логирования данных в Serial 
 void serialLog() {
-  if (currentMillis - lastSerial < serialInterval) return;
-  lastSerial = currentMillis;
+  if (currentMillis - lastSerial < serialInterval) return;  // Проверяем интервал
+  lastSerial = currentMillis;              // Обновляем время последнего вывода
 
+  // Вычисление средних значений
   bool highHumidity = air.is_normal && air.humidity > vent.humidityLimits.maxVal;
   long lightSum = 0, soilSum = 0;
   
-  for (int i = 0; i < lights.count; i++) lightSum += lights.values[i];
-  for (int i = 0; i < soils.count; i++) soilSum += soils.values[i];
+  // Суммируем значения всех датчиков освещенности
+  for (int i = 0; i < lights.count; i++) 
+    lightSum += lights.values[i];
+  
+  // Суммируем значения всех датчиков почвы
+  for (int i = 0; i < soils.count; i++) 
+    soilSum += soils.values[i];
 
+  // Вывод статуса системы
   Serial.println("=== STATUS ===");
-  Serial.print("DHT:"); Serial.print(air.is_normal ? "OK " : "FAIL ");
-  Serial.print(air.temperature); Serial.print("C "); Serial.print(air.humidity); Serial.println("%");
-  Serial.print("Light:"); Serial.print(lightSum / lights.count);
-  Serial.print(" Lamp:"); Serial.println(lamp.is_on ? "ON" : "OFF");
-  Serial.print("Soil:"); Serial.print(soilSum / soils.count);
-  Serial.print(" Pump:"); Serial.println(pump.is_on ? "ON" : "OFF");
-  Serial.print("Heat:"); Serial.print(heater.is_on ? "ON" : "OFF");
-  Serial.print(" Vent:"); Serial.println(vent.is_on ? "ON" : "OFF");
+  Serial.print("DHT:"); 
+  Serial.print(air.is_normal ? "OK " : "FAIL ");
+  Serial.print(air.temperature); 
+  Serial.print("C "); 
+  Serial.print(air.humidity); 
+  Serial.println("%");
+  
+  Serial.print("Light:"); 
+  Serial.print(lightSum / lights.count);
+  Serial.print(" Lamp:"); 
+  Serial.println(lamp.is_on ? "ON" : "OFF");
+  
+  Serial.print("Soil:"); 
+  Serial.print(soilSum / soils.count);
+  Serial.print(" Pump:"); 
+  Serial.println(pump.is_on ? "ON" : "OFF");
+  
+  Serial.print("Heat:"); 
+  Serial.print(heater.is_on ? "ON" : "OFF");
+  Serial.print(" Vent:"); 
+  Serial.println(vent.is_on ? "ON" : "OFF");
+  
   Serial.println("==============");
 }
 
-// === Основные функции ===
+// Функция setup - выполняется один раз при старте 
 void setup() {
-  Serial.begin(9600);
-  dht.begin();
+  Serial.begin(9600);          // Инициализация Serial порта на скорости 9600 бод
+  dht.begin();                 // Инициализация датчика DHT11
   
+  // Настройка пинов управления как выходы
   pinMode(PUMP_PIN, OUTPUT);
   pinMode(LIGHT_PIN, OUTPUT);
   pinMode(HEAT_PIN, OUTPUT);
   pinMode(VENT_PIN, OUTPUT);
 
-  initParams();
+  initParams();                // Инициализация параметров системы
   
+  // Гарантированно выключаем все устройства при старте
   digitalWrite(PUMP_PIN, LOW);
   digitalWrite(LIGHT_PIN, LOW);
   digitalWrite(HEAT_PIN, LOW);
   digitalWrite(VENT_PIN, LOW);
 }
 
+//  Функция loop - выполняется постоянно в цикле 
 void loop() {
-  currentMillis = millis();
+  currentMillis = millis();    // Обновляем текущее время
   
-  updateDayNight();
-  readSensors();
+  updateDayNight();            // Обновляем цикл день/ночь
+  readSensors();               // Читаем данные со всех датчиков
   
-  checkLight();
-  checkTemp();
-  checkSoil();
-  checkVent();
-  controlPump();
+  // Выполняем логику управления системой
+  checkLight();                // Проверяем освещенность
+  checkTemp();                 // Проверяем температуру
+  checkSoil();                 // Проверяем влажность почвы
+  checkVent();                 // Проверяем вентиляцию
+  controlPump();               // Управляем насосом
   
-  controlDevices();
-  serialLog();
+  controlDevices();            // Управляем всеми устройствами
+  serialLog();                 // Выводим данные в Serial порт
 }
