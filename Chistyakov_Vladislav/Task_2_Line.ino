@@ -5,17 +5,19 @@
 #define MOTOR_L_POW 6
 #define MOTOR_R_DIR 4
 #define MOTOR_R_POW 5
+#define SOUND_PIN 11
 
 // Значения PD контроллера
-float gain_P = 8.0;
+float gain_P = 7.5;
 float gain_D = 6.0;
 
 int speed = 125;                // Скорость на линии
 int max_speed = 250;            // Максимальная скорость
-int search_speed = 150;         // Скорость поиска линии
+int search_speed = 30;         // Скорость поиска линии
 int spiral_strength = 5;        // Сила раскручивания при поиске линии
-int sensor_threshold = 20;      // Чувствительность к потере линии в %
+int sensor_threshold = 60;      // Чувствительность к потере линии в %
 int search_timeout = 20000;     // Максимальное время поиска линии
+int spiral_interval = 200;
 
 struct Sensor_parametrs {
   int current;
@@ -27,9 +29,9 @@ struct Sensor_parametrs sensor_L;
 struct Sensor_parametrs sensor_R;
 int last_error = 0;
 int spiral_speed = 0;
+int spiral_timer = 0;
 bool is_bot_active = false;
-bool is_bot_on_line = false;
-
+bool is_bot_on_line = true;
 
 void move_motors (int leftspeed, int rightspeed) {
   digitalWrite (MOTOR_L_DIR, leftspeed > 0);
@@ -74,21 +76,19 @@ void sensor_read() {
   sensor_R.current = map(analogRead(SENSOR_R_PIN), sensor_R.min, sensor_R.max, 0, 100);
 
   if (!is_bot_on_line) {
-    // Если бот слишком долго ищет линию — он останавливается
-    unsigned long search_start_time = 0;
-    if (millis() - search_start_time > search_timeout) stop_robot();
-
     // Проверка — найдена ли линия
     if (sensor_L.current < sensor_threshold || sensor_R.current < sensor_threshold) {
         is_bot_on_line = true;
         spiral_speed = 0;
     }
+    else is_bot_on_line = false;
   }
     // Проверка — потеряна ли линия
   else {
     if (sensor_L.current < sensor_threshold && sensor_R.current < sensor_threshold) {
         is_bot_on_line = false;
     }
+    else is_bot_on_line = true;
   }
 }
 
@@ -106,12 +106,25 @@ void line_following() {
 
 
 void line_search() {
-  spiral_speed += spiral_strength;
+  if (millis() - spiral_timer > spiral_interval) {
+    spiral_step += spiral_increase;
+    spiral_timer = millis();
+  }
 
-  if (last_error < 0) {
-    move_motors(search_speed, constrain(spiral_speed, 0, search_speed));    // Вращение вправо
-  } else {
-    move_motors(constrain(spiral_speed, 0, search_speed), search_speed);    // Вращение влево
+  int left_speed = search_speed - spiral_step;
+  int right_speed = search_speed - spiral_step;
+
+  if (spiral_direction) drive(left_speed, search_speed);
+  else drive(search_speed, right_speed);
+
+  if (sensor_left > light_threshold || sensor_right > light_threshold) {
+    searching = false;
+    last_direction = (sensor_left > light_threshold) ? 0 : 1;
+    state = FOLLOW_LINE;
+  }
+
+  if (millis() - search_start_time > search_timeout) {
+    stop_robot();
   }
 }
 
@@ -123,6 +136,8 @@ void setup() {
   pinMode(MOTOR_L_DIR, OUTPUT);
   pinMode(MOTOR_R_POW, OUTPUT);
   pinMode(MOTOR_R_DIR, OUTPUT);
+
+  pinMode(SOUND_PIN, OUTPUT);
 
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   pinMode(SENSOR_L_PIN, INPUT);
@@ -140,9 +155,13 @@ void setup() {
 void loop() {
   if (is_bot_active) {
     sensor_read();
-    if (is_bot_on_line)
+    if (is_bot_on_line) {
     line_following();
-    else 
+    tone(SOUND_PIN, 10, 10);
+    }
+    else {
     line_search();
+    tone(SOUND_PIN, 500, 500);
+    }
   }
 }
