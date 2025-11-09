@@ -1,0 +1,253 @@
+#include <DHT.h>
+#include <Adafruit_Sensor.h>
+
+// === Аппаратная распиновка ===
+#define PUMP_PIN 5
+#define LIGHT_PIN 6
+#define HEAT_PIN 4
+#define VENT_PIN 7
+#define DHT_PIN 12
+#define DEFAULT_LIGHT_SENSOR_PIN A0
+#define DEFAULT_SOIL_SENSOR_PIN A3
+
+const int MAX_LIGHT_SENSORS = 4;
+const int MAX_SOIL_SENSORS = 4;
+
+struct Range {
+  int minVal;
+  int maxVal;
+};
+
+struct AirSensor {
+  int pin;
+  int temperature;
+  int humidity;
+  bool is_normal;
+};
+
+struct LightSensors {
+  int pins[MAX_LIGHT_SENSORS];
+  int values[MAX_LIGHT_SENSORS];
+  int count;
+  Range limits;
+  bool shouldBeOn;
+};
+
+struct SoilSensors {
+  int pins[MAX_SOIL_SENSORS];
+  int values[MAX_SOIL_SENSORS];
+  int count;
+  Range limits;
+  bool pumpNeeded;
+  unsigned long lastPumpStart;
+  unsigned long pumpMaxDuration;
+};
+
+struct Pump {
+  int pin;
+  bool is_on;
+};
+
+struct LightCtrl {
+  int pin;
+  bool is_on;
+  Range limits;
+};
+
+struct Heater {
+  int pin;
+  bool is_on;
+  Range limits;
+};
+
+struct Ventilation {
+  int pin;
+  bool is_on;
+  Range humidityLimits;
+  unsigned long lastVentTime;
+  unsigned long ventInterval;
+  unsigned long ventDuration;
+  bool timerActive;
+};
+
+// === Глобальные объекты ===
+unsigned long currentMillis = 0;
+DHT dht(DHT_PIN, DHT11);
+AirSensor air = {DHT_PIN, 0, 0, false};
+LightSensors lights;
+SoilSensors soils;
+Pump pump = {PUMP_PIN, false};
+LightCtrl lamp = {LIGHT_PIN, false, {0, 0}};
+Heater heater = {HEAT_PIN, false, {0, 0}};
+Ventilation vent = {VENT_PIN, false, {30, 75}, 0, 3600000UL, 60000UL, false};
+
+// === Время / циклы ===
+unsigned long cycleStart = 0;
+const unsigned long dayDuration = 10000UL, nightDuration = 10000UL;
+bool isNight = false;
+unsigned long lastSerial = 0;
+const unsigned long serialInterval = 5000UL;
+
+// === Инициализация ===
+void initParams() {
+  // Датчики света
+  lights.count = 1;
+  lights.pins[0] = DEFAULT_LIGHT_SENSOR_PIN;
+  lights.limits = {405, 800};
+  lights.shouldBeOn = false;
+
+  // Датчики почвы
+  soils.count = 1;
+  soils.pins[0] = DEFAULT_SOIL_SENSOR_PIN;
+  soils.limits = {500, 600};
+  soils.pumpNeeded = false;
+  soils.pumpMaxDuration = 30000UL;
+
+  // Устройства
+  lamp.limits = lights.limits;
+  heater.limits = {20, 27};
+  vent.lastVentTime = currentMillis;
+
+  cycleStart = currentMillis;
+}
+
+// === Чтение датчиков ===
+void readSensors() {
+  // DHT
+  int h = dht.readHumidity();
+  int t = dht.readTemperature();
+  air.is_normal = !isnan(h) && !isnan(t);
+  if (air.is_normal) {
+    air.humidity = h;
+    air.temperature = t;
+  }
+
+  // Свет и почва
+  for (int i = 0; i < lights.count; i++)
+    lights.values[i] = analogRead(lights.pins[i]);
+  for (int i = 0; i < soils.count; i++)
+    soils.values[i] = analogRead(soils.pins[i]);
+}
+
+// === Алгоритмы управления ===
+void updateDayNight() {
+  unsigned long elapsed = currentMillis - cycleStart;
+  if (elapsed < dayDuration) isNight = false;
+  else if (elapsed < dayDuration + nightDuration) isNight = true;
+  else {
+    cycleStart = currentMillis;
+    isNight = false;
+  }
+}
+
+void checkLight() {
+  long sum = 0;
+  for (int i = 0; i < lights.count; i++) sum += lights.values[i];
+  lights.shouldBeOn = !isNight && (sum / lights.count < lights.limits.minVal);
+}
+
+void checkTemp() {
+  if (air.is_normal)
+    heater.is_on = air.temperature < heater.limits.minVal;
+}
+
+void checkSoil() {
+  if (soils.count == 0) return;
+  
+  long sum = 0;
+  for (int i = 0; i < soils.count; i++) sum += soils.values[i];
+  soils.pumpNeeded = (sum / soils.count) > soils.limits.minVal;
+  
+  if (pump.is_on && (currentMillis - soils.lastPumpStart > soils.pumpMaxDuration)) {
+    pump.is_on = soils.pumpNeeded = false;
+  }
+}
+
+void checkVent() {
+  if (!vent.timerActive && (currentMillis - vent.lastVentTime >= vent.ventInterval)) {
+    vent.timerActive = true;
+    vent.lastVentTime = currentMillis;
+  }
+
+  if (vent.timerActive && (currentMillis - vent.lastVentTime >= vent.ventDuration)) {
+    vent.timerActive = false;
+    vent.lastVentTime = currentMillis;
+  }
+}
+
+void controlPump() {
+  if (soils.pumpNeeded && !pump.is_on) {
+    pump.is_on = true;
+    soils.lastPumpStart = currentMillis;
+  } else if (!soils.pumpNeeded && pump.is_on) {
+    pump.is_on = false;
+  }
+}
+
+// === Управление устройствами ===
+void controlDevices() {
+  digitalWrite(lamp.pin, (lamp.is_on = lights.shouldBeOn));
+  digitalWrite(heater.pin, heater.is_on);
+  digitalWrite(pump.pin, pump.is_on);
+  
+  bool highHumidity = air.is_normal && air.humidity > vent.humidityLimits.maxVal;
+  bool needVent = vent.timerActive || highHumidity || heater.is_on || pump.is_on;
+  digitalWrite(vent.pin, (vent.is_on = needVent));
+}
+
+// === Логирование ===
+void serialLog() {
+  if (currentMillis - lastSerial < serialInterval) return;
+  lastSerial = currentMillis;
+
+  bool highHumidity = air.is_normal && air.humidity > vent.humidityLimits.maxVal;
+  long lightSum = 0, soilSum = 0;
+  
+  for (int i = 0; i < lights.count; i++) lightSum += lights.values[i];
+  for (int i = 0; i < soils.count; i++) soilSum += soils.values[i];
+
+  Serial.println("=== STATUS ===");
+  Serial.print("DHT:"); Serial.print(air.is_normal ? "OK " : "FAIL ");
+  Serial.print(air.temperature); Serial.print("C "); Serial.print(air.humidity); Serial.println("%");
+  Serial.print("Light:"); Serial.print(lightSum / lights.count);
+  Serial.print(" Lamp:"); Serial.println(lamp.is_on ? "ON" : "OFF");
+  Serial.print("Soil:"); Serial.print(soilSum / soils.count);
+  Serial.print(" Pump:"); Serial.println(pump.is_on ? "ON" : "OFF");
+  Serial.print("Heat:"); Serial.print(heater.is_on ? "ON" : "OFF");
+  Serial.print(" Vent:"); Serial.println(vent.is_on ? "ON" : "OFF");
+  Serial.println("==============");
+}
+
+// === Основные функции ===
+void setup() {
+  Serial.begin(9600);
+  dht.begin();
+  
+  pinMode(PUMP_PIN, OUTPUT);
+  pinMode(LIGHT_PIN, OUTPUT);
+  pinMode(HEAT_PIN, OUTPUT);
+  pinMode(VENT_PIN, OUTPUT);
+
+  initParams();
+  
+  digitalWrite(PUMP_PIN, LOW);
+  digitalWrite(LIGHT_PIN, LOW);
+  digitalWrite(HEAT_PIN, LOW);
+  digitalWrite(VENT_PIN, LOW);
+}
+
+void loop() {
+  currentMillis = millis();
+  
+  updateDayNight();
+  readSensors();
+  
+  checkLight();
+  checkTemp();
+  checkSoil();
+  checkVent();
+  controlPump();
+  
+  controlDevices();
+  serialLog();
+}
