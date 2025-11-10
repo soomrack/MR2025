@@ -30,7 +30,7 @@ struct ClimateLimits {
 };
 
 
-ClimateLimits climate = {400, 500, 20, 30, 60};
+ClimateLimits climate = {400, 1000, 20, 30, 60};
 
 
 class Fan {
@@ -168,17 +168,14 @@ class Thermometer_random {
 
 class Thermometer_mean: public Thermometer {
   public:
-    int* t1;
-    int* t2;
-    int* t3;
-    void calculate();
+    void calculate(Thermometer & t01, Thermometer & t02, Thermometer_random & t03);
 };
 
 
-void Thermometer_mean::calculate() {
-  int a = *t1;
-  int b = *t2;
-  int c = *t3;
+void Thermometer_mean::calculate(Thermometer & t01, Thermometer & t02, Thermometer_random & t03) {
+  int a = t01.temperature;
+  int b = t02.temperature;
+  int c = t03.temperature;
   int temp;
   if (a > b) { temp = a; a = b; b = temp; }
   if (b > c) { temp = b; b = c; c = temp; }
@@ -228,9 +225,16 @@ void control_vent(Fan & fan) {
 
 
 void control_light(Light & light, Lamp & lamp) {
-  lamp._lamp = (TIME / HOUR_LENGTH > LIGHT_ON_HOUR && 
-                  TIME / HOUR_LENGTH < LIGHT_OFF_HOUR && 
-                  light.lightValue < climate.minLight);
+  if ( TIME / HOUR_LENGTH > LIGHT_ON_HOUR && TIME / HOUR_LENGTH < LIGHT_OFF_HOUR ) {
+    if (light.lightValue > climate.minLight) {
+      lamp._lamp = true;
+    }
+    else {
+      lamp._lamp = false;
+  }
+  } else {
+    lamp._lamp = false;
+  }
 }
 
 
@@ -248,7 +252,7 @@ void control_dirt(Pump & pump, Dirt_humidity & dirt_humidity) {
   static unsigned long startWaterTime = 0;
   static bool watering = false;
 
-  if (!watering && dirt_humidity.humidity < climate.minDirtHum && TIME - lastWaterTime >= WATER_PERIOD) {
+  if (!watering && dirt_humidity.humidity > climate.minDirtHum && TIME - lastWaterTime >= WATER_PERIOD) {
     watering = true;
     startWaterTime = TIME;
   }
@@ -259,20 +263,6 @@ void control_dirt(Pump & pump, Dirt_humidity & dirt_humidity) {
     watering = false;
     lastWaterTime = TIME;
   }
-}
-
-
-void printStatus(Thermometer &thermometer, Light &light, Air_humidity &air_humidity, Dirt_humidity &dirt_humidity, unsigned long TIME) {
-  Serial.print("Temperature: ");
-  Serial.print(thermometer.temperature);
-  Serial.print(" Light: ");
-  Serial.print(light.lightValue);
-  Serial.print(" Air_hum: ");
-  Serial.print(air_humidity.humidity);
-  Serial.print(" Dirt_hum: ");
-  Serial.print(dirt_humidity.humidity);
-  Serial.print(" Time (hour): ");
-  Serial.println(TIME/HOUR_LENGTH);    // при ускорении времени 
 }
 
 
@@ -289,6 +279,21 @@ Air_humidity air_humidity;
 Dirt_humidity dirt_humidity;
 
 
+void printStatus(Thermometer &thermometer, Light &light, Air_humidity &air_humidity, Dirt_humidity &dirt_humidity, unsigned long TIME) {
+  Serial.print("Temperature: ");
+  Serial.print(thermometer.temperature);
+  Serial.print(" Light: ");
+  Serial.print(light.lightValue);
+  if (lamp._lamp) Serial.print(" Lamp ON"); else Serial.print(" Lamp OFF");
+  Serial.print(" Air_hum: ");
+  Serial.print(air_humidity.humidity);
+  Serial.print(" Dirt_hum: ");
+  Serial.print(dirt_humidity.humidity);
+  Serial.print(" Time (hour): ");
+  Serial.println(TIME/HOUR_LENGTH);    // при ускорении времени 
+}
+
+
 void setup() {
   pinMode(light.pin, INPUT);
   pinMode(dirt_humidity.pin, INPUT);
@@ -298,10 +303,6 @@ void setup() {
   pinMode(pump.pin, OUTPUT);
   pinMode(heater.pin, OUTPUT);
 
-  thermometer.t1 = &thermometer1.temperature;
-  thermometer.t2 = &thermometer2.temperature;
-  thermometer.t3 = &thermometer3.temperature;
-
   Serial.begin(9600);
 }
 
@@ -309,14 +310,14 @@ void setup() {
 void loop() {
   TIME = millis()*600;  // *600 ускорение
 
-  thermometer1.get_data();
-  thermometer2.get_data();
-  thermometer.calculate();
-  air_humidity.get_data();
-
   light.read ();
   dirt_humidity.read ();
   thermometer3.read ();
+
+  thermometer1.get_data();
+  thermometer2.get_data();
+  thermometer.calculate(thermometer1, thermometer2, thermometer3);
+  air_humidity.get_data();
 
   control_light(light, lamp);
   control_vent(fan);
