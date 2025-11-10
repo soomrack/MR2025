@@ -8,9 +8,9 @@
 #define RS_PIN  A1 
 
 
+#define base_speed 255
 float gain_p = 7.0;
 float gain_d = 4.0;
-int base_speed = 255;
 int search_speed = 110;
 int light_threshold = 50;
 int spiral_increase = 3;
