@@ -1,7 +1,7 @@
 #define LM_PWM_PIN  6
 #define LM_DIR_PIN  7
 #define RM_PWM_PIN  5
-#define RM_DIR_IN  4
+#define RM_DIR_PIN  4
 
 #define BUTTON_PIN  12
 #define LS_PIN  A0
@@ -62,12 +62,12 @@ void SetSpeed(int pwm, uint8_t dir_pin, uint8_t pwm_pin){
 
 
 void SetLSpeed(int speed){
-  SetSpeed(speed, LM_DIR, LM_PWM);
+  SetSpeed(speed, LM_DIR_PIN, LM_PWM_PIN);
 }
 
 
 void SetRSpeed(int speed){
-  SetSpeed(speed, RM_DIR, RM_PWM);
+  SetSpeed(speed, RM_DIR_PIN, RM_PWM_PIN);
 }
 
 
