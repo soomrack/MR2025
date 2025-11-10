@@ -3,7 +3,7 @@
 #define MOTOR_L_DIR 7
 #define MOTOR_R_PWM 5
 #define MOTOR_R_DIR 4
-#define BUTTON_PIN 12
+#define BUTTON_PIN 2
 #define SOUND_PIN 9
 #define SENSOR_L A0
 #define SENSOR_R A1
@@ -28,6 +28,7 @@ const int line_seen_threshold_2_ms = 5000; // for 2nd stage of searching
 const int line_search_stop_threshold_ms = 10 * 1000; // Сколько мс робот будет искать линию до остановки.
 
 // Прочие переменные
+const int sensor_mode = -1; // +1 или -1
 float lastError = 0; float integral = 0;
 bool systemActive = false;
 bool lastButtonState = LOW; // чтобы при первом запуске нажимать только 1 раз
@@ -119,8 +120,8 @@ void recoverLine() {
     while (lineLost()) {
         const int search_speed = 120;
         const int turn_time_ms = 10;
-        const int curvature = 1; // linear coeff, from zero to infinity
-        int go_forward_ms = (turn_time_ms/2+1) * curvature * i;
+        const float radius_coeff = 0.01; // linear coeff, from zero to infinity
+        int go_forward_ms = (turn_time_ms/2+1) * radius_coeff * i;
 
         setMotors(-search_speed, search_speed); // turn left
         delay(turn_time_ms);
@@ -220,7 +221,7 @@ void followTrack() {
     int l_val = map(analogRead(SENSOR_L), l_minVal, l_maxVal, 0, 100);
     int r_val = map(analogRead(SENSOR_R), r_minVal, r_maxVal, 0, 100);
 
-    float error =  l_val - r_val;
+    float error =  sensor_mode * (l_val - r_val);
     integral += error;
     float correction = Kp * error + Kd * (error - lastError) + Ki * integral; // PID
 
