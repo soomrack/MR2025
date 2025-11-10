@@ -9,9 +9,9 @@
 #define SENSOR_RIGHT_PIN A1         // right sensor of the line
 
 // motion parameters
-#define PID_P_GAIN 3.0              // Sensitivity to deviation from the line
-#define PID_D_GAIN 1.5              // Smoothness of turns
-#define BASE_SPEED 80               // Normal speed
+#define PID_P_GAIN 3.0              // Sensitivity to deviation from the line (chosen by selection method)
+#define PID_D_GAIN 1.5              // Smoothness of turns (chosen by selection method)
+#define BASE_SPEED 80               // Normal speed 
 #define SEARCH_SPEED 110            // Speed when searching for a line
 #define MAX_MOTOR_SPEED 250         // Maximum motor speed
 
@@ -71,7 +71,7 @@ unsigned long last_beep_time = 0;
 unsigned long last_note_time = 0;
 int current_note_index = 0;
 
-// melody
+// Star Wars melody - Empireal march (taken from internet)
 const int melody_notes[] = {
   392, 392, 392, 311, 466,
   392, 311, 466, 392,
@@ -116,7 +116,7 @@ public:
     set_motors(0, 0);
     current_state = STATE_IDLE;
     play_note(500, 500);
-    Serial.println("робот остановлен");
+    Serial.println("The robot was stopped");
   }
 
   // rreading and normalizing data from the sensors
@@ -169,7 +169,7 @@ public:
     search.direction = (last_turn_side == 0);
     search.start_time = millis();
     play_note(300, 200);
-    Serial.println("Начат поиск линии...");
+    Serial.println("The search of the line was started");
   }
 
   // playing melody
@@ -180,7 +180,7 @@ public:
       last_note_time = millis();
     }
   }
-
+  
   // periodical sound signals
   void periodic_beep() {
     if (millis() - last_beep_time > BEEP_INTERVAL) {
@@ -258,7 +258,7 @@ void state_search_line() {
   //  if the robot finds the line it will return to following it
   if (robot.is_on_line(left_sensor, right_sensor)) {
     last_turn_side = (left_sensor > LINE_THRESHOLD) ? 0 : 1;
-    robot.play_note(1000, 300); // Сигнал "нашел линию"
+    robot.play_note(1000, 300); // sound "the line was detected"
     current_state = STATE_FOLLOW_LINE;
     return;
   }
@@ -278,7 +278,7 @@ void handle_button() {
     if (current_state == STATE_IDLE) {
       current_state = STATE_CALIBRATING;
       robot.play_note(1200, 300);
-      Serial.println("Запуск робота!");
+      Serial.println("The robot is starting!");
     } 
     // if we were in any other state - stop robot
     else {
@@ -289,23 +289,6 @@ void handle_button() {
 }
 
 
-// Диспетчер состояний
-void run_state_robot() {
-  switch (current_state) {
-    case STATE_IDLE:
-      state_idle();
-      break;
-    case STATE_CALIBRATING:
-      state_calibrating();
-      break;
-    case STATE_FOLLOW_LINE:
-      state_follow_line();
-      break;
-    case STATE_SEARCH_LINE:
-      state_search_line();
-      break;
-  }
-}
 
 void setup() {
   // pins' inizialization
@@ -324,6 +307,19 @@ void setup() {
 
 void loop() {
   handle_button();       //  checking the button in any states
+    switch (current_state) {
+    case STATE_IDLE:
+      state_idle(); break;
+    case STATE_CALIBRATING:
+      state_calibrating();
+      break;
+    case STATE_FOLLOW_LINE:
+      state_follow_line();
+      break;
+    case STATE_SEARCH_LINE:
+      state_search_line();
+      break;
+  }
   run_state_robot();     //  accomplish the current state
   delay(10);             // stabilize working
 }
