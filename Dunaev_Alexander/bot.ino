@@ -1,15 +1,15 @@
-#define LM_PWM  6
-#define LM_DIR  7
-#define RM_PWM  5
-#define RM_DIR  4
+#define LM_PWM_PIN  6
+#define LM_DIR_PIN  7
+#define RM_PWM_PIN  5
+#define RM_DIR_IN  4
 
 #define BUTTON_PIN  12
 #define LS_PIN  A0
 #define RS_PIN  A1 
 
 
-float gain_p = 8.0;
-float gain_d = 5.0;
+float gain_p = 7.0;
+float gain_d = 4.0;
 int base_speed = 255;
 int search_speed = 110;
 int light_threshold = 50;
@@ -44,10 +44,10 @@ RobotState state = IDLE;
 
 
 void InitMotors(){
-  pinMode(LM_PWM, OUTPUT);
-  pinMode(RM_PWM, OUTPUT);
-  pinMode(LM_DIR, OUTPUT);
-  pinMode(RM_DIR, OUTPUT);
+  pinMode(LM_PWM_PIN, OUTPUT);
+  pinMode(RM_PWM_PIN, OUTPUT);
+  pinMode(LM_DIR_PIN, OUTPUT);
+  pinMode(RM_DIR_PIN, OUTPUT);
 }
 
 
