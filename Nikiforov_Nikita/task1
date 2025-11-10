@@ -1,0 +1,336 @@
+#include <iostream>
+#include <cstdlib>
+#include <clocale>
+#include <ctime>
+#include <random>
+
+typedef long long int RUB;
+
+struct Person {
+    RUB bank_account;    // текущий баланс
+    RUB income;          // ежемесячный доход
+    RUB food_expenses;   // расходы на еду (растут с инфляцией)
+    RUB gas_expenses;    // расходы на бензин (растут с инфляцией)
+};
+
+Person Alice_rub, Bob_rub;
+
+// Глобальные переменные
+int current_year, current_month;
+int retire_year, retire_year_Bob;
+int retire_month, retire_month_Bob;
+std::mt19937 rng(time(0));
+
+
+void initialize() {
+    std::cout << "Введите текущий баланс Алисы, затем Боба в рублях: ";
+    std::cin >> Alice_rub.bank_account >> Bob_rub.bank_account;
+
+    std::cout << "Введите текущий ежемесячный доход Алисы, затем Боба в рублях: ";
+    std::cin >> Alice_rub.income >> Bob_rub.income;
+
+    std::cout << "Текущий год: ";
+    std::cin >> current_year;
+
+    std::cout << "Номер текущего месяца: ";
+    std::cin >> current_month;
+
+    // Проверка корректности месяца
+    if (current_month < 1 || current_month > 12) {
+        std::cout << "Ошибка: месяц должен быть от 1 до 12" << std::endl;
+        exit(1);
+    }
+
+    std::cout << "Год выхода Алисы на пенсию: ";
+    std::cin >> retire_year;
+
+    std::cout << "Месяц выхода Алисы на пенсию: ";
+    std::cin >> retire_month;
+
+    // Проверка для Алисы
+    if (retire_year < current_year ||
+        (retire_year == current_year && retire_month <= current_month)) {
+        std::cout << "Ошибка: дата выхода на пенсию Алисы должна быть в будущем" << std::endl;
+        exit(1);
+    }
+
+    std::cout << "Год выхода Боба на пенсию: ";
+    std::cin >> retire_year_Bob;
+
+    std::cout << "Месяц выхода Боба на пенсию: ";
+    std::cin >> retire_month_Bob;
+
+    // Проверка для Боба
+    if (retire_year_Bob < current_year ||
+        (retire_year_Bob == current_year && retire_month_Bob <= current_month)) {
+        std::cout << "Ошибка: дата выхода на пенсию Боба должна быть в будущем" << std::endl;
+        exit(1);
+    }
+
+    // Инициализация расходов на еду и бензин
+    Alice_rub.food_expenses = 8000;   // Алиса тратит на еду
+    Alice_rub.gas_expenses = 3000;    // Алиса тратит на бензин
+    Bob_rub.food_expenses = 12000;    // Боб тратит больше на еду
+    Bob_rub.gas_expenses = 5000;      // Боб тратит больше на бензин
+
+    std::cout << std::endl;
+}
+
+
+
+// Государственная инфляция (влияет на доходы)
+double get_state_inflation(int year) {
+    std::uniform_real_distribution<double> dist(-0.02, 0.02);
+    return 0.05 + dist(rng);
+}
+
+// Инфляция на продукты (обычно выше государственной)
+double get_food_inflation(int year) {
+    std::uniform_real_distribution<double> dist(0.06, 0.12);
+    return dist(rng);
+}
+
+// Инфляция на бензин (очень волатильна)
+double get_gas_inflation(int year) {
+    std::uniform_real_distribution<double> dist(-0.05, 0.15);
+    return 0.08 + dist(rng);
+}
+
+// Применение всех видов инфляции
+void apply_inflation(int year) {
+    // Государственная инфляция (уменьшает реальную стоимость доходов)
+    double state_inflation = get_state_inflation(year);
+    Alice_rub.income = static_cast<RUB>(Alice_rub.income * (1 - state_inflation / 12));
+    Bob_rub.income = static_cast<RUB>(Bob_rub.income * (1 - state_inflation / 12));
+
+    // Инфляция на продукты (увеличивает расходы на еду)
+    double food_inflation = get_food_inflation(year);
+    Alice_rub.food_expenses = static_cast<RUB>(Alice_rub.food_expenses * (1 + food_inflation / 12));
+    Bob_rub.food_expenses = static_cast<RUB>(Bob_rub.food_expenses * (1 + food_inflation / 12));
+
+    // Инфляция на бензин (увеличивает расходы на транспорт)
+    double gas_inflation = get_gas_inflation(year);
+    Alice_rub.gas_expenses = static_cast<RUB>(Alice_rub.gas_expenses * (1 + gas_inflation / 12));
+    Bob_rub.gas_expenses = static_cast<RUB>(Bob_rub.gas_expenses * (1 + gas_inflation / 12));
+}
+
+
+// Доходы Алисы
+void alice_monthly_income(int year, int month) {
+    // Значительное повышение дохода в январе 2035
+    if (year == 2035 && month == 1) {
+        Alice_rub.income = static_cast<RUB>(Alice_rub.income * 1.5);
+        std::cout << "Алиса получила повышение! Новый доход: " << Alice_rub.income << " руб." << std::endl;
+    }
+
+    // Ежегодное повышение зарплаты в январе
+    if (month == 1 && year > current_year) {
+        Alice_rub.income = static_cast<RUB>(Alice_rub.income * 1.07); // 7% ежегодное повышение
+    }
+
+    // Зачисление дохода на счет
+    Alice_rub.bank_account += Alice_rub.income;
+}
+
+// Расходы Алисы на автомобиль
+void alice_car_expenses() {
+    const RUB car_insurance = 2500;    // страховка автомобиля
+    const RUB car_maintenance = 1500;  // техобслуживание
+    RUB total_car_expenses = car_insurance + car_maintenance + Alice_rub.gas_expenses;
+    Alice_rub.bank_account -= total_car_expenses;
+}
+
+// Расходы Алисы на жилье
+void alice_apartment_expenses() {
+    const RUB mortgage = 20000;    // ипотека
+    const RUB utilities = 4000;    // коммунальные услуги
+    Alice_rub.bank_account -= (mortgage + utilities);
+}
+
+// Расходы Алисы на еду
+void alice_food_expenses() {
+    Alice_rub.bank_account -= Alice_rub.food_expenses;
+}
+
+// Общие ежемесячные расходы Алисы
+void alice_monthly_expenses() {
+    alice_food_expenses();        // питание (учитывает инфляцию)
+    alice_apartment_expenses();   // жилье
+    alice_car_expenses();         // автомобиль + бензин (учитывает инфляцию)
+
+    const RUB other_expenses = 5000; // прочие регулярные расходы
+    Alice_rub.bank_account -= other_expenses;
+}
+
+
+
+// Доходы Боба
+void bob_monthly_income(int year, int month) {
+    // Ежегодное повышение зарплаты в январе
+    if (month == 1 && year > current_year) {
+        Bob_rub.income = static_cast<RUB>(Bob_rub.income * 1.1); // 10% ежегодное повышение
+    }
+
+    // Крупная покупка машины через 15 лет
+    if (year == current_year + 15 && month == 1) {
+        RUB car_cost = 250000;
+        Bob_rub.bank_account -= car_cost;
+        std::cout << "Боб купил новую машину! Потрачено: " << car_cost << " руб." << std::endl;
+    }
+
+    // Зачисление дохода на счет
+    Bob_rub.bank_account += Bob_rub.income;
+}
+
+// Расходы Боба на автомобиль
+void bob_car_expenses() {
+    const RUB car_loan = 15000;       // автокредит
+    const RUB car_insurance = 3000;   // страховка
+    const RUB car_maintenance = 2000; // техобслуживание
+    RUB total_car_expenses = car_loan + car_insurance + car_maintenance + Bob_rub.gas_expenses;
+    Bob_rub.bank_account -= total_car_expenses;
+}
+
+// Расходы Боба на жилье
+void bob_apartment_expenses() {
+    const RUB rent = 25000;       // аренда жилья
+    const RUB utilities = 5000;   // коммунальные услуги
+    Bob_rub.bank_account -= (rent + utilities);
+}
+
+// Расходы Боба на еду
+void bob_food_expenses() {
+    Bob_rub.bank_account -= Bob_rub.food_expenses;
+}
+
+// Общие ежемесячные расходы Боба
+void bob_monthly_expenses() {
+    bob_food_expenses();          // питание (учитывает инфляцию)
+    bob_apartment_expenses();     // жилье
+    bob_car_expenses();           // автомобиль + бензин (учитывает инфляцию)
+
+    const RUB child_expenses = 2000;      // расходы на ребенка
+    const RUB entertainment = 3000;       // развлечения
+    Bob_rub.bank_account -= (child_expenses + entertainment);
+}
+
+
+
+// Событие: Алиса хочет крабов (5% вероятность в месяц)
+void alice_crabs_event() {
+    std::uniform_real_distribution<double> dist(0.0, 1.0);
+    if (dist(rng) < 0.05) {
+        RUB crabs_cost = 8000;
+        Alice_rub.bank_account -= crabs_cost;
+        std::cout << "Алиса захотела крабов! Потрачено: " << crabs_cost << " руб." << std::endl;
+    }
+}
+
+// Событие: Боб уходит в запой (3% вероятность в месяц)
+void bob_zapoi_event() {
+    std::uniform_real_distribution<double> dist(0.0, 1.0);
+    if (dist(rng) < 0.03) {
+        RUB zapoi_cost = 50000;
+        Bob_rub.bank_account -= zapoi_cost;
+        std::cout << "Боб ушел в запой! Потрачено: " << zapoi_cost << " руб." << std::endl;
+    }
+}
+
+// Общие случайные события (положительные и отрицательные)
+void random_event() {
+    std::uniform_real_distribution<double> dist(0.0, 1.0);
+    double event_chance = dist(rng);
+
+    if (event_chance < 0.03) { // 3% вероятность негативного события
+        RUB unexpected_expense = 10000 + (rng() % 20000);
+        Alice_rub.bank_account -= unexpected_expense;
+        Bob_rub.bank_account -= unexpected_expense;
+        std::cout << "Непредвиденные расходы! Каждый потерял: " << unexpected_expense << " руб." << std::endl;
+    }
+    else if (event_chance > 0.97) { // 3% вероятность позитивного события
+        RUB unexpected_income = 5000 + (rng() % 15000);
+        Alice_rub.bank_account += unexpected_income;
+        Bob_rub.bank_account += unexpected_income;
+        std::cout << "Неожиданный доход! Каждый получил: " << unexpected_income << " руб." << std::endl;
+    }
+}
+
+
+void simulate() {
+    int year = current_year;
+    int month = current_month;
+
+    std::cout << "=== НАЧАЛО СИМУЛЯЦИИ ===" << std::endl;
+
+    while (!(year == retire_year && month == retire_month)) {
+        // Применяем инфляцию в январе каждого года
+        if (month == 1) {
+            apply_inflation(year);
+        }
+
+        // ДОХОДЫ (сначала Алиса, потом Боб)
+        alice_monthly_income(year, month);
+        bob_monthly_income(year, month);
+
+        // РАСХОДЫ (сначала Алиса, потом Боб)
+        alice_monthly_expenses();
+        bob_monthly_expenses();
+
+        // СЛУЧАЙНЫЕ СОБЫТИЯ
+        alice_crabs_event();
+        bob_zapoi_event();
+        random_event();
+
+        // Переход к следующему месяцу
+        month++;
+        if (month == 13) {
+            month = 1;
+            year++;
+        }
+    }
+
+    std::cout << "=== СИМУЛЯЦИЯ ЗАВЕРШЕНА ===" << std::endl;
+}
+
+
+
+void output_result_Alice() {
+    std::cout << "\n=== РЕЗУЛЬТАТЫ АЛИСЫ ===" << std::endl;
+    if (Alice_rub.bank_account < 0) {
+        std::cout << "❌ БАНКРОТ! Баланс Алисы: " << Alice_rub.bank_account << " рублей." << std::endl;
+    }
+    else {
+        std::cout << "✅ УСПЕХ! Баланс Алисы в " << retire_year << " году: "
+            << Alice_rub.bank_account << " рублей." << std::endl;
+    }
+}
+
+void output_result_Bob() {
+    std::cout << "\n=== РЕЗУЛЬТАТЫ БОБА ===" << std::endl;
+    if (Bob_rub.bank_account < 0) {
+        std::cout << "❌ БАНКРОТ! Баланс Боба: " << Bob_rub.bank_account << " рублей." << std::endl;
+    }
+    else {
+        std::cout << "✅ УСПЕХ! Баланс Боба в " << retire_year_Bob << " году: "
+            << Bob_rub.bank_account << " рублей." << std::endl;
+    }
+}
+
+
+
+int main() {
+    setlocale(LC_ALL, "Russian");
+    srand(time(0));
+
+    // Инициализация данных
+    initialize();
+
+    // Запуск симуляции
+    simulate();
+
+    // Вывод результатов
+    output_result_Alice();
+    output_result_Bob();
+
+    return 0;
+}
