@@ -161,7 +161,7 @@ void button() {
 // Основа
 void loop() {
 
-    button()
+    button();
 
     if (systemActive) {
         if (lineLost()){ 
