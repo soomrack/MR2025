@@ -146,8 +146,8 @@ void recoverLine() {
     tone(SOUND_PIN, 500, 100);
     delay(200);
     tone(SOUND_PIN, 500, 100);
-    const int adjusting_speed = 90;
-    const int wiggle_timeout_ms = 300; // Сколько мс робот будет ехать вперёд/назад до разворота
+    const int adjusting_speed = 120;
+    const int wiggle_timeout_ms = 500; // Сколько мс робот будет ехать вперёд/назад до разворота
     unsigned long line_seen_wiggle_millis = millis(); 
     // Аналогично line_seen_millis, но для этого этапа.
     // Предполагаем, что линия рядом, поэтому ставим время сейчас.
@@ -193,11 +193,11 @@ void recoverLine() {
         else { // линия между датчиками
             Serial.println("On line: Between sensors");
             unsigned long started_going_ms = millis();
-            setMotors(adjusting_speed, adjusting_speed);
+            setMotors(adjusting_speed, -adjusting_speed);
             while( millis() - started_going_ms <= wiggle_timeout_ms ) {
                 if (back_is_on_line()) break;
                 if (lineLost()) break;
-                delay(1); // go forward
+                delay(1); // turn right
             }
         }
         if (millis() - line_seen_wiggle_millis >= line_seen_threshold_2_ms ) {
@@ -244,9 +244,9 @@ void setup() {
 
     calibrate();
 
+    systemActive = false;
     Serial.println("Press button to start.");
     while (digitalRead(BUTTON_PIN) == HIGH) delay(10);
-    systemActive = true;
 }
 
 // Основной цикл
