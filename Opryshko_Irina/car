@@ -1,0 +1,124 @@
+// Определение пинов для датчиков линии
+#define LEFT_SENSOR A0
+#define RIGHT_SENSOR A3
+
+// Определение пинов для моторов
+// Левый мотор
+#define LEFT_MOTOR_PIN1 6
+#define LEFT_MOTOR_PIN2 7
+// Правый мотор
+#define RIGHT_MOTOR_PIN1 5
+#define RIGHT_MOTOR_PIN2 4
+#define calibration_b 12
+
+bool calibration = false;
+//int 
+
+// Пороговое значение для определения черной линии
+
+
+// Скорости моторов
+int baseSpeed = 130;    // Базовая скорость
+int turnSpeed = 110;    // Скорость при повороте
+
+void setup() {
+  // Настройка пинов моторов как выходы
+  pinMode(LEFT_MOTOR_PIN1, OUTPUT);
+  pinMode(LEFT_MOTOR_PIN2, OUTPUT);
+  pinMode(RIGHT_MOTOR_PIN1, OUTPUT);
+  pinMode(RIGHT_MOTOR_PIN2, OUTPUT);
+  
+  // Датчики настроены как входы по умолчанию
+  
+  // Для отладки можно включить последовательный порт
+  Serial.begin(9600);
+}
+
+void loop() {
+  // Чтение значений с датчиков
+  int leftValue = analogRead(LEFT_SENSOR);
+  int rightValue = analogRead(RIGHT_SENSOR);
+  
+  // Вывод значений для отладки (опционально)
+ delay(1000);
+  Serial.print("Left: ");
+  Serial.print(leftValue);
+  Serial.print(" Right: ");
+  Serial.println(rightValue);
+  Serial.print("Разница: ");
+  Serial.println(leftValue - rightValue);
+  colibr();
+  // Логика следования по линии
+  if (leftValue - rightValue <= 50 && leftValue - rightValue >= -50) {
+    // Оба датчика на черной линии - едем прямо
+    moveForward();
+  }
+  else if (leftValue - rightValue <=500 && leftValue - rightValue >= 250) {
+    // Левый датчик на линии, правый вне линии - поворот налево
+    turnLeft();
+  }
+  else if (leftValue - rightValue <= -450 && leftValue - rightValue >= -550) {
+    // Правый датчик на линии, левый вне линии - поворот направо
+    turnRight();
+  }
+  else if (leftValue - rightValue <= -80 && leftValue - rightValue >= -120){
+    // Оба датчика вне линии - остановка или поиск линии
+    stopMotors();
+    
+    
+    // Альтернатива: поиск линии (раскомментировать при необходимости)
+//    findLine();
+  }
+  
+  delay(50); // Небольшая задержка для стабильности
+}
+
+void colibr(){
+  if (calibration == 0)
+  analogWrite(LEFT_MOTOR_PIN1, 0);
+  analogWrite(LEFT_MOTOR_PIN2, baseSpeed);
+  analogWrite(RIGHT_MOTOR_PIN1, 0);
+  analogWrite(RIGHT_MOTOR_PIN2, baseSpeed); 
+  calibration = true;
+}
+
+// Функция движения вперед
+void moveForward() {
+  analogWrite(LEFT_MOTOR_PIN1, baseSpeed);
+  analogWrite(LEFT_MOTOR_PIN2, baseSpeed);
+  analogWrite(RIGHT_MOTOR_PIN1, baseSpeed);
+  analogWrite(RIGHT_MOTOR_PIN2, baseSpeed);
+}
+
+// Функция поворота налево
+void turnLeft() {
+  analogWrite(LEFT_MOTOR_PIN1, turnSpeed);
+  analogWrite(LEFT_MOTOR_PIN2, 0);
+  analogWrite(RIGHT_MOTOR_PIN1, 0);
+  analogWrite(RIGHT_MOTOR_PIN2, turnSpeed);
+}
+
+// Функция поворота направо
+void turnRight() {
+  analogWrite(LEFT_MOTOR_PIN1, 0);
+  analogWrite(LEFT_MOTOR_PIN2, turnSpeed);
+  analogWrite(RIGHT_MOTOR_PIN1, turnSpeed);
+  analogWrite(RIGHT_MOTOR_PIN2, 0);
+}
+
+// Функция остановки моторов
+void stopMotors() {
+  digitalWrite(LEFT_MOTOR_PIN1, LOW);
+  digitalWrite(LEFT_MOTOR_PIN2, LOW);
+  digitalWrite(RIGHT_MOTOR_PIN1, LOW);
+  digitalWrite(RIGHT_MOTOR_PIN2, LOW);
+}
+
+// Функция поиска линии (дополнительная)
+void findLine() {
+  // Простой алгоритм поиска - поворот на месте
+  turnLeft();
+  delay(200); // Поворачиваем 200ms
+  stopMotors();
+  Serial.println("Searching for line");
+}
