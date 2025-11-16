@@ -216,7 +216,7 @@ void recover_line() {
     // Линия выровнена
 }
 
-// Следование по линии
+// Следование по линии с использованием PID-регулятора
 void follow_track() {
     int l_val = map(analogRead(SENSOR_LEFT_PIN), left_minVal, left_maxVal, 0, 100);
     int r_val = map(analogRead(SENSOR_RIGHT_PIN), right_minVal, right_maxVal, 0, 100);
