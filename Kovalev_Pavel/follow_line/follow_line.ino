@@ -50,18 +50,25 @@ int read_smooth(int pin) {
     return total / attempts;
 }
 
+void wait(unsigned long ms) {
+    const unsigned long end_ms = millis() + ms;
+    do {
+        
+    } while (millis() <= end_ms);
+}
+
 // Калибровка датчиков 
 void calibrate() {
     Serial.println("Calibrating sensors. Place on white and press button.");
-    while (digitalRead(BUTTON_PIN)) delay(10);
-    while (!digitalRead(BUTTON_PIN)) delay(10);
+    while (digitalRead(BUTTON_PIN)) wait(10);
+    while (!digitalRead(BUTTON_PIN)) wait(10);
 
     left_white = read_smooth(SENSOR_LEFT_PIN);
     right_white = read_smooth(SENSOR_RIGHT_PIN);
 
     Serial.println("Place on black and press button.");
-    while (digitalRead(BUTTON_PIN)) delay(10);
-    while (!digitalRead(BUTTON_PIN)) delay(10);
+    while (digitalRead(BUTTON_PIN)) wait(10);
+    while (!digitalRead(BUTTON_PIN)) wait(10);
 
     left_black = read_smooth(SENSOR_LEFT_PIN);
     right_black = read_smooth(SENSOR_RIGHT_PIN);
@@ -130,12 +137,12 @@ void recover_line() {
         int go_forward_ms = (turn_time_ms/2+1) * radius_coeff * i;
 
         set_motors(-search_speed, search_speed); // turn left
-        delay(turn_time_ms);
+        wait(turn_time_ms);
         set_motors(search_speed, search_speed); // go forward
-        delay(go_forward_ms);
+        wait(go_forward_ms);
         set_motors(0, 0);
 
-        // delay(1);
+        // wait(1);
         if (millis() - recover_start_ms >= line_search_stop_threshold_ms) {
             // Остановка
             tone(SOUND_PIN, 500, 1000);
@@ -150,7 +157,7 @@ void recover_line() {
     set_motors(0, 0);
     Serial.println("Line found. Stop and rotate.");
     tone(SOUND_PIN, 500, 100);
-    delay(200);
+    wait(200);
     tone(SOUND_PIN, 500, 100);
     const int adjusting_speed = 120;
     const int wiggle_timeout_ms = 500; // Сколько мс робот будет ехать вперёд/назад до разворота
@@ -166,7 +173,7 @@ void recover_line() {
             while( millis() - started_going_ms <= wiggle_timeout_ms ) {
                 if (back_is_on_line()) break;
                 if (line_lost()) break;
-                delay(1); // go forward
+                wait(1); // go forward
             }
             
             started_going_ms = millis();
@@ -174,7 +181,7 @@ void recover_line() {
             while ( millis() - started_going_ms <= wiggle_timeout_ms ) {
                 if (back_is_on_line()) break;
                 if (!line_lost()) break;
-                delay(1); // turn right
+                wait(1); // turn right
             }
         }
         else if (back_is_on_line()) { // Задний датчик на линии
@@ -185,7 +192,7 @@ void recover_line() {
             while( millis() - started_going_ms <= wiggle_timeout_ms ) {
                 if (!back_is_on_line()) break;
                 if (!line_lost()) break;
-                delay(1); // go backward
+                wait(1); // go backward
             }
             
             started_going_ms = millis();
@@ -193,7 +200,7 @@ void recover_line() {
             while ( millis() - started_going_ms <= wiggle_timeout_ms ) {
                 if (back_is_on_line()) break;
                 if (!line_lost()) break;
-                delay(1); // turn right
+                wait(1); // turn right
             }
         }
         else { // линия между датчиками
@@ -203,7 +210,7 @@ void recover_line() {
             while( millis() - started_going_ms <= wiggle_timeout_ms ) {
                 if (back_is_on_line()) break;
                 if (line_lost()) break;
-                delay(1); // turn right
+                wait(1); // turn right
             }
         }
         if (millis() - line_seen_wiggle_millis >= line_seen_threshold_2_ms ) {
@@ -215,9 +222,9 @@ void recover_line() {
     Serial.println("Alligned.");
     set_motors(0, 0);
     tone(SOUND_PIN, 500, 100);
-    delay(200);
+    wait(200);
     tone(SOUND_PIN, 500, 100);
-    delay(200);
+    wait(200);
     tone(SOUND_PIN, 500, 100);
     // Линия выровнена
 }
@@ -242,7 +249,7 @@ void toggle_system_active_on_button() {
     bool btnState = digitalRead(BUTTON_PIN);
     if (btnState == LOW && last_button_state == HIGH) {
         system_active = !system_active;
-        delay(80);
+        wait(80);
     }
     last_button_state = btnState;
 }
@@ -261,7 +268,7 @@ void setup() {
 
     system_active = false;
     Serial.println("Press button to start.");
-    while (digitalRead(BUTTON_PIN) == HIGH) delay(10);
+    while (digitalRead(BUTTON_PIN) == HIGH) wait(10);
 }
 
 // Основной цикл
