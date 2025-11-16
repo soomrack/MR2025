@@ -106,6 +106,12 @@ bool back_is_on_line() {
     return (back >= back_threshold);
 }
 
+bool line_lost_with_time_threshold() {
+    return
+        line_lost() 
+        && (millis() - line_seen_millis) >= line_seen_threshold_ms;
+}
+
 double tanh(double x) {
     const double e2x=exp(2*x);
     return (e2x-1.0)/(e2x+1.0);
@@ -232,6 +238,15 @@ void follow_track() {
     last_error = error;
 }
 
+void toggle_system_active_on_button() {
+    bool btnState = digitalRead(BUTTON_PIN);
+    if (btnState == LOW && last_button_state == HIGH) {
+        system_active = !system_active;
+        delay(80);
+    }
+    last_button_state = btnState;
+}
+
 // Инициализация
 void setup() {
     Serial.begin(9600);
@@ -251,19 +266,9 @@ void setup() {
 
 // Основной цикл
 void loop() {
-    bool btnState = digitalRead(BUTTON_PIN);
-
-    if (btnState == LOW && last_button_state == HIGH) {
-        system_active = !system_active;
-        delay(80);
-    }
-    last_button_state = btnState;
-
+    toggle_system_active_on_button();
     if (system_active) {
-        if (
-            line_lost() 
-            && (millis() - line_seen_millis) >= line_seen_threshold_ms
-        ) recover_line();
+        if ( line_lost_with_time_threshold() ) recover_line();
         else follow_track();
     }
 }
