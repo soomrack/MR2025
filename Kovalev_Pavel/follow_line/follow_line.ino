@@ -16,10 +16,10 @@ const float Ki = 0;
 const int base_speed = 200;
 
 // Переменные для калибровки 
-int l_white, r_white, l_black, r_black, b_white, b_black;
-int l_threshold, r_threshold, b_threshold;
-int l_minVal = 1023, l_maxVal = 0;
-int r_minVal = 1023, r_maxVal = 0;
+int left_white, right_white, left_black, right_black, back_white, back_black;
+int left_threshold, right_threshold, back_threshold;
+int left_minVal = 1023, left_maxVal = 0;
+int right_minVal = 1023, right_maxVal = 0;
 
 // Счётчик потери линии
 unsigned long line_seen_millis = 0;
@@ -56,54 +56,54 @@ void calibrate() {
     while (digitalRead(BUTTON_PIN)) delay(10);
     while (!digitalRead(BUTTON_PIN)) delay(10);
 
-    l_white = read_smooth(SENSOR_LEFT_PIN);
-    r_white = read_smooth(SENSOR_RIGHT_PIN);
+    left_white = read_smooth(SENSOR_LEFT_PIN);
+    right_white = read_smooth(SENSOR_RIGHT_PIN);
 
     Serial.println("Place on black and press button.");
     while (digitalRead(BUTTON_PIN)) delay(10);
     while (!digitalRead(BUTTON_PIN)) delay(10);
 
-    l_black = read_smooth(SENSOR_LEFT_PIN);
-    r_black = read_smooth(SENSOR_RIGHT_PIN);
+    left_black = read_smooth(SENSOR_LEFT_PIN);
+    right_black = read_smooth(SENSOR_RIGHT_PIN);
 
-    l_minVal = l_black;
-    l_maxVal = l_white;
-    r_minVal = r_black;
-    r_maxVal = r_white;
+    left_minVal = left_black;
+    left_maxVal = left_white;
+    right_minVal = right_black;
+    right_maxVal = right_white;
 
-    b_white = (l_white + r_white) / 2;
-    b_black = (l_black + r_black) / 2;
+    back_white = (left_white + right_white) / 2;
+    back_black = (left_black + right_black) / 2;
 
     const float ratio = 0.1; // порог потери линии
-    l_threshold = l_black + (l_white - l_black) * ratio;
-    r_threshold = r_black + (r_white - r_black) * ratio;
-    b_threshold = b_black + (b_white - b_black) * ratio;
+    left_threshold = left_black + (left_white - left_black) * ratio;
+    right_threshold = right_black + (right_white - right_black) * ratio;
+    back_threshold = back_black + (back_white - back_black) * ratio;
 
     Serial.println("Calibration completed:");
-    Serial.print("L: "); Serial.print(l_minVal); Serial.print(" - "); Serial.println(l_maxVal);
-    Serial.print("R: "); Serial.print(r_minVal); Serial.print(" - "); Serial.println(r_maxVal);
-    Serial.print("Thresholds: "); Serial.print(l_threshold); Serial.print(" / "); Serial.println(r_threshold);
+    Serial.print("L: "); Serial.print(left_minVal); Serial.print(" - "); Serial.println(left_maxVal);
+    Serial.print("R: "); Serial.print(right_minVal); Serial.print(" - "); Serial.println(right_maxVal);
+    Serial.print("Thresholds: "); Serial.print(left_threshold); Serial.print(" / "); Serial.println(right_threshold);
 }
 
 // Проверка потери линии
 bool line_lost() {
     int l_read = analogRead(SENSOR_LEFT_PIN);
     int r_read = analogRead(SENSOR_RIGHT_PIN);
-    bool lost = (l_read < l_threshold && r_read < r_threshold);
+    bool lost = (l_read < left_threshold && r_read < right_threshold);
     if (!lost) line_seen_millis=millis();
     return lost;
 }
 
 bool is_aligned() {
-    int l_read = analogRead(SENSOR_LEFT_PIN);
-    int r_read = analogRead(SENSOR_RIGHT_PIN);
-    int back = analogRead(SENSOR_BACK_PIN);
-    return ((l_read >= l_threshold || r_read >= r_threshold) && back >= b_threshold);
+    int left_read = analogRead(SENSOR_LEFT_PIN);
+    int right_read = analogRead(SENSOR_RIGHT_PIN);
+    int back_read = analogRead(SENSOR_BACK_PIN);
+    return ((left_read >= left_threshold || right_read >= right_threshold) && back_read >= back_threshold);
 }
 
 bool back_is_on_line() {
     int back = analogRead(SENSOR_BACK_PIN);
-    return (back >= b_threshold);
+    return (back >= back_threshold);
 }
 
 double tanh(double x) {
@@ -218,8 +218,8 @@ void recover_line() {
 
 // Следование по линии
 void follow_track() {
-    int l_val = map(analogRead(SENSOR_LEFT_PIN), l_minVal, l_maxVal, 0, 100);
-    int r_val = map(analogRead(SENSOR_RIGHT_PIN), r_minVal, r_maxVal, 0, 100);
+    int l_val = map(analogRead(SENSOR_LEFT_PIN), left_minVal, left_maxVal, 0, 100);
+    int r_val = map(analogRead(SENSOR_RIGHT_PIN), right_minVal, right_maxVal, 0, 100);
 
     float error =  sensor_mode * (l_val - r_val);
     integral += error;
