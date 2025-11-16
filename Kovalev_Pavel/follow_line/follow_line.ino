@@ -1,13 +1,13 @@
 // Настройки пинов
-#define MOTOR_L_PWM 6
-#define MOTOR_L_DIR 7
-#define MOTOR_R_PWM 5
-#define MOTOR_R_DIR 4
+#define MOTOR_LEFT_PWM_PIN 6
+#define MOTOR_LEFT_DIR_PIN 7
+#define MOTOR_RIGHT_PWM_PIN 5
+#define MOTOR_RIGHT_DIR_PIN 4
 #define BUTTON_PIN 2
 #define SOUND_PIN 9
-#define SENSOR_L A0
-#define SENSOR_R A1
-#define SENSOR_BACK A2
+#define SENSOR_LEFT_PIN A0
+#define SENSOR_RIGHT_PIN A1
+#define SENSOR_BACK_PIN A2
 
 // Коэффициенты ПД-регулятора
 const float Kp = 5;
@@ -36,10 +36,10 @@ bool last_button_state = LOW; // чтобы при первом запуске �
 // Управление моторами 
 void set_motors(int left, int right) {
     // Serial.print("Motor L:"); Serial.print(left); Serial.print(" R:"); Serial.println(right);
-    digitalWrite(MOTOR_L_DIR, left >= 0);
-    digitalWrite(MOTOR_R_DIR, right >= 0);
-    analogWrite(MOTOR_L_PWM, constrain(abs(left), 0, 255));
-    analogWrite(MOTOR_R_PWM, constrain(abs(right), 0, 255));
+    digitalWrite(MOTOR_LEFT_DIR_PIN, left >= 0);
+    digitalWrite(MOTOR_RIGHT_DIR_PIN, right >= 0);
+    analogWrite(MOTOR_LEFT_PWM_PIN, constrain(abs(left), 0, 255));
+    analogWrite(MOTOR_RIGHT_PWM_PIN, constrain(abs(right), 0, 255));
 }
 
 // Усреднённое считывание аналогового сигнала 
@@ -56,15 +56,15 @@ void calibrate() {
     while (digitalRead(BUTTON_PIN)) delay(10);
     while (!digitalRead(BUTTON_PIN)) delay(10);
 
-    l_white = read_smooth(SENSOR_L);
-    r_white = read_smooth(SENSOR_R);
+    l_white = read_smooth(SENSOR_LEFT_PIN);
+    r_white = read_smooth(SENSOR_RIGHT_PIN);
 
     Serial.println("Place on black and press button.");
     while (digitalRead(BUTTON_PIN)) delay(10);
     while (!digitalRead(BUTTON_PIN)) delay(10);
 
-    l_black = read_smooth(SENSOR_L);
-    r_black = read_smooth(SENSOR_R);
+    l_black = read_smooth(SENSOR_LEFT_PIN);
+    r_black = read_smooth(SENSOR_RIGHT_PIN);
 
     l_minVal = l_black;
     l_maxVal = l_white;
@@ -87,22 +87,22 @@ void calibrate() {
 
 // Проверка потери линии
 bool line_lost() {
-    int l_read = analogRead(SENSOR_L);
-    int r_read = analogRead(SENSOR_R);
+    int l_read = analogRead(SENSOR_LEFT_PIN);
+    int r_read = analogRead(SENSOR_RIGHT_PIN);
     bool lost = (l_read < l_threshold && r_read < r_threshold);
     if (!lost) line_seen_millis=millis();
     return lost;
 }
 
 bool is_aligned() {
-    int l_read = analogRead(SENSOR_L);
-    int r_read = analogRead(SENSOR_R);
-    int back = analogRead(SENSOR_BACK);
+    int l_read = analogRead(SENSOR_LEFT_PIN);
+    int r_read = analogRead(SENSOR_RIGHT_PIN);
+    int back = analogRead(SENSOR_BACK_PIN);
     return ((l_read >= l_threshold || r_read >= r_threshold) && back >= b_threshold);
 }
 
 bool back_is_on_line() {
-    int back = analogRead(SENSOR_BACK);
+    int back = analogRead(SENSOR_BACK_PIN);
     return (back >= b_threshold);
 }
 
@@ -218,8 +218,8 @@ void recover_line() {
 
 // Следование по линии
 void follow_track() {
-    int l_val = map(analogRead(SENSOR_L), l_minVal, l_maxVal, 0, 100);
-    int r_val = map(analogRead(SENSOR_R), r_minVal, r_maxVal, 0, 100);
+    int l_val = map(analogRead(SENSOR_LEFT_PIN), l_minVal, l_maxVal, 0, 100);
+    int r_val = map(analogRead(SENSOR_RIGHT_PIN), r_minVal, r_maxVal, 0, 100);
 
     float error =  sensor_mode * (l_val - r_val);
     integral += error;
@@ -236,10 +236,10 @@ void follow_track() {
 void setup() {
     Serial.begin(9600);
 
-    pinMode(MOTOR_L_PWM, OUTPUT);
-    pinMode(MOTOR_L_DIR, OUTPUT);
-    pinMode(MOTOR_R_PWM, OUTPUT);
-    pinMode(MOTOR_R_DIR, OUTPUT);
+    pinMode(MOTOR_LEFT_PWM_PIN, OUTPUT);
+    pinMode(MOTOR_LEFT_DIR_PIN, OUTPUT);
+    pinMode(MOTOR_RIGHT_PWM_PIN, OUTPUT);
+    pinMode(MOTOR_RIGHT_DIR_PIN, OUTPUT);
     pinMode(BUTTON_PIN, INPUT_PULLUP);
 
     calibrate();
