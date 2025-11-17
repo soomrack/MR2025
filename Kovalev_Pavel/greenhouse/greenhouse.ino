@@ -10,6 +10,7 @@ const unsigned long VENT_PERIOD  = 3600 * 1000UL; // период вентиля
 const unsigned long VENT_TIME    = 300  * 1000UL; // время вентиляции: 5 минут
 const unsigned long WATER_PERIOD = 10   * 1000UL; // период полива: 10 секунд 
 const unsigned long WATER_TIME   = 5    * 1000UL; // время полива: 5 секунд
+const          int  DAY_HOURS    = 24           ; // количество часов в сутках
 
 // часы включения/выключения света (целые часы)
 const int LIGHT_ON_HOUR  = 6;
@@ -178,7 +179,7 @@ void scheduledVentilation(Fan &fan, unsigned long now) {
 
 void regulateLight(const LightSensor &ls, Lamp &lamp, unsigned long now) {
   unsigned long hour = now / HOUR_MS;
-  bool withinDay = (hour > LIGHT_ON_HOUR) && (hour < LIGHT_OFF_HOUR);
+  bool withinDay = (hour % DAY_HOURS > LIGHT_ON_HOUR) && (hour % DAY_HOURS < LIGHT_OFF_HOUR);
   if (withinDay && ls.value > limits.minLight) lamp.enabled = true;
   else lamp.enabled = false;
 }
