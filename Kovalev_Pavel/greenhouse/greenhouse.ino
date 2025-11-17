@@ -5,11 +5,11 @@ const int SENSOR_PIN = 12; // DHT11
 DHT11 dht(SENSOR_PIN);
 
 // временные константы (в миллисекундах)
-const unsigned long HOUR_MS      = 3600000UL; // 1 час
-const unsigned long VENT_PERIOD  = 3600000UL; // период вентиляции: 1 час
-const unsigned long VENT_TIME    = 300000UL;  // время вентиляции: 5 минут
-const unsigned long WATER_PERIOD = 10000UL;   // период полива: 10 секунд 
-const unsigned long WATER_TIME   = 5000UL;    // время полива: 5 секунд
+const unsigned long HOUR_MS      = 3600 * 1000UL; // 1 час
+const unsigned long VENT_PERIOD  = 3600 * 1000UL; // период вентиляции: 1 час
+const unsigned long VENT_TIME    = 300  * 1000UL; // время вентиляции: 5 минут
+const unsigned long WATER_PERIOD = 10   * 1000UL; // период полива: 10 секунд 
+const unsigned long WATER_TIME   = 5    * 1000UL; // время полива: 5 секунд
 
 // часы включения/выключения света (целые часы)
 const int LIGHT_ON_HOUR  = 6;
