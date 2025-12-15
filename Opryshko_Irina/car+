@@ -1,0 +1,259 @@
+
+#define MOTOR_LEFT_PWM_PIN 6
+#define MOTOR_LEFT_DIR_PIN 7
+#define MOTOR_RIGHT_PWM_PIN 5
+#define MOTOR_RIGHT_DIR_PIN 4
+
+#define LEFT_SENSOR_PIN A0
+#define RIGHT_SENSOR_PIN A1 // 
+#define BUTTON_PIN 12
+#define SOUND_PIN 8         
+
+
+float Kp = 3.0;             
+float Kd = 1.0;             
+int base_speed = 140;       // 
+int search_speed = 120;     
+
+// Параметры поиска линии по спирали
+#define light_threshold 50  
+#define spiral_increase 10  
+#define spiral_interval 100 
+#define search_timeout 10000 
+
+
+int left_min = 1023, left_max = 0;
+int right_min = 1023, right_max = 0;
+double last_error = 0;
+int last_direction = 0; // Для запоминания последнего направления
+
+bool button_old = HIGH;
+
+// Переменные состояния для поиска
+int spiral_step = 0;
+unsigned long spiral_timer = 0;
+unsigned long search_start_time = 0;
+
+// Нормализованные значения сенсоров (0-100)
+int sensor_left_norm = 0;
+int sensor_right_norm = 0;
+
+
+// тип Состояния робота 
+
+enum RobotState { IDLE, FOLLOW_LINE, SEARCH_LINE };
+RobotState state = IDLE;
+
+
+// Управление моторами
+
+void drive(int left_speed, int right_speed) {
+    // Направление: > 0 ВПЕРЕД (HIGH), < 0 НАЗАД (LOW)
+    digitalWrite(MOTOR_LEFT_DIR_PIN, left_speed >= 0);
+    digitalWrite(MOTOR_RIGHT_DIR_PIN, right_speed >= 0);
+    // Скорость: абсолютное значение
+    analogWrite(MOTOR_LEFT_PWM_PIN, constrain(abs(left_speed), 0, 255));
+    analogWrite(MOTOR_RIGHT_PWM_PIN, constrain(abs(right_speed), 0, 255));
+}
+
+// Остановка роб
+void stop_robot() {
+    drive(0, 0);
+    state = IDLE;
+    Serial.println("System IDLE / Stopped.");
+    tone(SOUND_PIN, 600, 300);
+}
+
+int readAnalogAveraged(int pin) {
+    long total = 0;
+    const char attempts = 17;
+    for (int i = 0; i < attempts; i++) {
+        total += analogRead(pin);
+    }
+    return total / attempts;
+}
+
+// Калибровка сенсоров 
+
+void calibrate_sensors() {
+    Serial.println("Calibration: Spinning for 4 seconds...");
+    tone(SOUND_PIN, 800, 100);
+
+    unsigned long start_time = millis();
+    // Вращаемся на месте, чтобы собрать мин/макс
+    while (millis() - start_time < 4000) { 
+        drive(150, -150); // Крутимся
+        int left = readAnalogAveraged(LEFT_SENSOR_PIN);
+        int right = readAnalogAveraged(RIGHT_SENSOR_PIN);
+        
+        // Обновляем мин/макс
+        if (left < left_min) left_min = left;
+        if (left > left_max) left_max = left;
+        if (right < right_min) right_min = right;
+        if (right > right_max) right_max = right;
+    }
+    drive(0, 0);
+    
+    Serial.print("L_Min: "); Serial.print(left_min);
+    Serial.print(" | L_Max: "); Serial.println(left_max);
+    Serial.print("R_Min: "); Serial.print(right_min);
+    Serial.print(" | R_Max: "); Serial.println(right_max);
+    
+    tone(SOUND_PIN, 1000, 200);
+    Serial.println("Calibration complete. Press button to start.");
+}
+
+// Обновление сенсоров (Нормализация 0-100)
+
+void update_sensors() {
+    // Нормализация с использованием калибровочных мин/макс
+    sensor_left_norm = map(readAnalogAveraged(LEFT_SENSOR_PIN), left_min, left_max, 0, 100);
+    sensor_right_norm = map(readAnalogAveraged(RIGHT_SENSOR_PIN), right_min, right_max, 0, 100);
+    
+    // Ограничение значений 0..100 на случай выхода за пределы
+    sensor_left_norm = constrain(sensor_left_norm, 0, 100);
+    sensor_right_norm = constrain(sensor_right_norm, 0, 100);
+}
+
+
+// Управление кнопкой (Из Программы 3)
+
+void handle_button() {
+    bool button_state = digitalRead(BUTTON_PIN);
+    
+    // Переход LOW -> HIGH (кнопка отпущена после нажатия)
+    if (button_state == LOW && button_old == HIGH) {
+        if (state == IDLE) {
+            state = FOLLOW_LINE;
+            Serial.println("System Activated: FOLLOW_LINE");
+            tone(SOUND_PIN, 1200, 100);
+        } else {
+            stop_robot(); // Остановка
+        }
+    }
+    button_old = button_state;
+}
+
+// Следование за линией (ПД-регулятор, 
+void follow_line() {
+    double error = sensor_left_norm - sensor_right_norm; // Ошибка в диапазоне -100..+100
+    // Расчет коррекции
+    double correction = error * Kp + (error - last_error) * Kd;
+    
+    // Применение коррекции
+    int left_power = constrain(base_speed + correction, -255, 255);
+    int right_power = constrain(base_speed - correction, -255, 255);
+    
+    drive(left_power, right_power);
+    last_error = error;
+
+    // Проверка потери линии: если оба датчика видят "белое" (значение ниже порога 50)
+    if (sensor_left_norm < light_threshold && sensor_right_norm < light_threshold) {
+        search_start_time = millis();
+        spiral_step = 0;
+        spiral_timer = millis();
+        // Направление спирали: зависит от последнего движения/ошибки
+        // Если робот ушел влево (error > 0), надо искать вправо (spiral_direction=true)
+        bool spiral_direction = (last_error > 0); 
+        state = SEARCH_LINE;
+        Serial.println("Line Lost! Entering SEARCH_LINE.");
+    }
+}
+
+
+// Поиск линии по спирали 
+void search_line() {
+    // 1. Увеличение шага спирали
+    if (millis() - spiral_timer > spiral_interval) {
+        spiral_step += spiral_increase;
+        spiral_timer = millis();
+    }
+
+    // 2. Расчет скоростей для спирали (один мотор замедляется)
+    int left_speed, right_speed;
+
+    // Правый поворот (мотор RIGHT едет быстрее)
+    if (last_error > 0) { // Искать вправо (т.к. ошибка была "уход влево")
+        left_speed = constrain(search_speed - spiral_step, 0, 255);
+        right_speed = search_speed;
+    } 
+    // Левый поворот (мотор LEFT едет быстрее)
+    else { // Искать влево
+        left_speed = search_speed;
+        right_speed = constrain(search_speed - spiral_step, 0, 255);
+    }
+    
+    drive(left_speed, right_speed);
+
+    // 3. Проверка: найдена ли линия (хотя бы один датчик видит "черное" > threshold)
+    if (sensor_left_norm > light_threshold || sensor_right_norm > light_threshold) {
+        state = FOLLOW_LINE;
+        Serial.println("Line Found! Resuming FOLLOW_LINE.");
+        last_error = 0; // Сброс ошибки для чистого старта ПД
+    }
+
+    // 4. Таймаут поиска
+    if (millis() - search_start_time > search_timeout) {
+        Serial.println("Search Timeout!");
+        stop_robot();
+    }
+}
+
+// Менеджер состояния робота (
+void update_state() {
+    handle_button();
+    update_sensors(); // Чтение и нормализация датчиков
+
+    switch (state) {
+        case IDLE:
+            drive(0, 0);
+            break;
+        case FOLLOW_LINE:
+            follow_line();
+            break;
+        case SEARCH_LINE:
+            search_line();
+            break;
+    }
+}
+
+// =============================================================
+// Отладка
+// =============================================================
+void serial_debug() {
+    static unsigned long last_serial_time = 0;
+    const unsigned long serial_interval = 200;
+    
+    if (millis() - last_serial_time >= serial_interval) {
+        Serial.print("L_Norm: "); Serial.print(sensor_left_norm);
+        Serial.print(" | R_Norm: "); Serial.print(sensor_right_norm);
+        Serial.print(" | Error: "); Serial.print(last_error);
+        Serial.print(" | State: ");
+        switch(state) {
+            case IDLE: Serial.println("IDLE"); break;
+            case FOLLOW_LINE: Serial.println("FOLLOW_LINE"); break;
+            case SEARCH_LINE: Serial.println("SEARCH_LINE"); break;
+        }
+        last_serial_time = millis();
+    }
+}
+
+
+void setup() {
+    Serial.begin(9600);
+    // Настройка пинов моторов и периферии
+    pinMode(MOTOR_LEFT_PWM_PIN, OUTPUT);
+    pinMode(MOTOR_LEFT_DIR_PIN, OUTPUT);
+    pinMode(MOTOR_RIGHT_PWM_PIN, OUTPUT);
+    pinMode(MOTOR_RIGHT_DIR_PIN, OUTPUT);
+    pinMode(BUTTON_PIN, INPUT_PULLUP);
+    pinMode(SOUND_PIN, OUTPUT);
+
+    calibrate_sensors();
+}
+
+
+void loop() {
+    update_state();
+    serial_debug();
+}
