@@ -25,8 +25,8 @@ bool pumpActive;
 
 unsigned long lastTime = 0;
 unsigned long currentTime; 
-const unsigned long dayTime = 12*1000;
-const unsigned long nightTime = 12*1000;
+unsigned long dayTime = 12*1000;
+unsigned long nightTime = 12*1000;
 bool isNight;
 
 unsigned long lastSerialTime = 0;
@@ -49,6 +49,17 @@ struct SensorLimits{
 struct SensorLimits minValues;
 struct SensorLimits maxValues;
 
+enum Season {
+  SPRING,
+  SUMMER,
+  AUTUMN,
+  WINTER
+};
+
+Season currentSeason = SPRING;
+int seasonDayCounter = 0;
+const int daysInSeason = 30;
+
 DHT dht(TEMP_HUMID_SENSOR_PIN, DHT11);
 
 void setup() {
@@ -58,7 +69,7 @@ void setup() {
   pinMode(LIGHT_PIN, OUTPUT);
   pinMode(HEAT_PIN, OUTPUT);
   pinMode(VENT_PIN, OUTPUT);
-  initializeLimits();
+  adjustLimitsForSeason();
 }
 
 
@@ -193,18 +204,102 @@ void controlWaterPump(const bool pump_on){
 }
 
 
-void initializeLimits(){
-  minValues.temperature = 29;
-  minValues.air_humidity = 20;
-  minValues.soil_moisture = 900;  
-  minValues.light = 400;  
-
-  maxValues.temperature = 30;
-  maxValues.air_humidity = 40;
-  maxValues.soil_moisture = 10;
-  maxValues.light = 20;
+  
+  
+  adjustLimitsForSeason(); //Параметры в зависимости от сезона
 }
 
+void adjustLimitsForSeason() {
+  switch(currentSeason) {
+    case SPRING:
+      minValues.temperature = 20;
+      maxValues.temperature = 25;
+      minValues.air_humidity = 40;
+      maxValues.air_humidity = 60;
+      minValues.light = 500; 
+      minValues.soil_moisture = 700; 
+      dayTime = 14 * 1000; 
+      nightTime = 10 * 1000; 
+      break;
+      
+    case SUMMER:
+      minValues.temperature = 25;
+      maxValues.temperature = 32;
+      minValues.air_humidity = 30;
+      maxValues.air_humidity = 50;
+      minValues.light = 300;
+      minValues.soil_moisture = 600;
+      dayTime = 16 * 1000;
+      nightTime = 8 * 1000;  
+      break;
+      
+    case AUTUMN:
+      minValues.temperature = 18;
+      maxValues.temperature = 23;
+      minValues.air_humidity = 35;
+      maxValues.air_humidity = 55;
+      minValues.light = 400;
+      minValues.soil_moisture = 800;
+      dayTime = 12 * 1000;  
+      nightTime = 12 * 1000; 
+      break;
+      
+    case WINTER:
+      minValues.temperature = 15;
+      maxValues.temperature = 20;
+      minValues.air_humidity = 30;
+      maxValues.air_humidity = 45;
+      minValues.light = 600;
+      minValues.soil_moisture = 900;
+      dayTime = 10 * 1000;  
+      nightTime = 14 * 1000; 
+      break;
+  }
+  
+  // Информация о смене параметров
+  Serial.print("Установлены параметры для ");
+  switch(currentSeason) {
+    case SPRING: Serial.println("ВЕСНЫ"); break;
+    case SUMMER: Serial.println("ЛЕТА"); break;
+    case AUTUMN: Serial.println("ОСЕНИ"); break;
+    case WINTER: Serial.println("ЗИМЫ"); break;
+  }
+}
+
+void updateSeason() {
+  static unsigned long lastSeasonCheck = 0;
+  const unsigned long seasonCheckInterval = 60000;
+  
+  if (millis() - lastSeasonCheck >= seasonCheckInterval) {
+    lastSeasonCheck = millis();
+    
+    seasonDayCounter++;
+    
+    if (seasonDayCounter >= daysInSeason) {
+      seasonDayCounter = 0;
+      
+      switch(currentSeason) {
+        case SPRING:
+          currentSeason = SUMMER;
+          Serial.println("\n=== НАСТУПИЛО ЛЕТО ===");
+          break;
+        case SUMMER:
+          currentSeason = AUTUMN;
+          Serial.println("\n=== НАСТУПИЛА ОСЕНЬ ===");
+          break;
+        case AUTUMN:
+          currentSeason = WINTER;
+          Serial.println("\n=== НАСТУПИЛА ЗИМА ===");
+          break;
+        case WINTER:
+          currentSeason = SPRING;
+          Serial.println("\n=== НАСТУПИЛА ВЕСНА ===");
+          break;
+      }
+      adjustLimitsForSeason();
+    }
+  }
+}
 
 void printSensorData(){
   Serial.print("Температура: ");
@@ -219,13 +314,17 @@ void printSensorData(){
 
 }
 
+
 void loop(){
   airHumidity = dht.readHumidity();
   tempValue = dht.readTemperature();
+  
   soilMoisture = analogRead(SOIL_MOISTURE_SENSOR_PIN);
   lightLevel = analogRead(LIGHT_SENSOR_PIN);
 
   updateDayNightCycle();
+  updateSeason();
+  
   checkLightConditions();
   checkTemperature(tempValue);
   checkAirHumidity(airHumidity);
