@@ -1,3 +1,3 @@
-[submodule "Line-follower"]
-	path = Line-follower
+[submodule "Repman_Georgiy/Line-Follower"]
+	path = Repman_Georgiy/Line-Follower
 	url = https://github.com/repmanga/Line-Follower.git
