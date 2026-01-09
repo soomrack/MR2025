@@ -1,3 +1,6 @@
 [submodule "Repman_Georgiy/Line-Follower"]
 	path = Repman_Georgiy/Line-Follower
 	url = https://github.com/repmanga/Line-Follower.git
+[submodule "Repman_Georgiy/GreenHouse"]
+	path = Repman_Georgiy/GreenHouse
+	url = https://github.com/repmanga/GreenHouse.git
