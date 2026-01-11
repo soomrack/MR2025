@@ -1,173 +1,184 @@
-#define MOTOR_L_PWM 6
-#define MOTOR_L_DIR 7
-#define MOTOR_R_PWM 5
-#define MOTOR_R_DIR 4
-#define BUTTON_PIN 12
-#define SENSOR_L A0
-#define SENSOR_R A1
+// Определение пинов подключения компонентов 
+#define POWER_LEFT_MOTOR_PIN 6        
+#define DIRECTION_LEFT_MOTOR_PIN 7   
+#define POWER_RIGHT_MOTOR_PIN 5       
+#define DIRECTION_RIGHT_MOTOR_PIN 4                   
+#define CALIBRATE_BOTTON_PIN A2      
+#define LEFT_SENSOR_PIN A0            
+#define RIGHT_SENSOR_PIN A1           
 
-#define spiralInc 10        // Увеличение шага спирали при поиске линии             
-#define spiralInt 100       // Интервал времени между увеличениями спирали в миллисекундах
+// Параметры PID-регулятора и движения
+#define PidGainP 8.0                
+#define PidGainD 6.0                
+#define BaseSpeed 90                 
+#define SearchSpeed 140              
 
+// Настройки поиска линии 
+#define LightThreshold 50            
+#define SpiralIncrease 10             
+#define SpiralInterval 15            
+#define SearchTimeout 20000          
 
-// Коэффициенты ПД-регулятора
-float Kp = 3;
-float Kd = 1;
-int baseSpeed = 140;
-int searchSpeed = 120;
+int LeftMin = 1023;                  
+int LeftMax = 0;                     
+int RightMin = 1023;                 
+int RightMax = 0;                    
 
-// Переменные (для калибровки и другие)
-int r_white, r_black, r_threshold;
-int l_white, l_black, l_threshold;
-int l_min = 1023, l_max = 0;
-int r_min = 1023, r_max = 0;
+int LastDirection = 0;               // Последнее направление при потере линии (0 — влево, 1 — вправо)
+int LastError = 0;                   // Предыдущее значение ошибки для D-компоненты PID
 
-float lastError = 0; 
-bool systemActive = false;
-bool buttonState = LOW; 
-  
-unsigned long spiralTimer = 0;  
-int spiralStep = 0; 
-int lastDirect = 0;    
-bool spiralDirect = 0;
-bool lineFound = false;
+bool IsTurnedOn = false;             
+bool IsLineFound = false;
+bool CALIBRATE_BOTTON_PIN_old = 1;    // Предыдущее состояние кнопки 
+bool SpiralDirection = 0;            // Направление вращения при поиске (0 — влево, 1 — вправо)
+int SpiralStep = 0;                  
+unsigned long SpiralTimer = 0;       // Таймер для увеличения шага спирали
+unsigned long SearchStartTime = 0;  
+int s1;
+int s2;
 
-// Управление моторами 
-void setMotors(int left, int right) {
-    digitalWrite(MOTOR_L_DIR, left >= 0);
-    digitalWrite(MOTOR_R_DIR, right >= 0);
-    analogWrite(MOTOR_L_PWM, constrain(abs(left), 0, 255));
-    analogWrite(MOTOR_R_PWM, constrain(abs(right), 0, 255));
+//Контроль моторов 
+void Move(int left, int right) {
+  digitalWrite(DIRECTION_LEFT_MOTOR_PIN, left > 0);   
+  digitalWrite(DIRECTION_RIGHT_MOTOR_PIN, right > 0); 
+  analogWrite(POWER_LEFT_MOTOR_PIN, abs(left));       
+  analogWrite(POWER_RIGHT_MOTOR_PIN, abs(right));     
 }
 
 
-// Считывание аналогового сигнала с усреднением
-int readAnalog(int pin) {
-    long total = 0;
-    const char attempts = 17;
-    for (int i = 0; i < attempts; i++) {
-      total += analogRead(pin);}
-    return total / attempts;
+//  Остановка робота 
+void RobotStop() {
+  Move(0, 0);                    
+  IsTurnedOn = false;                    
 }
 
 
-// Калибровка датчиков 
-void calibrateDat() {
-    Serial.println("Place on white and press button");
-    while (digitalRead(BUTTON_PIN)) delay(10);
-    while (!digitalRead(BUTTON_PIN)) delay(10);
-
-    l_white = readAnalog(SENSOR_L);
-    r_white = readAnalog(SENSOR_R);
-
-    Serial.println("Place on black and press button");
-    while (digitalRead(BUTTON_PIN)) delay(10);
-    while (!digitalRead(BUTTON_PIN)) delay(10);
-
-    l_black = readAnalog(SENSOR_L);
-    r_black = readAnalog(SENSOR_R);
-
-    l_min = l_black;
-    l_max = l_white;
-    r_min = r_black;
-    r_max = r_white;
-
-    const float corect = 0.1; 
-    l_threshold = l_black + (l_white - l_black) * corect;
-    r_threshold = r_black + (r_white - r_black) * corect;
+// Начало поиска линии
+void StartSearching() {
+  SpiralStep = 0;                           
+  SpiralTimer = millis();                   
+  SpiralDirection = (LastDirection == 0) ? 1 : 0; 
+  SearchStartTime = millis();              
 }
 
 
-// Следование по линии с помощью ПД-регулятора
-void followLine() {
-    int l_val = map(analogRead(SENSOR_L), l_min, l_max, 0, 100);
-    int r_val = map(analogRead(SENSOR_R), r_min, r_max, 0, 100);
+// Поиск линии по спирали. Робот вращается в одну сторону, увеличивая со временем радиус поворота.
+void SearchSpiral() {
+  // Увеличение "амплитуды спирали" через заданные интервалы
+  if (millis() - SpiralTimer > SpiralInterval) {
+    SpiralStep += SpiralIncrease;
+    SpiralTimer = millis();
+  }
 
-    float error =  l_val - r_val;
-    float correction = Kp * error + Kd * (error - lastError);
-    lastError = error;
+  int LeftSpeed = constrain(SearchSpeed, 0, SpiralStep);
+  int RightSpeed = constrain(SearchSpeed, 0, SpiralStep);
 
-    int leftPower = baseSpeed + correction;
-    int rightPower = baseSpeed - correction;
-
-    setMotors(leftPower, rightPower);
+  // Определение направления вращения
+  if (SpiralDirection) {
+    Move(LeftSpeed, SearchSpeed/3);    // Вращение вправо
+  } else {
+    Move(SearchSpeed /3, RightSpeed);   // Вращение влево
+  }
 }
 
 
-// Поиск линии при потере по спирали
-void findLine() {
-    bool isSearching = true;
-    unsigned long startTime = millis();
-    spiralStep = 0;
+// Следование по линии. Применение PID-регулятор для регулировки скорости колес в зависимости от разницы показаний датчиков.
+void MovingLine(int s1, int s2) {
+  double err = (s1 - s2);                  // Ошибка — разность яркости левого и правого датчиков
+  double u = err * PidGainP + (err - LastError) * PidGainD; // Вычисляем управляющее воздействие
+  Move(constrain(BaseSpeed + u, -250, 250),  
+        constrain(BaseSpeed - u, -250, 250)); 
+  LastError = err;                            // Запоминаем ошибку для следующего шага
+}
 
-    while (isSearching && millis() - startTime < 10000) {
-        if (millis() - spiralTimer > spiralInt) {
-            spiralStep += spiralInc;
-            spiralTimer = millis();
-        }
 
-        int l_val = constrain(searchSpeed - spiralStep, 0, 255);
-        int r_val = searchSpeed;
+// Проверка состояния датчиков, принятие решения 
+void CheckSensors() {
+  // Считывание данных с датчиков и перевод показаний в шкалу 0–100
+  s1 = map(analogRead(LEFT_SENSOR_PIN), LeftMin, LeftMax, 0, 100);
+  s2 = map(analogRead(RIGHT_SENSOR_PIN), RightMin, RightMax, 0, 100);
 
-        setMotors(l_val, r_val);
+  // Если робот находится в режиме поиска линии 
+  if (!IsLineFound) {
+    // Проверка тайм-аута — если поиск слишком долгий
+    if (millis() - SearchStartTime > SearchTimeout) {
+      RobotStop();
+      return;
     }
 
-        if (!lineLost()) {
-            return;
-        } 
-    setMotors(0, 0);
-    systemActive = false;
+    // Проверка — найдена ли линия
+    if (s1 > LightThreshold || s2 > LightThreshold) {
+        IsLineFound = true;                          
+        LastDirection = (s1 > LightThreshold) ? 0 : 1;    // Запоминаем направление
+    } else {
+        IsLineFound = false;  // Продолжаем поиск
+    }
+  } else {
+    // Если не ищем, но потеряли линию (оба датчика не видят черного)
+    if (s1 < LightThreshold && s2 < LightThreshold) {
+        IsLineFound = false; // Переходим в режим поиска
+    } else {
+        IsLineFound = true; // Двигаемся по линии
+    }
+  }
 }
 
-
-// Проверка потряна ли линия
-bool lineLost() {
-    int l_read = readAnalog(SENSOR_L);
-    int r_read = readAnalog(SENSOR_R);
-
-    return (r_read < r_threshold && l_read < l_threshold);
+void SensCalibration() {
+  int time = millis();
+  while (millis() - time < 4000) {          // Вращение в течение 4 секунд и считывание данных
+    Move(140, -140);                        // Вращение на месте
+    int left = analogRead(LEFT_SENSOR_PIN);
+    int right = analogRead(RIGHT_SENSOR_PIN);
+    
+    // Обновление минимумов и максимумов
+    if (left < LeftMin) LeftMin = left;
+    if (left > LeftMax) LeftMax = left;
+    if (right < RightMin) RightMin = right;
+    if (right > RightMax) RightMax = right;
+  }
+  Move(0, 0); // Остановка после калибровки
 }
+void SwitchButton() {
+  int CalibButton = digitalRead(CALIBRATE_BOTTON_PIN);
+  if (CalibButton == HIGH && CALIBRATE_BOTTON_PIN_old == LOW) {
+    IsTurnedOn = !IsTurnedOn;    // Переключение состояние активности
+    delay(80);
+  }
 
-
-// Инициализация
+  CALIBRATE_BOTTON_PIN_old = CalibButton; // Обновление состояние кнопки
+}
+// Начальная настройка 
 void setup() {
-    Serial.begin(9600);
+  // Настройка пинов
+  pinMode(POWER_LEFT_MOTOR_PIN, OUTPUT);
+  pinMode(DIRECTION_LEFT_MOTOR_PIN, OUTPUT);
+  pinMode(POWER_RIGHT_MOTOR_PIN, OUTPUT);
+  pinMode(DIRECTION_RIGHT_MOTOR_PIN, OUTPUT);
+  pinMode(CALIBRATE_BOTTON_PIN, INPUT_PULLUP); // Кнопка подключена с подтяжкой
 
-    pinMode(MOTOR_L_PWM, OUTPUT);
-    pinMode(MOTOR_L_DIR, OUTPUT);
-    pinMode(MOTOR_R_PWM, OUTPUT);
-    pinMode(MOTOR_R_DIR, OUTPUT);
-    pinMode(BUTTON_PIN, INPUT_PULLUP);
-
-    calibrateDat();
-
-    Serial.println("Press button to start");
-    while (digitalRead(BUTTON_PIN) == HIGH) delay(10);
-    systemActive = true;
-}
-
-
-void button() {
-        bool btnState = digitalRead(BUTTON_PIN);
-
-    if (btnState == LOW && buttonState == HIGH) {
-        systemActive = !systemActive;
+  SensCalibration();
+  
+  // Ожидание нажатия кнопки для старта
+  while (true) {
+    if (digitalRead(CALIBRATE_BOTTON_PIN) == LOW) { 
+      delay(50); // Защита от дребезжания кнопки
+      if (digitalRead(CALIBRATE_BOTTON_PIN) == LOW) break; // Выход при нажатии кнопки
     }
-
-    buttonState = btnState;
+  }
 }
 
 
-// Основа
 void loop() {
+  SwitchButton();
 
-    button();
-
-    if (systemActive) {
-        if (lineLost()){ 
-            findLine();
-        }
-            else 
-                followLine();
+  if (IsTurnedOn) {
+    CheckSensors(); // Пока робот активен — считываем датчики и управляем движением
+    if (IsLineFound) {
+      MovingLine(s1, s2);
     }
+    if (!IsLineFound) {
+      StartSearching();
+      SearchSpiral();
+    }
+  }
 }
