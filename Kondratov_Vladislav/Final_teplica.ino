@@ -13,340 +13,353 @@
 #define LIGHT_SENSOR_4_PIN 8
 #define LIGHT_SENSOR_5_PIN 9
 
-
-const unsigned long DAY_DURATION 12*1000;    
-const unsigned long NIGHT_DURATION 12*1000;  
-const unsigned long SERIAL_INTERVAL 1*1000;    
-
-const unsigned long WATERING_DURATION 2*1000;   
-const unsigned long WATERING_DELAY 2*1000;         
-
-unsigned long TIME = 0;
+DHT11 dht11(TEMP_HUMID_SENSOR_PIN);
 
 
-struct ClimateConditions {
-  int minTemperature;
-  int maxTemperature;
-  int minAirHumidity;
-  int maxAirHumidity;
-  int minSoilMoisture;  // Чем выше значение, тем суше почва
-  int maxSoilMoisture;  // Чем ниже значение, тем влажнее почва
-  int minLight;  
-  int maxLight;
+const unsigned long day_duration = 12 * 1000;
+const unsigned long night_duration = 12 * 1000;
+const unsigned long serial_interval = 1 * 1000;
+
+const unsigned long watering_duration = 2 * 1000;
+const unsigned long watering_delay = 2 * 1000;
+
+unsigned long time = 0;
+
+
+struct Climate_conditions {
+    int min_temperature;
+    int max_temperature;
+    int min_air_humidity;
+    int max_air_humidity;
+    int min_soil_moisture;  // Чем выше значение, тем суше почва
+    int max_soil_moisture;  // Чем ниже значение, тем влажнее почва
+    int min_light;
+    int max_light;
 };
 
 
-ClimateConditions climate = {29, 30, 20, 40, 900, 10, 400, 20};
+Climate_conditions climate = { 29, 30, 20, 40, 900, 10, 400, 20 };
 
 
 class Fan {
-  public:
+public:
     const int pin = FAN_PIN;
-    bool on_heater;      
+    bool on_heater;
     bool on_humidity;
-    bool on_hot;          
-  public:
+    bool on_hot;
+public:
     void power();
 };
 
 
 class Heater {
-  public:
+public:
     const int pin = HEAT_PIN;
-    bool on_temperature; 
-  public:
-    void power(); 
+    bool on_temperature;
+public:
+    void power();
 };
 
 
 class Lamp {
-  public:
+public:
     const int pin = LIGHT_PIN;
-    bool on_light;       
-    bool on_night;       
-  public:
-    void power(); 
+    bool on_light;
+    bool on_night;
+public:
+    void power();
 };
 
 
 class Pump {
-  public:
+public:
     const int pin = PUMP_PIN;
-    bool on_pump;       
-    unsigned long startWateringTime = 0;
-    unsigned long stopWateringTime = 0;
-    bool wateringInProgress = false;
-    bool pumpCurrentlyActive = false;
-  public:
-    void power(); 
+    bool on_pump;
+    unsigned long start_watering_time = 0;
+    unsigned long stop_watering_time = 0;
+    bool watering_in_progress = false;
+    bool pump_currently_active = false;
+public:
+    void power();
 };
 
 
 class Thermometer {
-  public:
-    int temperature;   
-  public:
-    void get_data(); 
+public:
+    int temperature;
+public:
+    void get_data();
 };
 
 
-class LightSensor {
-  public:
+class Light_sensor {
+public:
     int pin;
-    int lightLevel;    
-  public:
-    void get_data(); 
+    int light_level;
+public:
+    void get_data();
 };
 
 
-class LightSensor_merge: public LightSensor {
-  public:
-    LightSensor sensors[5];
-    int averageLightLevel;
-  public:
+class Light_sensor_merge : public Light_sensor {
+public:
+    Light_sensor sensors[5];
+    int average_light_level;
+    int light_levels[5];
+    bool sensor_active[5] = {true, true, true, true, true};
+public:
     void calculate();
-    void initPins();
-    void readAllSensors();
+    void init_pins();
+    void read_all_sensors();
 };
 
 
-class AirHumiditySensor {
-  public:
-    int humidity;  
-  public:    
-    void get_data(); 
+class Air_humidity_sensor {
+public:
+    int humidity;
+public:
+    void get_data();
 };
 
 
-class SoilMoistureSensor {
-  public:
+class Soil_moisture_sensor {
+public:
     const int pin = SOIL_MOISTURE_SENSOR_PIN;
-    int moisture;      
-  public:
-    void get_data(); 
+    int moisture;
+public:
+    void get_data();
 };
 
 
-class DayNightCycle {
-  public:
-    bool isNight;                  
-    unsigned long dayDuration;     
-    unsigned long nightDuration;   
-    unsigned long cycleStartTime;  
-    DayNightCycle(unsigned long day, unsigned long night) : dayDuration(day), nightDuration(night), isNight(false), cycleStartTime(0) {}
-    void update(); 
+class Day_night_cycle {
+public:
+    bool is_night;
+    unsigned long day_duration;
+    unsigned long night_duration;
+    unsigned long cycle_start_time;
+    Day_night_cycle(unsigned long day, unsigned long night) : day_duration(day), night_duration(night), is_night(false), cycle_start_time(0) {}
+    void update();
 };
 
 
 void Fan::power()
 {
-  if (on_heater || on_humidity || on_hot) {
-    digitalWrite(pin, HIGH);
-  } 
-  else {
-    digitalWrite(pin, LOW);
-  }
+    if (on_heater || on_humidity || on_hot) {
+        digitalWrite(pin, HIGH);
+    }
+    else {
+        digitalWrite(pin, LOW);
+    }
 }
 
 
 void Heater::power()
-{ 
-  if (on_temperature) {
-    digitalWrite(pin, HIGH);
-  } 
-  else {
-    digitalWrite(pin, LOW);
-  }
+{
+    if (on_temperature) {
+        digitalWrite(pin, HIGH);
+    }
+    else {
+        digitalWrite(pin, LOW);
+    }
 }
 
 
 void Lamp::power()
 {
-  if (on_light || on_night) {
-    digitalWrite(pin, HIGH);
-  } 
-  else {
-    digitalWrite(pin, LOW);
-  }
+    if (on_light || on_night) {
+        digitalWrite(pin, HIGH);
+    }
+    else {
+        digitalWrite(pin, LOW);
+    }
 }
 
 void Pump::power()
 {
-  if (on_pump) {
-    digitalWrite(pin, HIGH);
-  } 
-  else {
-    digitalWrite(pin, LOW);
-  }
+    if (on_pump) {
+        digitalWrite(pin, HIGH);
+    }
+    else {
+        digitalWrite(pin, LOW);
+    }
 }
 
 
 void Thermometer::get_data()
 {
-  temperature = dht11.readTemperature(); 
+    temperature = dht11.readTemperature();
 }
 
 
-void LightSensor::get_data()
+void Light_sensor::get_data()
 {
-  lightLevel = analogRead(pin);
+    light_level = analogRead(pin);
 }
 
 
-void AirHumiditySensor::get_data()
+void Air_humidity_sensor::get_data()
 {
-  humidity = dht11.readHumidity();
+    humidity = dht11.readHumidity();
 }
 
 
-void SoilMoistureSensor::get_data()
+void Soil_moisture_sensor::get_data()
 {
-  moisture = analogRead(pin);
+    moisture = analogRead(pin);
 }
 
 
-void DayNightCycle::update()
+void Day_night_cycle::update()
 {
-  unsigned long cycleTime = TIME - cycleStartTime;
-  if (!isNight && cycleTime >= dayDuration) {
-    isNight = true;
-    cycleStartTime = TIME;
-  } 
-  else if (isNight && cycleTime >= nightDuration) {
-    isNight = false;
-    cycleStartTime = TIME;
-  }
-}
+    unsigned long cycle_time = time - cycle_start_time;
 
-
-void LightSensor_merge::initPins() {
-  sensors[0].pin = LIGHT_SENSOR_1_PIN;
-  sensors[1].pin = LIGHT_SENSOR_2_PIN;
-  sensors[2].pin = LIGHT_SENSOR_3_PIN;
-  sensors[3].pin = LIGHT_SENSOR_4_PIN;
-  sensors[4].pin = LIGHT_SENSOR_5_PIN;
-}
-
-
-void LightSensor_merge::calculate() {
-  int sum = 0;
-  int count = 0;
-
-  for (int i = 0; i < 5; i++) {
-    sensors[i].get_data();
-    if (sensors[i].lightLevel > 0 && sensors[i].lightLevel < 1024) {
-      sum += sensors[i].lightLevel;
-      count++;
+    if (!is_night && cycle_time >= day_duration) {
+        is_night = true;
+        cycle_start_time = time;
     }
-  }
-  
-  if (count > 0) {
-    averageLightLevel = sum / count;
-  } 
-  else {
-    averageLightLevel = 0;
-  }
+    else if (is_night && cycle_time >= night_duration) {
+        is_night = false;
+        cycle_start_time = time;
+    }
 }
 
 
-void LightSensor_merge::readAllSensors() {
-  for (int i = 0; i < 5; i++) {
-    sensors[i].get_data();
-  }
+void Light_sensor_merge::init_pins() {
+    sensors[0].pin = LIGHT_SENSOR_1_PIN;
+    sensors[1].pin = LIGHT_SENSOR_2_PIN;
+    sensors[2].pin = LIGHT_SENSOR_3_PIN;
+    sensors[3].pin = LIGHT_SENSOR_4_PIN;
+    sensors[4].pin = LIGHT_SENSOR_5_PIN;
+
+    for (int i = 0; i < 5; i++) {
+        pinMode(sensors[i].pin, INPUT);
+    }
 }
 
 
-void control_temperature(Thermometer &thermometer, Fan &fan, Heater &heater) {
-  if (thermometer.temperature >= climate.maxTemperature) {
-    fan.on_hot = false;
-    heater.on_temperature = false;
-  } 
-  else if (thermometer.temperature < climate.minTemperature) {
-    fan.on_hot = false;
-    fan.on_heater = true;
-    heater.on_temperature = true;
-  } 
-  else {
-    fan.on_hot = false;
-    heater.on_temperature = false;
-  }
-}
+void Light_sensor_merge::calculate() {
+    int sum = 0;
+    int count = 0;
 
-
-void control_air_humidity(Fan &fan, AirHumiditySensor &airHumiditySensor) {
-  if (airHumiditySensor.humidity > climate.maxAirHumidity) {
-    fan.on_humidity = true;
-  } 
-  else if (airHumiditySensor.humidity <= climate.minAirHumidity) {
-    fan.on_humidity = false;
-  }
-}
-
-
-void control_light(LightSensor &lightSensor, Lamp &lamp, DayNightCycle &dayNight) {
-  if (dayNight.isNight) { 
-    lamp.on_night = true;
-    lamp.on_light = false;
-  } 
-  else {
-    if (lightSensor.averageLightLevel >= climate.minLight) {// Чем выше значение, тем темнее
-      lamp.on_light = true;
-    } 
+    for (int i = 0; i < 5; i++) {
+        sensors[i].get_data();
+        if (sensor_active[i] && sensors[i].light_level > 0 && sensors[i].light_level < 1024) {
+            sum += sensors[i].light_level;
+            count++;
+        }
+    }
+    if (count > 0) {
+        average_light_level = sum / count;
+    }
     else {
-      lamp.on_light = false;
+        average_light_level = 0;
     }
-    lamp.on_night = false;
-  }
 }
 
 
-void control_soil_moister(Pump &pump, SoilMoistureSensor &soilMoistureSensor) {
-  if (soilMoistureSensor.moisture > climate.minSoilMoisture) {
-    if (!pump.wateringInProgress) { // Начинаем новый цикл полива
-      pump.wateringInProgress = true;
-      pump.pumpCurrentlyActive = true;
-      pump.startWateringTime = TIME;
-      pump.on_pump = true;
-    } 
+void Light_sensor_merge::read_all_sensors() {
+    for (int i = 0; i < 5; i++) {
+        sensors[i].get_data();
+        light_levels[i] = sensors[i].light_level;
+    }
+}
 
-    else if (pump.wateringInProgress && pump.pumpCurrentlyActive) { // Полив в процессе, насос работает
-      if (TIME - pump.startWateringTime >= WATERING_DURATION) { // Завершаем полив
+
+void control_temperature(Thermometer& thermometer, Fan& fan, Heater& heater) {
+    if (thermometer.temperature >= climate.max_temperature) {
+        fan.on_hot = false;
+        heater.on_temperature = false;
+    }
+
+    else if (thermometer.temperature < climate.min_temperature) {
+        fan.on_hot = false;
+        fan.on_heater = true;
+        heater.on_temperature = true;
+    }
+
+    else {
+        fan.on_hot = false;
+        heater.on_temperature = false;
+    }
+}
+
+
+void control_air_humidity(Fan& fan, Air_humidity_sensor& air_humidity_sensor) {
+    if (air_humidity_sensor.humidity > climate.max_air_humidity) {
+        fan.on_humidity = true;
+    }
+    else if (air_humidity_sensor.humidity <= climate.min_air_humidity) {
+        fan.on_humidity = false;
+    }
+}
+
+
+void control_light(Light_sensor_merge& light_sensor_merge, Lamp& lamp, Day_night_cycle& day_night) {
+    if (day_night.is_night) {
+        lamp.on_night = true;
+        lamp.on_light = false;
+    }
+    else {
+        if (light_sensor_merge.average_light_level >= climate.min_light) {// Чем выше значение, тем темнее
+            lamp.on_light = true;
+        }
+        else {
+            lamp.on_light = false;
+        }
+
+        lamp.on_night = false;
+    }
+}
+
+
+void control_soil_moisture(Pump& pump, Soil_moisture_sensor& soil_moisture_sensor) {
+    if (soil_moisture_sensor.moisture > climate.min_soil_moisture) {
+        if (!pump.watering_in_progress) { // Начинаем новый цикл полива
+            pump.watering_in_progress = true;
+            pump.pump_currently_active = true;
+            pump.start_watering_time = time;
+            pump.on_pump = true;
+        }
+
+        else if (pump.watering_in_progress && pump.pump_currently_active) { // Полив в процессе, насос работает
+            if (time - pump.start_watering_time >= watering_duration) { // Завершаем полив
+                pump.on_pump = false;
+                pump.pump_currently_active = false;
+                pump.stop_watering_time = time;
+            }
+        }
+
+        else if (pump.watering_in_progress && !pump.pump_currently_active) { // Пауза между поливами
+            if (time - pump.stop_watering_time >= watering_delay) {
+                pump.watering_in_progress = false;
+            }
+        }
+
+    }
+    else {
         pump.on_pump = false;
-        pump.pumpCurrentlyActive = false;
-        pump.stopWateringTime = TIME;
-      }
-    } 
-    
-    else if (pump.wateringInProgress && !pump.pumpCurrentlyActive) { // Пауза между поливами
-      if (TIME - pump.stopWateringTime >= WATERING_DELAY) { 
-        pump.wateringInProgress = false;
-      }
+        pump.watering_in_progress = false;
+        pump.pump_currently_active = false;
     }
-
-  } else {
-    pump.on_pump = false;
-    pump.wateringInProgress = false;
-    pump.pumpCurrentlyActive = false;
-  }
 }
 
 
-void printStatus(Thermometer &thermometer, LightSensorMerge &lightSensor, 
-                 AirHumiditySensor &airHumiditySensor, SoilMoistureSensor &soilMoistureSensor,
-                 DayNightCycle &dayNight) {
-  static unsigned long lastPrintTime = 0;
-  
-  if (TIME - lastPrintTime >= SERIAL_INTERVAL) {
-    Serial.print("Температура: ");
-    Serial.print(thermometer.temperature);
-    Serial.print("°C, Влажность воздуха: ");
-    Serial.print(airHumiditySensor.humidity);
-    Serial.print("%, Влажность почвы: ");
-    Serial.print(soilMoistureSensor.moisture);
-    Serial.print(", Освещенность: ");
-    Serial.print(lightSensor.lightLevel);
-    lastPrintTime = TIME;
-  }
+void print_status(Thermometer& thermometer, Light_sensor_merge& light_sensor_merge,
+    Air_humidity_sensor& air_humidity_sensor, Soil_moisture_sensor& soil_moisture_sensor,
+    Day_night_cycle& day_night) {
+    static unsigned long last_print_time = 0;
+
+    if (time - last_print_time >= serial_interval) {
+        Serial.print("Температура: ");
+        Serial.print(thermometer.temperature);
+        Serial.print("°C, Влажность воздуха: ");
+        Serial.print(air_humidity_sensor.humidity);
+        Serial.print("%, Влажность почвы: ");
+        Serial.print(soil_moisture_sensor.moisture);
+        Serial.print(", Освещенность: ");
+        Serial.print(light_sensor_merge.average_light_level);
+        last_print_time = time;
+    }
 }
 
 
@@ -355,49 +368,47 @@ Heater heater;
 Lamp lamp;
 Pump pump;
 Thermometer thermometer;
-LightSensor lightSensor;
-LightSensor_merge lightSensor;
-AirHumiditySensor airHumiditySensor;
-SoilMoistureSensor soilMoistureSensor;
-DayNightCycle dayNight(DAY_DURATION, NIGHT_DURATION);
+Light_sensor_merge light_sensor_merge;
+Air_humidity_sensor air_humidity_sensor;
+Soil_moisture_sensor soil_moisture_sensor;
+Day_night_cycle day_night(day_duration, night_duration);
 
 
 void setup() {
-  Serial.begin(9600);
-  dht.begin();
-  pinMode(fan.pin, OUTPUT);
-  pinMode(heater.pin, OUTPUT);
-  pinMode(lamp.pin, OUTPUT);
-  pinMode(pump.pin, OUTPUT);
-  lightSensor.initPins();
-  pinMode(lightSensor.pin, OUTPUT);
-  Serial.println("Система умной теплицы инициализирована");
-  Serial.println("======================================");
+    Serial.begin(9600);
+    dht11.begin();
+    pinMode(fan.pin, OUTPUT);
+    pinMode(heater.pin, OUTPUT);
+    pinMode(lamp.pin, OUTPUT);
+    pinMode(pump.pin, OUTPUT);
+    light_sensor_merge.init_pins();
+    Serial.println("Система умной теплицы инициализирована");
+    Serial.println("======================================");
 }
 
 void loop() {
-  TIME = millis(); 
-  dayNight.update();
-  thermometer.get_data();
-  lightSensor.readAllSensors();
-  lightSensor.calculate();
-  airHumiditySensor.get_data();
-  soilMoistureSensor.get_data();
-  
-  control_temperature(thermometer, fan, heater);
-  control_air_humidity(fan, airHumiditySensor);
-  control_light(lightSensor, lamp, dayNight);
-  control_soil_moister(pump, soilMoistureSensor);
-  
-  fan.power();
-  heater.power();
-  lamp.power();
-  pump.power();
+    time = millis();
+    day_night.update();
+    thermometer.get_data();
+    light_sensor_merge.read_all_sensors();
+    light_sensor_merge.calculate();
+    air_humidity_sensor.get_data();
+    soil_moisture_sensor.get_data();
 
-  //Serial.print(lightSensor.sensors[2].lightLevel);
-  
-  printStatus(thermometer, lightSensor, airHumiditySensor, 
-              soilMoistureSensor, dayNight);
-  
-  delay(100); 
+    control_temperature(thermometer, fan, heater);
+    control_air_humidity(fan, air_humidity_sensor);
+    control_light(light_sensor_merge, lamp, day_night);
+    control_soil_moisture(pump, soil_moisture_sensor);
+
+    fan.power();
+    heater.power();
+    lamp.power();
+    pump.power();
+
+    print_status(thermometer, light_sensor_merge, air_humidity_sensor, soil_moisture_sensor, day_night);
+
+    //Serial.print(light_sensor_merge.sensors[2].light_level);
+    //Serial.print(light_sensor_merge.light_levels[2]);
+
+    delay(100);
 }
