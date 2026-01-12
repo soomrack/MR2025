@@ -1,21 +1,23 @@
-#define LEFT_MOTOR_PWM 6
-#define LEFT_MOTOR_DIR 7
-#define RIGHT_MOTOR_PWM 5
-#define RIGHT_MOTOR_DIR 4
+#define LEFT_MOTOR_PWM_PIN 6
+#define LEFT_MOTOR_DIR_PIN 7
+#define RIGHT_MOTOR_PWM_PIN 5
+#define RIGHT_MOTOR_DIR_PIN 4
 
-#define LEFT_SENSOR A0
-#define RIGHT_SENSOR A1
+#define LEFT_SENSOR_PIN A1
+#define RIGHT_SENSOR_PIN A0
 #define BUTTON_PIN 12
 #define SOUND_PIN 8
 
 float Kp = 8.0;
 float Kd = 5.0;
 int base_speed = 150;
-int search_speed = 110;
+int max_speed = 250;
+int search_speed = 150;
 int light_threshold = 50;
-int spiral_increase = 3;
-int spiral_interval = 50;
-int search_timeout = 10000;
+int max_light_value = 100;
+int spiral_increase = 6;
+int spiral_interval = 30;
+int search_timeout = 20000;
 
 int white_L; 
 int black_L;
@@ -35,30 +37,27 @@ unsigned long search_start_time = 0;
 int sensor_left = 0;
 int sensor_right = 0;
 
-unsigned long last_serial_time = 0;
-const unsigned long serial_interval = 200;
-
 enum RobotState { IDLE, FOLLOW_LINE, SEARCH_LINE };
 RobotState state = IDLE;
 
 
 void init_motors() {
-  pinMode(LEFT_MOTOR_PWM, OUTPUT);
-  pinMode(LEFT_MOTOR_DIR, OUTPUT);
-  pinMode(RIGHT_MOTOR_PWM, OUTPUT);
-  pinMode(RIGHT_MOTOR_DIR, OUTPUT);
-  pinMode(LEFT_SENSOR, INPUT);
-  pinMode(RIGHT_SENSOR, INPUT);
+  pinMode(LEFT_MOTOR_PWM_PIN, OUTPUT);
+  pinMode(LEFT_MOTOR_DIR_PIN, OUTPUT);
+  pinMode(RIGHT_MOTOR_PWM_PIN, OUTPUT);
+  pinMode(RIGHT_MOTOR_DIR_PIN, OUTPUT);
+  pinMode(LEFT_SENSOR_PIN, INPUT);
+  pinMode(RIGHT_SENSOR_PIN, INPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   pinMode(SOUND_PIN, OUTPUT);
 }
 
 
 void set_speed(int left_speed, int right_speed) {
-  digitalWrite(LEFT_MOTOR_DIR, left_speed > 0);
-  digitalWrite(RIGHT_MOTOR_DIR, right_speed > 0);
-  analogWrite(LEFT_MOTOR_PWM, abs(left_speed));
-  analogWrite(RIGHT_MOTOR_PWM, abs(right_speed));
+  digitalWrite(LEFT_MOTOR_DIR_PIN, left_speed > 0);
+  digitalWrite(RIGHT_MOTOR_DIR_PIN, right_speed > 0);
+  analogWrite(LEFT_MOTOR_PWM_PIN, abs(left_speed));
+  analogWrite(RIGHT_MOTOR_PWM_PIN, abs(right_speed));
 }
 
 
@@ -80,24 +79,24 @@ int mid_arifm(int pin) {
 }
 
 
-void sensor_calibration(){ // Калибровка датчиков на белое и чёрное через нажатие кнопок
+void sensor_calibration(){ 
   pinMode(BUTTON_PIN, INPUT_PULLUP);
-  pinMode(LEFT_SENSOR, INPUT);
-  pinMode(RIGHT_SENSOR, INPUT);
+  pinMode(LEFT_SENSOR_PIN, INPUT);
+  pinMode(RIGHT_SENSOR_PIN, INPUT);
 
-  while (digitalRead(BUTTON_PIN)) {delay(50);}  // Ожидание первого нажатия клавиши
-  while (!digitalRead(BUTTON_PIN)) {delay(50);} // Ожидание когда кнопку отпустят
+  while (digitalRead(BUTTON_PIN)) {delay(50);}  
+  while (!digitalRead(BUTTON_PIN)) {delay(50);} 
 
-  white_L = mid_arifm(LEFT_SENSOR); // Запись значения белого с левого датчика
-  white_R = mid_arifm(RIGHT_SENSOR); // Запись значения белого с правого датчика
+  white_L = mid_arifm(LEFT_SENSOR_PIN); 
+  white_R = mid_arifm(RIGHT_SENSOR_PIN);
   
-  while (digitalRead(BUTTON_PIN)) {delay(50);}  // Ожидание второго нажатия клавиши
-  while (!digitalRead(BUTTON_PIN)) {delay(50);} // Ожидание когда кнопку отпустят
+  while (digitalRead(BUTTON_PIN)) {delay(50);}
+  while (!digitalRead(BUTTON_PIN)) {delay(50);}
 
-  black_L = mid_arifm(LEFT_SENSOR); // Запись значения чёрного с левого датчика
-  black_R = mid_arifm(RIGHT_SENSOR); // Запись значения чёрного с правого датчика
+  black_L = mid_arifm(LEFT_SENSOR_PIN);
+  black_R = mid_arifm(RIGHT_SENSOR_PIN);
 
-  while (digitalRead(BUTTON_PIN)) {delay(50);}  // Ожидание третьего нажатия клавиши
+  while (digitalRead(BUTTON_PIN)) {delay(50);} 
 
   Serial.print(white_L);
   Serial.println(" ");
@@ -107,13 +106,13 @@ void sensor_calibration(){ // Калибровка датчиков на бел�
   Serial.println(" ");
   Serial.println(black_R);
 
-  while (!digitalRead(BUTTON_PIN)) {delay(50);} // Ожидание когда кнопку отпустят
+  while (!digitalRead(BUTTON_PIN)) {delay(50);} 
 }
 
 
 void update_sensors() {
-  sensor_left = map(analogRead(LEFT_SENSOR), white_L, black_L, 0, 100);
-  sensor_right = map(analogRead(RIGHT_SENSOR), white_R, black_R, 0, 100);
+  sensor_left = map(analogRead(LEFT_SENSOR_PIN), white_L, black_L, 0, max_light_value);
+  sensor_right = map(analogRead(RIGHT_SENSOR_PIN), white_R, black_R, 0, max_light_value);
 }
 
 
@@ -139,6 +138,9 @@ void set_searching_state() {
 
 
 void set_line_following_state(){
+  if (sensor_left < light_threshold) set_speed(155, -155);
+  else set_speed(-155, 155);
+  delay(200);
   searching = false;
   last_direction = (sensor_left > light_threshold) ? 0 : 1;
   state = FOLLOW_LINE;
@@ -148,8 +150,8 @@ void set_line_following_state(){
 void follow_line() {
   int error = sensor_left - sensor_right;
   int correction = error * Kp + (error - last_error) * Kd;
-  set_speed(constrain(base_speed + correction, -250, 250),
-        constrain(base_speed - correction, -250, 250));
+  set_speed(constrain(base_speed + correction, -max_speed, max_speed),
+        constrain(base_speed - correction, -max_speed, max_speed));
   last_error = error;
 
   if (sensor_left < light_threshold && sensor_right < light_threshold) {
@@ -167,8 +169,8 @@ void search_line() {
   int left_speed = search_speed - spiral_step;
   int right_speed = search_speed - spiral_step;
 
-  if (spiral_direction) set_speed(left_speed, search_speed);
-  else set_speed(search_speed, right_speed);
+  set_speed(constrain(left_speed, 0, search_speed), search_speed);
+
 
   if (sensor_left > light_threshold || sensor_right > light_threshold) {
     set_line_following_state();
@@ -193,7 +195,7 @@ void loop() {
 
   switch (state) {
     case IDLE:
-      set_speed(0, 0);
+      stop_robot();
       break;
     case FOLLOW_LINE:
       follow_line();

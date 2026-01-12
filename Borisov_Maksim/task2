@@ -1,0 +1,193 @@
+#define LEFT_SENSOR A0
+#define RIGHT_SENSOR A1
+
+#define MOTOR_LEFT_PWM 5
+#define MOTOR_LEFT_DIR 4  // 1 - вперед, 0 - назад
+
+#define MOTOR_RIGHT_PWM 6
+#define MOTOR_RIGHT_DIR 7  // 1 - вперед, 0 - назад
+
+// Параметры ПИД-регулятора
+float Kp = 280.0;  // Пропорциональный коэффициент
+float Ki = 0.0;    // Интегральный коэффициент
+float Kd = 0.0;    // Дифференциальный коэффициент
+
+float previousError = 0;
+float integral = 0;
+
+// Настройки движения
+const int BASE_SPEED = 100;  // Базовая скорость (0-255)
+const int MAX_SPEED = 200;   // Максимальная скорость
+const int MIN_SPEED = 0;     // Минимальная скорость
+
+// Пороговые значения датчиков
+int blackThreshold = 900;  // Порог для черного
+int whiteThreshold = 630;  // Порог для белого
+
+// Переменные для поиска линии
+bool lineLost = false;
+unsigned long lostTime = 0;
+const unsigned long SEARCH_TIMEOUT = 10000;  // Таймаут поиска 3 секунды
+//int searchDirection = 1;                     // 1 - вправо, -1 - влево
+bool searchDirection = 0;  // 1 - вправо, 0 - влево
+unsigned long GOBACK_TIME;
+const unsigned long GOBACK_TIMEOUT = 1000;  // Таймаут движения назад 1 сек
+
+void setup() {
+  Serial.begin(9600);
+  // Настройка пинов моторов
+  pinMode(MOTOR_LEFT_PWM, OUTPUT);
+  pinMode(MOTOR_LEFT_DIR, OUTPUT);
+  pinMode(MOTOR_RIGHT_PWM, OUTPUT);
+  pinMode(MOTOR_RIGHT_DIR, OUTPUT);
+}
+
+void loop() {
+  followLinePID();
+
+  if (lineLost) {
+    searchForLine();
+  } else {
+    followLinePID();
+  }
+}
+
+void followLinePID() {
+  // Чтение и нормализация значений датчиков
+  int leftValue = analogRead(LEFT_SENSOR);
+  int rightValue = analogRead(RIGHT_SENSOR);
+
+  // Преобразование в значение от -1000 до 1000
+  // -1000: полностью слева, 1000: полностью справа, 0: по центру
+  int error = calculateError(leftValue, rightValue);
+
+  // Если оба датчика видят белое - потеря линии
+  if (isLineLost(leftValue, rightValue)) {
+    Serial.println("Линия потеряна! Начинаю поиск...");
+    lineLost = true;
+    stopMotors();
+    return;
+  }
+
+  // Вычисление ПИД
+  float pidValue = computePID(error);
+
+  // Управление моторами
+  int leftMotorSpeed = BASE_SPEED + pidValue;
+  int rightMotorSpeed = BASE_SPEED - pidValue;
+
+  // Ограничение скоростей
+  int leftMotorSpeed1 = constrain(leftMotorSpeed, -MAX_SPEED, MAX_SPEED);
+  int rightMotorSpeed1 = constrain(rightMotorSpeed, -MAX_SPEED, MAX_SPEED);
+
+  // Установка скорости моторов
+  setMotorSpeed(MOTOR_LEFT_PWM, MOTOR_LEFT_DIR, leftMotorSpeed1);
+  setMotorSpeed(MOTOR_RIGHT_PWM, MOTOR_RIGHT_DIR, rightMotorSpeed1);
+
+  // Отладочная информация
+  Serial.print("L:");
+  Serial.print(leftValue);
+  Serial.print(" R:");
+  Serial.print(rightValue);
+  Serial.print(" Err:");
+  Serial.print(error);
+  Serial.print(" PID:");
+  Serial.print(pidValue);
+  Serial.print(" LM:");
+  Serial.print(leftMotorSpeed1);
+  Serial.print(" RM:");
+  Serial.println(rightMotorSpeed1);
+}
+
+float computePID(int error) {
+  // Пропорциональная составляющая
+  float proportional = Kp * (error / 1000.0);
+
+  // Интегральная составляющая
+  integral += error;
+  float integralTerm = Ki * integral;
+
+  // Дифференциальная составляющая
+  float derivative = Kd * (error - previousError);
+
+  // Суммирование составляющих
+  float output = proportional + integralTerm + derivative;
+
+  // Ограничение выхода
+  //output = constrain(output, -BASE_SPEED, BASE_SPEED);
+  output = constrain(output, -200, 200);
+
+  // Сохранение ошибки для следующей итерации
+  previousError = error;
+
+  return output;
+}
+
+int calculateError(int leftValue, int rightValue) {
+  // Нормализация значений датчиков
+  int leftNorm = map(constrain(leftValue, whiteThreshold, blackThreshold),
+                     whiteThreshold, blackThreshold, 0, 1000);
+  int rightNorm = map(constrain(rightValue, whiteThreshold, blackThreshold),
+                      whiteThreshold, blackThreshold, 0, 1000);
+
+  // Вычисление ошибки: положительная - смещение вправо, отрицательная - влево
+  return rightNorm - leftNorm;
+}
+
+bool isLineLost(int leftValue, int rightValue) {
+  // Линия считается потерянной, если оба датчика видят белое
+  return (leftValue < whiteThreshold && rightValue < whiteThreshold);
+}
+
+void searchForLine() {
+  stopMotors();
+  delay(2000);
+
+  if (searchDirection == 0) {
+    while (analogRead(LEFT_SENSOR) < blackThreshold && analogRead(RIGHT_SENSOR) < blackThreshold) {
+      setMotorSpeed(MOTOR_LEFT_PWM, MOTOR_LEFT_DIR, 33);
+      setMotorSpeed(MOTOR_RIGHT_PWM, MOTOR_RIGHT_DIR, 255);
+    }
+  } else {
+    while (analogRead(LEFT_SENSOR) < blackThreshold && analogRead(RIGHT_SENSOR) < blackThreshold) {
+      setMotorSpeed(MOTOR_LEFT_PWM, MOTOR_LEFT_DIR, 255);
+      setMotorSpeed(MOTOR_RIGHT_PWM, MOTOR_RIGHT_DIR, 33);
+    }
+  }
+  stopMotors();
+  delay(2000);
+  GOBACK_TIME = millis();
+  while (analogRead(LEFT_SENSOR) < blackThreshold || analogRead(RIGHT_SENSOR) < blackThreshold) {
+    setMotorSpeed(MOTOR_LEFT_PWM, MOTOR_LEFT_DIR, -90);
+    setMotorSpeed(MOTOR_RIGHT_PWM, MOTOR_RIGHT_DIR, -90);
+    if (millis() - GOBACK_TIME > GOBACK_TIMEOUT) {
+      break;
+    }
+  }
+  stopMotors();
+  delay(2000);
+
+  lineLost = false;
+  integral = 0;  // Сброс интегральной составляющей
+  previousError = 0;
+  searchDirection = !searchDirection;
+}
+
+void setMotorSpeed(int pwmPin, int dir, int speed) {
+  speed = constrain(speed, -255, 255);
+
+  if (speed > 0) {
+    // Вперед
+    digitalWrite(dir, 1);
+    analogWrite(pwmPin, abs(speed));
+  } else {
+    // Назад или стоп
+    digitalWrite(dir, 0);
+    analogWrite(pwmPin, abs(speed));
+  }
+}
+
+void stopMotors() {
+  setMotorSpeed(MOTOR_LEFT_PWM, MOTOR_LEFT_DIR, 0);
+  setMotorSpeed(MOTOR_RIGHT_PWM, MOTOR_RIGHT_DIR, 0);
+}
