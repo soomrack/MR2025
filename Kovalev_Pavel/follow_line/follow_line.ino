@@ -112,17 +112,13 @@ bool line_lost_with_time_threshold() {
         && (millis() - line_seen_millis) >= line_seen_threshold_ms;
 }
 
-double tanh(double x) {
-    const double e2x=exp(2*x);
-    return (e2x-1.0)/(e2x+1.0);
-}
-
 // Поиск линии, если она потеряна 
 void recover_line() {
     Serial.println("Line lost.");
     tone(SOUND_PIN, 500, 500);
     const unsigned long recover_start_ms = millis();
     long i = 0;
+    // if not line_lost() return;
     while (line_lost()) {
         const int search_speed = 120;
         const int turn_time_ms = 10;
@@ -242,7 +238,6 @@ void toggle_system_active_on_button() {
     bool btnState = digitalRead(BUTTON_PIN);
     if (btnState == LOW && last_button_state == HIGH) {
         system_active = !system_active;
-        delay(80);
     }
     last_button_state = btnState;
 }
