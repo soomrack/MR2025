@@ -51,11 +51,13 @@ int read_smooth(int pin) {
 }
 
 void wait(unsigned long ms) {
-    const unsigned long end_ms = millis() + ms;
-    do {
-        
-    } while (millis() <= end_ms);
+    const unsigned long end_ms = millis() + ms;    
+    while (millis() <= end_ms)
+    {
+
+    }
 }
+
 
 // Калибровка датчиков 
 void calibrate() {
