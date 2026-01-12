@@ -1,0 +1,253 @@
+//#include <DHT11.h>
+
+#include <DHT.h>
+
+
+// Всё, что подключено
+#define DATA_SENSOR A5 // время
+#define SOIL_MOISTURE_SENSOR A3 // датчик влажности почвы
+#define DHT_AIR_HUMIDITY_SENSOR 12 // #define AIR_HUMIDITY_SENSOR 13 
+#define DHT_TEMPERATURE_SENSOR DHT11  // #define TEMPERATURE_SENSOR A1 
+#define TEMPERATURE_SENSOR A4 // второй датчик температуры 
+#define LIGHT_SENSOR_1 A0 // датчик лампы 1
+#define LIGHT_SENSOR_2 A1 // датчик лампы 2
+#define LIGHT_SENSOR_3 A2 // датчик лампы 3
+
+#define BLOWER_PIN 7  // фен
+#define LIGHT_PIN 6 // лапма вкл выкл
+#define HEATER_PIN 4  // пин нагревания
+#define WATERING_PIN 5  // добавлен пин полива
+
+
+DHT dht(DHT_AIR_HUMIDITY_SENSOR, DHT_TEMPERATURE_SENSOR);
+
+
+// Константы для временных интервалов
+const unsigned long SENSOR_READ_INTERVAL = 1000;  // чтение датчиков каждую секунду
+const unsigned long SERIAL_PRINT_INTERVAL = 5 * 1000;  // вывод в сериал каждые 5 секунд
+const unsigned long WATERING_DURATION = 2 * 1000;  // продолжительность полива 2 секунды
+
+
+// Пороговые значения
+const int DRY_SOIL = 1000;
+const int MOIST_SOIL = 300;
+const int COLD_TEMPERATURE = 5;
+const int NORMAL_TEMPERATURE = 20;
+const int HOT_TEMPERATURE = 28;
+const int DARK_LIGHTING = 600;
+const int MOIST_AIR = 100;
+
+
+// время
+const int HOURS = 8;
+unsigned long int TIME;
+unsigned int DATA = 0;
+
+
+// Данные с датчиков
+float soil_moisture;
+float light_level;
+float temperature_1;
+float temperature_2;
+float air_humidity;
+
+
+// Переменные для управления временем
+unsigned long last_sensor_read_time = 0;
+unsigned long last_serial_print_time = 0;
+unsigned long watering_start_time = 0;
+bool is_watering = false;
+
+
+// Прототипы функций
+void read_sensors();
+void control_heater();
+void control_light();
+void control_watering();
+void control_blower();
+void print_sensor_data();
+
+
+// Чтение дачтиков
+void read_sensors() {
+    soil_moisture = analogRead(SOIL_MOISTURE_SENSOR); // влажность почвы
+    light_level = analogRead(LIGHT_SENSOR); // датчк света
+    air_humidity = dht.readHumidity();// Чтение влажности воздуха
+    temperature_1 = dht.readTemperature(); // Чтение температуры 1
+    temperature_2 = analogRead(TEMPERATURE_SENSOR); // Чтение температуры 2
+}
+
+
+// Полив
+void control_watering(unsigned long current_time) {
+    if (soil_moisture > DRY_SOIL && !is_watering) {
+        digitalWrite(WATERING_PIN, HIGH);
+        watering_start_time = millis();
+        is_watering = true;
+        Serial.println("Начат полив!");
+    }
+    // Выключение происходит автоматически по таймеру
+
+    // Управление продолжительностью полива
+    if (is_watering && (current_time - watering_start_time >=
+        WATERING_DURATION)) {
+        atering_start_time = current_time;
+        digitalWrite(WATERING_PIN, LOW);
+        is_watering = false;
+        Serial.println("Полив завершен!");
+    }
+}
+
+
+//фен
+void control_blower() {
+    if (soil_moisture <= MOIST_SOIL 
+        || (temperature_1 + temperature_1) / 2 >= HOT_TEMPERATURE
+        || air_humidity >= MOIST_AIR) {
+        digitalWrite(BLOWER_PIN, HIGH);
+    }
+    else if (HOURS == 12 || HOURS == 18) digitalWrite(BLOWER_PIN, HIGH); // проветривание
+    else if ((temperature_1 + temperature_1) / 2 <= NORMAL_TEMPERATURE && !(HOURS == 12 || HOURS == 18)) {
+        digitalWrite(BLOWER_PIN, LOW);
+    }
+}
+
+
+//нагревание
+void control_heater() {
+    if ( (temperature_1 + temperature_1) / 2 <= COLD_TEMPERATURE) {
+        digitalWrite(HEATER_PIN, HIGH);
+    }
+    else if ( (temperature_1 + temperature_1) / 2 >= NORMAL_TEMPERATURE) {
+        digitalWrite(HEATER_PIN, LOW);
+    }
+}
+
+
+//свет
+void control_light() {
+    if (light_level_1 >= DARK_LIGHTING || light_level_2 >= DARK_LIGHTING 
+                                            || light_level_3 >= DARK_LIGHTING) {
+        digitalWrite(LIGHT_PIN, HIGH);
+    }
+    else {
+        digitalWrite(LIGHT_PIN, LOW);
+    }
+}
+
+
+void night_mode() {
+    digitalWrite(LIGHT_PIN, LOW);
+    digitalWrite(HEATER_PIN, LOW);
+    digitalWrite(BLOWER_PIN, LOW);
+    digitalWrite(WATERING_PIN, LOW);
+}
+
+
+void hours(unsigned long current_time) {
+    if (current_time % 60 * 60 * 1000 == 0) {
+        HOURS += 1;
+    }
+    if (HOURS == 24) HOURS = 0;
+}
+
+
+void time(unsigned long current_time) {
+    if (curre - TIME >= 50) {
+        TIME = millis();
+        DATA = analogRead(DATA_SENSOR);
+        Serial.print("TIME = ");
+        Serial.print(TIME);
+        Serial.print("DATA_SENSOR = ");
+        Serial.println(DATA);
+    }
+
+}
+
+
+//вывод данных
+void print_sensor_data(unsigned long current_time) {
+    if (current_time - last_serial_print_time >= SERIAL_PRINT_INTERVAL) {
+        last_serial_print_time = current_time;
+
+        Serial.println("+++ Данные датчиков +++");
+        Serial.print("Влажность почвы: "); Serial.println(soil_moisture);
+        Serial.print("Освещенность: "); Serial.println(light_level);
+        Serial.print("Температура: "); Serial.println((temperature_1 + temperature_1) / 2);
+        Serial.print("Влажность воздуха: "); Serial.println(air_humidity);
+
+        // Статусы систем
+        Serial.print("Нагреватель: "); Serial.println(digitalRead(HEATER_PIN) ?
+            "ВКЛ" : "ВЫКЛ");
+        Serial.print("Освещение: "); Serial.println(digitalRead(LIGHT_PIN) ?
+            "ВКЛ" : "ВЫКЛ");
+        Serial.print("Вентилятор: "); Serial.println(digitalRead(BLOWER_PIN) ?
+            "ВКЛ" : "ВЫКЛ");
+        Serial.print("Полив: "); Serial.println(digitalRead(WATERING_PIN) ?
+            "ВКЛ" : "ВЫКЛ");
+        Serial.println("-----------------------");
+    }
+
+}
+
+
+void setup() {
+    Serial.begin(9600);
+    pinMode(DATA_SENSOR, INPUT);
+    dht.begin();
+
+    // Настройка входов всех датчиков
+    pinMode(SOIL_MOISTURE_SENSOR, INPUT);
+    pinMode(LIGHT_SENSOR_1, INPUT);
+    pinMode(LIGHT_SENSOR_2, INPUT);
+    pinMode(LIGHT_SENSOR_3, INPUT);
+    pinMode(TEMPERATURE_SENSOR, INPUT);
+
+    // Настройка выходов
+    pinMode(BLOWER_PIN, OUTPUT);
+    pinMode(HEATER_PIN, OUTPUT);
+    pinMode(LIGHT_PIN, OUTPUT);
+    pinMode(WATERING_PIN, OUTPUT);
+
+    // Инициализация всех выходов в выключенное состояние
+    digitalWrite(BLOWER_PIN, LOW);
+    digitalWrite(HEATER_PIN, LOW);
+    digitalWrite(LIGHT_PIN, LOW);
+    digitalWrite(WATERING_PIN, LOW);
+    pinMode(TEMPERATURE_SENSOR, LOW);
+
+    Serial.println("Теплица готова к работе!");
+    Serial.println("------------------------");
+}
+
+
+void loop() {
+
+    unsigned long current_time = millis();
+
+    // подсчет  и обнуление часов
+    hours(current_time);
+
+
+    // ПРОВЕРКА НА НОЧЬ
+    if (HOURS >= 21 || HOURS <= 7) {
+        night_mode();
+    }
+    else {
+
+        // Чтение датчиков с интервалом
+        if (current_time - last_sensor_read_time >= SENSOR_READ_INTERVAL) {
+            last_sensor_read_time = current_time;
+            read_sensors();
+
+            // Управление системами
+            control_heater();
+            control_light();
+            control_watering();
+            control_blower();
+        }
+    }
+
+    time(current_time); // время
+    print_sensor_data(current_time); // Вывод данных в сериал порт с интервалом
+}
