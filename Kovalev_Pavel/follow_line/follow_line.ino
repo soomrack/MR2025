@@ -33,7 +33,11 @@ float last_error = 0; float integral = 0;
 bool system_active = false;
 bool last_button_state = LOW; // чтобы при первом запуске нажимать только 1 раз
 
-// Управление моторами 
+const char recover_status_spiral = 1;
+const char recover_status_allign = 2;
+char recover_status = 0;
+
+// Управление моторами
 void set_motors(int left, int right) {
     // Serial.print("Motor L:"); Serial.print(left); Serial.print(" R:"); Serial.println(right);
     digitalWrite(MOTOR_LEFT_DIR_PIN, left >= 0);
@@ -112,37 +116,67 @@ bool line_lost_with_time_threshold() {
         && (millis() - line_seen_millis) >= line_seen_threshold_ms;
 }
 
-// Поиск линии, если она потеряна 
-void recover_line() {
-    Serial.println("Line lost.");
-    tone(SOUND_PIN, 500, 500);
-    const unsigned long recover_start_ms = millis();
-    long i = 0;
-    // if not line_lost() return;
-    while (line_lost()) {
-        const int search_speed = 120;
-        const int turn_time_ms = 10;
-        const float radius_coeff = 0.01; // linear coeff, from zero to infinity
-        int go_forward_ms = (turn_time_ms/2+1) * radius_coeff * i;
+// Поиск линии по спирали, если она потеряна
+void spiral_search() {
+    const char spiral_status_turn = 1;
+    const char spiral_status_forward = 2;
+    static char spiral_status = 0;
+    static unsigned long go_until = 0;
 
-        set_motors(-search_speed, search_speed); // turn left
-        delay(turn_time_ms);
-        set_motors(search_speed, search_speed); // go forward
-        delay(go_forward_ms);
+    static unsigned long recover_start_ms = 0;
+    static long i = 0;
+    i += 1;
+    if (not line_lost()) {
+        // Линия найдена, сбрасываем статус и переходим к выравниванию
+        recover_status = recover_status_allign;
+        spiral_status = 0;
+        return;
+    } else if (millis() - recover_start_ms >= line_search_stop_threshold_ms) {
+        // Остановка
+        tone(SOUND_PIN, 500, 1000);
         set_motors(0, 0);
-
-        // delay(1);
-        if (millis() - recover_start_ms >= line_search_stop_threshold_ms) {
-            // Остановка
-            tone(SOUND_PIN, 500, 1000);
-            set_motors(0, 0);
-            system_active = false;
-            return;
-        }
-        i+=1;
+        system_active = false;
+        return;
     }
 
-    // Линия найдена. Останавливаемся и вращаемся.
+    const int search_speed = 120;
+    const int turn_time_ms = 10;
+    const float radius_coeff = 0.01;  // linear coeff, from zero to infinity
+    int go_forward_ms = (turn_time_ms / 2 + 1) * radius_coeff * i;
+
+    // чередуем вращение и движение вперёд
+    switch (spiral_status) {
+        default:
+            // только что начали искать линию
+            i = 0;
+            recover_start_ms = millis();
+            spiral_status = spiral_status_turn;
+            go_until = millis() + turn_time_ms;
+            return;
+        case spiral_status_turn:
+            set_motors(-search_speed, search_speed);  // turn left
+            if (millis() > go_until) {
+                // finished turning, переходим к движению вперёд
+                set_motors(0, 0);  // мб можно убрать, если другие процессы происходят быстро
+                spiral_status = spiral_status_forward;
+                go_until = millis() + go_forward_ms;
+            }
+            return;
+        case spiral_status_forward:
+            set_motors(search_speed, search_speed);  // go forward
+            if (millis() > go_until) {
+                // finished going forward, переходим к вращению
+                set_motors(0, 0);  // мб можно убрать, если другие процессы происходят быстро
+                spiral_status = spiral_status_turn;
+                go_until = millis() + turn_time_ms;
+            }
+            return;
+    }
+}
+
+// Вращение бота для выравнивания с линией
+void allign_line() {
+    const unsigned long recover_start_ms = millis();
     set_motors(0, 0);
     Serial.println("Line found. Stop and rotate.");
     tone(SOUND_PIN, 500, 100);
@@ -216,6 +250,23 @@ void recover_line() {
     delay(200);
     tone(SOUND_PIN, 500, 100);
     // Линия выровнена
+}
+
+void recover_line() {
+  // static char recover_status = 0; // moved to global
+
+  Serial.println("Line lost.");
+  tone(SOUND_PIN, 500, 500);
+
+  switch (recover_status) {
+      case recover_status_spiral:
+      default:
+          spiral_search();
+          break;
+      case recover_status_allign:
+          allign_line();
+          break;
+  }
 }
 
 // Следование по линии с использованием PID-регулятора
