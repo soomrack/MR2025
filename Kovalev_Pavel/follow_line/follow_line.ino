@@ -34,7 +34,7 @@ bool system_active = false;
 bool last_button_state = LOW; // чтобы при первом запуске нажимать только 1 раз
 
 const char recover_status_spiral = 1;
-const char recover_status_allign = 2;
+const char recover_status_align = 2;
 char recover_status = 0;
 
 // Управление моторами
@@ -128,7 +128,7 @@ void spiral_search() {
     i += 1;
     if (not line_lost()) {
         // Линия найдена, сбрасываем статус и переходим к выравниванию
-        recover_status = recover_status_allign;
+        recover_status = recover_status_align;
         spiral_status = 0;
         return;
     } else if (millis() - recover_start_ms >= line_search_stop_threshold_ms) {
@@ -175,7 +175,7 @@ void spiral_search() {
 }
 
 // Вращение бота для выравнивания с линией
-void allign_line() {
+void align_line() {
     const unsigned long recover_start_ms = millis();
     set_motors(0, 0);
     Serial.println("Line found. Stop and rotate.");
@@ -242,7 +242,7 @@ void allign_line() {
             break;
         }
     }
-    Serial.println("Alligned.");
+    Serial.println("Aligned.");
     set_motors(0, 0);
     tone(SOUND_PIN, 500, 100);
     delay(200);
@@ -263,8 +263,8 @@ void recover_line() {
       default:
           spiral_search();
           break;
-      case recover_status_allign:
-          allign_line();
+      case recover_status_align:
+          align_line();
           break;
   }
 }
