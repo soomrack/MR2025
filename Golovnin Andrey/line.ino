@@ -87,6 +87,15 @@ void Motors(int leftspeed, int rightspeed)
   }
 }
 
+void wait(unsigned long ms) {
+    const unsigned long end_ms = millis() + ms;    
+    while (millis() <= end_ms);
+    {
+
+    }
+}
+
+
 void stopMotors() {
   analogWrite(IN1, 0);
   analogWrite(IN2, 0);
@@ -109,7 +118,8 @@ void calibrateSensors() {
     for (int i = 0; i < 2; i++) {
       sensorWhite[i] = analogRead(lineSensors[i]);
     }
-    delay(20);
+    
+    wait(20);
 
    Serial.println("Установите робота на чёрное:");
 
@@ -121,7 +131,8 @@ void calibrateSensors() {
     for (int i = 0; i < 2; i++) {
       sensorBlack[i] = analogRead(lineSensors[i]);
     }
-    delay(20);
+    
+    wait(20);
   }
 
   // Вычисляем пороги
@@ -189,18 +200,20 @@ void lineSerch() {
         
         Motors(map(i, 0, 10000, 0, 200), 200);
 
-        delay(10);
+        wait(10);
+        //delay(10);
         i ++;
       }
     Motors(0, 0);
-    delay(500);
+    wait(500);
     Motors(100, 100);
-    delay(100);
+    wait(100);
      while((analogRead(lineSensors[0]) < lost_threshold[0]) || (analogRead(lineSensors[1]) < lost_threshold[1]))
       {        
         Motors(-200, 200);
 
-        delay(10);
+      
+        wait(10);
       }
     
     searching = false;
@@ -231,5 +244,3 @@ void loop()
 
   delay(20);
 }
-
-
