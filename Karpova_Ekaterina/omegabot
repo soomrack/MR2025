@@ -1,0 +1,162 @@
+#define SensorLeft A0
+#define SensorRight A1
+#define LeftMotorPin1 5
+#define LeftMotorPin2 4
+#define RightMotorPin1 6
+#define RightMotorPin2 7
+
+int max_speed = 200;
+int base_speed = 100;
+int whiteThreshold= 630;
+int blackThreshold= 880;
+bool lineLost = false;
+bool searchDirection=0;
+unsigned long GOBACK_TIME;
+const unsigned long GOBACK_TIMEOUT=1000;
+
+// PID
+float Kp = 2;
+
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(SensorRight, INPUT);
+  pinMode(SensorLeft, INPUT);
+  pinMode(LeftMotorPin1, OUTPUT);
+  pinMode(LeftMotorPin2, OUTPUT);
+  pinMode(RightMotorPin1, OUTPUT);
+  pinMode(RightMotorPin2, OUTPUT);
+}
+
+
+
+void go_line() {
+
+  int LEFT = analogRead(SensorLeft);
+  int RIGHT = analogRead(SensorRight);
+
+  if (isLineLost(LEFT,RIGHT)) {
+    Serial.println("Линия потеряна! Начинаю поиск...");
+    lineLost = true;
+    stopMotors();
+    return;
+  }
+
+  float error = (1023-LEFT) - (1023-RIGHT);
+  float correction = error * Kp;
+  
+  int leftSpeed = base_speed - correction;
+  int rightSpeed = base_speed + correction;
+  
+  int left1 = constrain(leftSpeed, 0, max_speed);
+  int right1= constrain(rightSpeed, 0, max_speed);
+  // * Логика движения *
+
+  if (LEFT > blackThreshold && RIGHT > blackThreshold) {    // оба белые → прямо
+    analogWrite(LeftMotorPin1, left1);
+    digitalWrite(LeftMotorPin2, HIGH);
+    analogWrite(RightMotorPin1, right1);
+    digitalWrite(RightMotorPin2, HIGH);
+  }
+  else if (LEFT < whiteThreshold && RIGHT > blackThreshold) { // линия слева
+    analogWrite(LeftMotorPin1, 90);
+    digitalWrite(LeftMotorPin2, LOW);
+    analogWrite(RightMotorPin1, right1);
+    digitalWrite(RightMotorPin2, HIGH);
+  }
+  else if (LEFT > blackThreshold && RIGHT < whiteThreshold) { // линия справа
+    analogWrite(LeftMotorPin1, left1);
+    digitalWrite(LeftMotorPin2, HIGH);
+    analogWrite(RightMotorPin1, 90);
+    digitalWrite(RightMotorPin2, LOW);
+  }
+  else { // нормальный PID режим
+    analogWrite(LeftMotorPin1, leftSpeed);
+    digitalWrite(LeftMotorPin2, HIGH);
+    analogWrite(RightMotorPin1, rightSpeed);
+    digitalWrite(RightMotorPin2, HIGH);
+  }
+  if (abs(error) > 150) {   // робот сильно отклонился
+    if (error > 0) { // линия справа
+      analogWrite(LeftMotorPin1, max_speed);
+      digitalWrite(LeftMotorPin2, HIGH);
+      analogWrite(RightMotorPin1, 90);
+      digitalWrite(RightMotorPin2, LOW);
+ } else { // линия слева
+      analogWrite(LeftMotorPin1, 90);
+      digitalWrite(LeftMotorPin2, LOW);
+      analogWrite(RightMotorPin1, max_speed);
+      digitalWrite(RightMotorPin2, HIGH);
+    }
+}
+}
+
+
+void setMotorSpeed(int pwmPin, int dir, int speed) {
+  speed = constrain(speed, -255, 255);
+
+  if (speed > 0) {
+    // Вперед
+    digitalWrite(dir, 1);
+    analogWrite(pwmPin, abs(speed));
+  } else {
+    // Назад или стоп
+    digitalWrite(dir, 0);
+    analogWrite(pwmPin, abs(speed));
+  }
+}
+
+
+void stopMotors() {
+  setMotorSpeed(LeftMotorPin1,LeftMotorPin2 , 0);
+  setMotorSpeed(RightMotorPin1, RightMotorPin2, 0);
+}
+
+
+
+bool isLineLost(int leftValue, int rightValue) {
+  // Линия считается потерянной, если оба датчика видят белое
+  return (leftValue < whiteThreshold && rightValue < whiteThreshold);
+}
+void searchForLine() {
+  stopMotors();
+  delay(2000);
+  if (searchDirection == 0) {
+    while (analogRead(SensorLeft) < blackThreshold && analogRead(SensorRight) < blackThreshold) {
+      setMotorSpeed(LeftMotorPin1, LeftMotorPin2, 33);
+      setMotorSpeed(RightMotorPin1, RightMotorPin2, 255);
+    }
+  } else {
+    while (analogRead(SensorLeft) < blackThreshold && analogRead(SensorRight) < blackThreshold) {
+      setMotorSpeed(LeftMotorPin1, LeftMotorPin2, 255);
+      setMotorSpeed(RightMotorPin1, RightMotorPin2, 33);
+    }
+  }
+  stopMotors();
+  delay(2000);
+  GOBACK_TIME = millis();
+  while (analogRead(SensorLeft) < blackThreshold || analogRead(SensorRight) < blackThreshold) {
+    setMotorSpeed(LeftMotorPin1, LeftMotorPin2, -90);
+    setMotorSpeed(RightMotorPin1, RightMotorPin2, -90);
+    if (millis() - GOBACK_TIME > GOBACK_TIMEOUT) {
+      break;
+    }
+  }
+  stopMotors();
+  delay(2000);
+  lineLost = false;
+  searchDirection = !searchDirection;
+  stopMotors();
+  delay(1000);
+}
+
+
+void loop() {
+  go_line();
+  if (lineLost) {
+    searchForLine();
+  }
+  else {
+    go_line();
+  }
+}
