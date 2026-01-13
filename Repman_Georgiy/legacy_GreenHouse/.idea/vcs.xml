@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/lib/AHT10_lib" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/lib/Adafruit_BusIO" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/lib/Adafruit_VEML7700" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/lib/DS1307RTC" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/lib/ENS160_lib" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/lib/EncButton" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/lib/HC-SR04" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/lib/LiquidCrystal_I2C" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/lib/Time_lib" vcs="Git" />
+  </component>
+</project>
