@@ -1,247 +1,216 @@
 #include <DHT.h>
 
+// Конфигурация пинов
+#define DATA_SENSOR A5 
+#define SOIL_MOISTURE_SENSOR A3 
+#define DHT_AIR_HUMIDITY_SENSOR 12 
+#define DHT_TYPE DHT11            
+#define TEMPERATURE_SENSOR_2 A4 
+#define LIGHT_SENSOR_1 A0 
+#define LIGHT_SENSOR_2 A1 
+#define LIGHT_SENSOR_3 A2 
 
-#define PUMP_PIN 5
-#define LIGHT_PIN 6
-#define HEAT_PIN 4
-#define VENT_PIN 7
+#define BLOWER_PIN 7   
+#define LIGHT_PIN 6 
+#define HEATER_PIN 4   
+#define WATERING_PIN 5  
 
-#define DHT_PIN 12
-#define LIGHT_SENSOR_PIN A0
-#define SOIL_SENSOR_PIN A3 // Для простоты оставим только один датчик почвы
+DHT dht(DHT_AIR_HUMIDITY_SENSOR, DHT_TYPE);
 
-/
-const int TEMP_MIN = 20;
-const int TEMP_MAX = 27;
+// Константы интервалов
+const unsigned long SENSOR_READ_INTERVAL = 10000;
+const unsigned long SERIAL_PRINT_INTERVAL = 5000;
+const unsigned long WATERING_DURATION = 2000;
 
-// Влажность воздуха
-const int AIR_HUMIDITY_MAX = 75;
+// --- Пороги с гистерезисом
+const int HEATER_ON_TEMP = 18;   
+const int HEATER_OFF_TEMP = 22;  
+const int BLOWER_ON_TEMP = 30;   
+const int BLOWER_OFF_TEMP = 27;  
+const int LIGHT_ON_LEVEL = 600;  
+const int LIGHT_OFF_LEVEL = 550; 
+const int HUMIDITY_ON_BLOWER = 95;  
+const int HUMIDITY_OFF_BLOWER = 85; 
 
-// Почва  больше = суше)
-const int SOIL_DRY_THRESHOLD = 500;
-const unsigned long PUMP_MAX_DURATION = 30000UL; // 30 секунд полива
+// Порог почвы
+const int SOIL_DRY_TRIGGER = 1000; // Порог начала полива
+const int SOIL_MOIST_LIMIT = 300;  // Критич влажность
 
-// Освещение ( меньше = темнее)
-const int LIGHT_MIN_THRESHOLD = 405;
+// Глобальные переменные
+int current_hours = 10; 
+unsigned long last_time_update = 0;
+unsigned long last_sensor_read_time = 0;
+unsigned long last_serial_print_time = 0;
+unsigned long watering_start_time = 0;
+bool is_watering = false;
 
-// Вентиляция по расписанию
-const unsigned long VENT_INTERVAL = 3600000UL; // 1 час
-const unsigned long VENT_DURATION = 60000UL; // 1 минута
+float soil_moisture;
+float light_1, light_2, light_3;
+float temperature_1, temperature_2, avg_temp;
+float air_humidity;
 
-// Цикл День/Ночь (для теста
-const unsigned long DAY_DURATION = 10UL * 1000UL;
-const unsigned long NIGHT_DURATION = 10UL * 1000UL;
-
-DHT dht(DHT_PIN, DHT11);
-unsigned long currentMillis = 0;
-
-// Показания датчиков
-int air_temperature = 0;
-int air_humidity = 0;
-int soil_moisture = 0;
-int light_level = 0;
-bool dht_normal = false;
-
-// Состояние системы
-bool isNight = false;
-unsigned long cycleStart = 0;
-
-// Состояние устройств
-bool pump_is_on = false;
-bool light_is_on = false;
-bool heater_is_on = false;
-bool vent_is_on = false;
-
-// Таймеры для вентиляции
-unsigned long lastVentTime = 0;
-bool vent_timer_active = false;
-
-// Таймер для насоса
-unsigned long lastPumpStart = 0;
-
-
-
-void read_all_sensors() {
-    // 1. Чтение DHT
-    int humid_data = dht.readHumidity();
-    int temp_data = dht.readTemperature();
+// Чтение датчиков
+void read_sensors() {
+    soil_moisture = analogRead(SOIL_MOISTURE_SENSOR);
+    light_1 = analogRead(LIGHT_SENSOR_1);
+    light_2 = analogRead(LIGHT_SENSOR_2);
+    light_3 = analogRead(LIGHT_SENSOR_3);
+    air_humidity = dht.readHumidity();
+    temperature_1 = dht.readTemperature();
     
-    if (isnan(humid_data) || isnan(temp_data)) {
-        dht_normal = false;
-    } else {
-        air_humidity = humid_data;
-        air_temperature = temp_data;
-        dht_normal = true;
-    }
-
-    // 2. Чтение аналоговых датчиков
-    soil_moisture = analogRead(SOIL_SENSOR_PIN);
-    light_level = analogRead(LIGHT_SENSOR_PIN);
-}
-
-
-// цикл день-ночь
-
-void updateDayNight() {
-    unsigned long elapsed = currentMillis - cycleStart;
+    // Перевод напряжения в градусы (для LM35 или аналогов)
+    temperature_2 = analogRead(TEMPERATURE_SENSOR_2) * 0.188; //перевод в цельсии
     
-    if (elapsed < DAY_DURATION) {
-        isNight = false; // День
-    } else if (elapsed < DAY_DURATION + NIGHT_DURATION) {
-        isNight = true; // Ночь
+    if (isnan(temperature_1)) {
+        avg_temp = temperature_2;
     } else {
-        cycleStart = currentMillis; // Сброс цикла
-        isNight = false; // Начинаем новый день
+        avg_temp = (temperature_1 + temperature_2) / 2;
     }
 }
 
+// Управление поливом
+void control_watering(unsigned long current_time) {
+    if (soil_moisture > SOIL_DRY_TRIGGER && !is_watering) {
+        digitalWrite(WATERING_PIN, HIGH);
+        watering_start_time = current_time;
+        is_watering = true;
+        Serial.println("Начат полив!");
+    }
 
-
-// --- 1. Освещение ---
-void algorithm_lighting() {
-    // Включаем свет, только если ДЕНЬ И освещение НИЖЕ порога
-    if (!isNight && light_level < LIGHT_MIN_THRESHOLD) {
-        light_is_on = true;
-    } else {
-        light_is_on = false;
+    if (is_watering && (current_time - watering_start_time >= WATERING_DURATION)) {
+        digitalWrite(WATERING_PIN, LOW);
+        is_watering = false;
+        Serial.println("Полив завершен!");
     }
 }
 
-// --- 2. Температура ---
-void algorithm_temperature() {
-    if (!dht_normal) return;
+// Управление обогревом (гистерезис)
+void control_blower() {
+    bool need_blower = false;
 
-    if (air_temperature < TEMP_MIN) {
-        heater_is_on = true; // Слишком холодно -> Включить обогрев
-    } else if (air_temperature > TEMP_MAX) {
-        heater_is_on = false; // Слишком жарко/нормально -> Выключить обогрев
+    // Условия включения
+    if (avg_temp >= BLOWER_ON_TEMP || air_humidity >= HUMIDITY_ON_BLOWER || soil_moisture <= SOIL_MOIST_LIMIT) {
+        need_blower = true;
     }
-    // Если температура между MIN и MAX, состояние heater_is_on не меняется.
-}
-
-// --- 3. Вентиляция по расписанию (Таймер) ---
-void algorithm_vent_schedule() {
-    // Если таймер не активен И пора проветривать
-    if (!vent_timer_active && (currentMillis - lastVentTime >= VENT_INTERVAL)) {
-        vent_timer_active = true;
-        lastVentTime = currentMillis; // Запоминаем время начала проветривания
+    else if (current_hours == 12 || current_hours == 18) {
+        need_blower = true;
     }
 
-    // Если таймер активен И время проветривания вышло
-    if (vent_timer_active && (currentMillis - lastVentTime >= VENT_DURATION)) {
-        vent_timer_active = false;
-        lastVentTime = currentMillis; // Запоминаем время окончания проветривания
-    }
-}
-
-// --- 4. Полив ---
-void algorithm_watering() {
-    bool soil_is_dry = (soil_moisture > SOIL_DRY_THRESHOLD);
-
-    // Если нужна вода И насос выключен, включаем насос
-    if (soil_is_dry && !pump_is_on) {
-        pump_is_on = true;
-        lastPumpStart = currentMillis;
+    // Условия выключения
+    if (need_blower) {
+        digitalWrite(BLOWER_PIN, HIGH);
     } 
-    
-    // Если вода не нужна И насос включен, выключаем насос
-    else if (!soil_is_dry && pump_is_on) {
-        pump_is_on = false;
-    }
-
-    // Защита от слишком долгой работы насоса (Таймаут)
-    if (pump_is_on && (currentMillis - lastPumpStart > PUMP_MAX_DURATION)) {
-        pump_is_on = false;
-        // Чтобы избежать немедленного включения, увеличим порог сухости временно
+    else if (avg_temp <= BLOWER_OFF_TEMP && air_humidity <= HUMIDITY_OFF_BLOWER) {
+        digitalWrite(BLOWER_PIN, LOW);
     }
 }
 
-
-void apply_power_controls() {
-    // Лампа
-    digitalWrite(LIGHT_PIN, light_is_on ? HIGH : LOW);
-    
-    // Обогреватель
-    digitalWrite(HEAT_PIN, heater_is_on ? HIGH : LOW);
-
-    // Насос
-    digitalWrite(PUMP_PIN, pump_is_on ? HIGH : LOW);
-    
-    // Вентиляция: включается, если любое из условий TRUE
-    bool high_humidity = (dht_normal && air_humidity > AIR_HUMIDITY_MAX);
-    bool need_ventilation = (
-        vent_timer_active || // 1. По расписанию
-        high_humidity ||     // 2. Слишком высокая влажность
-        heater_is_on ||      // 3. Работает обогрев
-        pump_is_on           // 4. Идет полив
-    );
-    
-    vent_is_on = need_ventilation;
-    digitalWrite(VENT_PIN, vent_is_on ? HIGH : LOW);
+// Обогрев (гистерезис)
+void control_heater() {
+    if (avg_temp <= HEATER_ON_TEMP) {
+        digitalWrite(HEATER_PIN, HIGH);
+    } 
+    else if (avg_temp >= HEATER_OFF_TEMP) {
+        digitalWrite(HEATER_PIN, LOW);
+    }
 }
 
-
-void serial_log() {
-    static unsigned long lastSerial = 0;
-    const unsigned long serialInterval = 5000UL;
+// Свет (гистерезис)
+void control_light() {
+    float max_light = max(light_1, max(light_2, light_3));
     
-    if (currentMillis - lastSerial < serialInterval) return;
-    lastSerial = currentMillis;
+    if (max_light >= LIGHT_ON_LEVEL) {
+        digitalWrite(LIGHT_PIN, HIGH);
+    } 
+    else if (max_light <= LIGHT_OFF_LEVEL) {
+        digitalWrite(LIGHT_PIN, LOW);
+    }
+}
 
-    Serial.println("--- STATUS TEPLITSA ---");
-    Serial.print("TEMP: "); Serial.print(air_temperature); Serial.print("C | HUM: "); Serial.print(air_humidity); Serial.println("%");
-    Serial.print("SOIL: "); Serial.print(soil_moisture); Serial.print(" | LIGHT: "); Serial.println(light_level);
+void night_mode() {
+    digitalWrite(LIGHT_PIN, LOW);
+    digitalWrite(HEATER_PIN, LOW);
+    digitalWrite(BLOWER_PIN, LOW);
+    digitalWrite(WATERING_PIN, LOW);
+    is_watering = false;
+}
+
+void update_hours(unsigned long current_time) {
+    if (current_time - last_time_update >= 3600000) {
+        current_hours++;
+        last_time_update = current_time;
+    }
+    if (current_hours >= 24) current_hours = 0;
+}
+
+void print_sensor_data() {
+    Serial.println("--- ТЕПЛИЦА ---");
+    Serial.print("Время: "); Serial.print(current_hours); Serial.println(":00");
+    Serial.print("Почва: "); Serial.println(soil_moisture);
+    Serial.print("Температура: "); Serial.println(avg_temp);
+    Serial.print("Влажность воздуха: "); Serial.println(air_humidity);
+    Serial.print("Датчик 1: "); Serial.println(light_1);
+    Serial.print("Датчик 2: "); Serial.println(light_2);
+    Serial.print("Датчик 3: "); Serial.println(light_3);
     
-    Serial.println("--- УПРАВЛЕНИЕ ---");
-    Serial.print("LIGHT: "); Serial.print(light_is_on ? "ON" : "OFF");
-    Serial.print(" | HEAT: "); Serial.print(heater_is_on ? "ON" : "OFF");
-    Serial.print(" | PUMP: "); Serial.println(pump_is_on ? "ON" : "OFF");
-    Serial.print("VENT: "); Serial.print(vent_is_on ? "ON" : "OFF");
-    Serial.print(" (Таймер: "); Serial.print(vent_timer_active ? "ДА" : "НЕТ");
-    Serial.print(", Влажность: "); Serial.print(air_humidity > AIR_HUMIDITY_MAX ? "ДА" : "НЕТ"); Serial.println(")");
-    Serial.println("-------------------------");
+    // Вычисляем максимум (то, на что ориентируется код)
+    float current_max_light = max(light_1, max(light_2, light_3));
+    Serial.print("ТЕКУЩИЙ МАКСИМУМ: "); Serial.println(current_max_light);
+
+    // Выводим границы (пороги)
+    Serial.print("ПОРОГ ВКЛЮЧЕНИЯ (нужно больше): "); Serial.println(LIGHT_ON_LEVEL);
+    Serial.print("ПОРОГ ВЫКЛЮЧЕНИЯ (нужно меньше): "); Serial.println(LIGHT_OFF_LEVEL);
+
+    // Статус лампы текстом
+    Serial.print("СТАТУС ЛАМПЫ: ");
+    if (digitalRead(LIGHT_PIN) == HIGH) {
+        Serial.println(">>> ВКЛЮЧЕНА <<<");
+    } else {
+        Serial.println("--- ВЫКЛЮЧЕНА ---");
+    }
+    Serial.println("---------------");
 }
 
 void setup() {
     Serial.begin(9600);
     dht.begin();
 
-    
-    pinMode(PUMP_PIN, OUTPUT);
+    pinMode(BLOWER_PIN, OUTPUT);
+    pinMode(HEATER_PIN, OUTPUT);
     pinMode(LIGHT_PIN, OUTPUT);
-    pinMode(HEAT_PIN, OUTPUT);
-    pinMode(VENT_PIN, OUTPUT);
+    pinMode(WATERING_PIN, OUTPUT);
+
+    // Мигание при старте
+    for (int i = 0; i < 3; i++) {
+        digitalWrite(LIGHT_PIN, HIGH);
+        delay(300);
+        digitalWrite(LIGHT_PIN, LOW);
+        delay(300);
+    }
     
-    // Начальное выключение всех устройств
-    digitalWrite(PUMP_PIN, LOW);
-    digitalWrite(LIGHT_PIN, LOW);
-    digitalWrite(HEAT_PIN, LOW);
-    digitalWrite(VENT_PIN, LOW);
-    
-    cycleStart = millis(); // Запуск счетчика дня/ночи
-    lastVentTime = millis(); // Запуск счетчика вентиляции
-    Serial.println("Система 'Теплица' запущена.");
+    Serial.println("Система запущена!");
 }
 
-
 void loop() {
-    currentMillis = millis(); // Запоминаем текущее время
+    unsigned long current_time = millis();
 
-    // Чтение всех датчиков
-    read_all_sensors();
-    
-    // Принятие решений
-    updateDayNight();
-    algorithm_lighting();
-    algorithm_temperature();
-    algorithm_vent_schedule();
-    algorithm_watering();
+    update_hours(current_time);
 
-    //  Применение решений к устройствам
-    apply_power_controls();
-    
-    // 4. Отладка
-    serial_log();
-    
-    delay(100); // Небольшая пауза для стабильности
+    if (current_hours >= 21 || current_hours <= 7) {
+        night_mode();
+    } else {
+        if (current_time - last_sensor_read_time >= SENSOR_READ_INTERVAL) {
+            last_sensor_read_time = current_time;
+            read_sensors();
+            control_heater();
+            control_light();
+            control_watering(current_time);
+            control_blower();
+        }
+    }
+
+    if (current_time - last_serial_print_time >= SERIAL_PRINT_INTERVAL) {
+        print_sensor_data();
+        last_serial_print_time = current_time;
+    }
 }
