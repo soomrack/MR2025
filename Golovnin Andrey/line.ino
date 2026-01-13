@@ -125,9 +125,6 @@ void calibrateSensors() {
 
 Serial.println("\nКалибровка завершена");
 
-  // while (digitalRead(BTN)) delay(10);
-  // while (!digitalRead(BTN)) delay(10);
-
 }
 
 void line_following() {
@@ -184,7 +181,7 @@ void loop()
     
     case 1:   // следование по линии
       line_following();
-      Serial.println("\n Cледование по линии");
+      Serial.println("Cледование по линии");
       if (lineLost() == true) 
       {
         condition = 2;
@@ -193,7 +190,7 @@ void loop()
 
     case 2:   // движение по сперали
       spiral();
-      Serial.println("\n Движение по сперали");
+      Serial.println("Движение по сперали");
       if (lineLost() == false) 
       {
         line_loss_time = 0;
@@ -208,21 +205,21 @@ void loop()
     
     case 3:   // остановка
       stop();
-      Serial.println("\n Остановка");
+      Serial.println("Остановка");
       delay(500);
       condition = 4;
       break;
 
     case 4:   // движение вперёд
       forward();
-      Serial.println("\n Движение вперёд");
+      Serial.println("Движение вперёд");
       delay(100);
       condition = 5;
       break;
 
     case 5:   // вращение вокруг своей оси
       spin();
-      Serial.println("\n Вращение вокруг своей оси");
+      Serial.println("Вращение вокруг своей оси");
       if (lineLost() == false) 
       {
         line_loss_time = 0;
@@ -236,7 +233,7 @@ void loop()
       break;
 
     case 6:   // ожидание нажатия
-      Serial.println("\n Ожидание нажатия");
+      Serial.println("Ожидание нажатия");
       if (digitalRead(BTN))
       {
         condition = 1;
