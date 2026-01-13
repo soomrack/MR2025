@@ -3,6 +3,7 @@
 // КНОПКИ
 #define BTN 12
 
+
 // ПОДКЛЮЧЕНИЕ МОТОРОВ
 int IN1 = 4;   // Левый мотор
 int IN2 = 5;
@@ -15,8 +16,7 @@ int sensorBlack[2];
 int sensorWhite[2];
 int threshold[2];
 int lost_threshold[2];
-bool calibrated = false;   // Флаг завершённой калибровки
-bool searching  = false;    // Флаг потери линии
+int condition = 0;        // Текущее остояние 
 
 // НАСТРОЙКИ ДВИЖЕНИЯ 
 int baseSpeed = 100;
@@ -28,9 +28,8 @@ float Kd = 1;
 float error = 0, lastError = 0, integral = 0;
 
 // Счётчик потери линии
-unsigned long line_seen_millis = 0;
-const int line_seen_threshold_ms = 800;
-const int line_search_stop_threshold_ms = 8 * 1000; // Сколько мс робот будет искать линию до остановки.
+unsigned long line_loss_time = 0;
+const int time_to_stop = 8 * 100; // Сколько тиков loop робот будет искать линию до остановки.
 
 void setup() {
   Serial.begin(9600);
@@ -51,10 +50,6 @@ void setup() {
     sensorWhite[i] = 0;
     threshold[i] = 512;
   }
-
-  Serial.println("Робот готов для калибровки.");
-
-  calibrateSensors();
 }
 
 void Motors(int leftspeed, int rightspeed)
@@ -87,41 +82,20 @@ void Motors(int leftspeed, int rightspeed)
   }
 }
 
-void wait(unsigned long ms) {
-    const unsigned long end_ms = millis() + ms;    
-    while (millis() <= end_ms);
-    {
-
-    }
-}
-
-
-void stopMotors() {
-  analogWrite(IN1, 0);
-  analogWrite(IN2, 0);
-  analogWrite(IN3, 0);
-  analogWrite(IN4, 0);
-}
-
 //  КАЛИБРОВКА 
 void calibrateSensors() {
-
-  calibrated = false; // блокируем движение
-  
+ 
   Serial.println("\n КАЛИБРОВКА");
   Serial.println("Установите робота на белое:");
 
-  
     while (digitalRead(BTN)) delay(10);
     while (!digitalRead(BTN)) delay(10);
 
     for (int i = 0; i < 2; i++) {
       sensorWhite[i] = analogRead(lineSensors[i]);
     }
-    
-    wait(20);
 
-   Serial.println("Установите робота на чёрное:");
+  Serial.println("Установите робота на чёрное:");
 
     while (digitalRead(BTN)) delay(10);
     while (!digitalRead(BTN)) delay(10);
@@ -131,8 +105,6 @@ void calibrateSensors() {
     for (int i = 0; i < 2; i++) {
       sensorBlack[i] = analogRead(lineSensors[i]);
     }
-    
-    wait(20);
   }
 
   // Вычисляем пороги
@@ -143,8 +115,7 @@ void calibrateSensors() {
     lost_threshold[i] = threshold[i] * ratio; //значение потери линии
   }
 
-  
-  
+  //отладочная информация
   for (int i = 0; i < 2; i++) {
     Serial.print("Датчик "); Serial.print(i);
     Serial.print(": min="); Serial.print(sensorBlack[i]);
@@ -152,12 +123,10 @@ void calibrateSensors() {
     Serial.print(" threshold="); Serial.println(threshold[i]);
   }
 
-  while (digitalRead(BTN)) delay(10);
-  while (!digitalRead(BTN)) delay(10);
+Serial.println("\nКалибровка завершена");
 
-  Serial.print("На старт");
-  calibrated = true; // теперь можно ехать
-  Serial.println("\nКалибровка завершена");
+  // while (digitalRead(BTN)) delay(10);
+  // while (!digitalRead(BTN)) delay(10);
 
 }
 
@@ -178,69 +147,107 @@ void line_following() {
 }
 
 // Проверка потери линии
-void lineLost() {
-    if ((analogRead(lineSensors[0]) < lost_threshold[0]) && (analogRead(lineSensors[1]) < lost_threshold[1]) && (searching == false)) 
-    {
-      line_seen_millis = millis();
-      searching = true;
-    }
+bool lineLost() {
+  return ((analogRead(lineSensors[0]) < lost_threshold[0]) && (analogRead(lineSensors[1]) < lost_threshold[1]));
 }
-// Поиск линии
-void lineSerch() {
-  
-   long int i = 0;
 
-  while((analogRead(lineSensors[0]) < lost_threshold[0]) || (analogRead(lineSensors[1]) < lost_threshold[1]))
-      {
-
-        if(millis() > (line_seen_millis + line_search_stop_threshold_ms))
-        {
-          return;
-        }
-        
-        Motors(map(i, 0, 10000, 0, 200), 200);
-
-        wait(10);
-        //delay(10);
-        i ++;
-      }
-    Motors(0, 0);
-    wait(500);
-    Motors(100, 100);
-    wait(100);
-     while((analogRead(lineSensors[0]) < lost_threshold[0]) || (analogRead(lineSensors[1]) < lost_threshold[1]))
-      {        
-        Motors(-200, 200);
-
-      
-        wait(10);
-      }
-    
-    searching = false;
+// Движение по спирали
+void spiral(){ 
+  Motors(map(line_loss_time, 0, 10000, 0, 200), 200);
 }
+
+// Остановка
+void stop(){ 
+  Motors(0, 0);
+}
+
+// Движение вперёд
+void forward(){ 
+  Motors(100, 100);
+}
+
+// Вращение
+void spin(){ 
+  Motors(-200, 200);
+}
+
 
 // ОСНОВНОЙ ЦИКЛ
 void loop()
 {
-  // Если не откалибровано — моторы не работают
-  if (!calibrated == true)
+  switch(condition)
   {
-    delay(50);
-    return;
-  }
-  
-  lineLost();
+    case 0:   // калибровка
+      calibrateSensors();
+      condition = 6;
+      break;
+    
+    case 1:   // следование по линии
+      line_following();
+      Serial.println("\n Cледование по линии");
+      if (lineLost() == true) 
+      {
+        condition = 2;
+      }
+      break;
 
-  if (searching == true)
-  {
-    lineSerch();
-    delay(50);
-    return;
-  }
-  else
-  {
-    line_following();
+    case 2:   // движение по сперали
+      spiral();
+      Serial.println("\n Движение по сперали");
+      if (lineLost() == false) 
+      {
+        line_loss_time = 0;
+        condition = 3;
+      }
+      else if (lineLost() == false && line_loss_time > time_to_stop)
+      {
+        line_loss_time = 0;
+        condition = 6;
+      }
+      break;
+    
+    case 3:   // остановка
+      stop();
+      Serial.println("\n Остановка");
+      delay(500);
+      condition = 4;
+      break;
+
+    case 4:   // движение вперёд
+      forward();
+      Serial.println("\n Движение вперёд");
+      delay(100);
+      condition = 5;
+      break;
+
+    case 5:   // вращение вокруг своей оси
+      spin();
+      Serial.println("\n Вращение вокруг своей оси");
+      if (lineLost() == false) 
+      {
+        line_loss_time = 0;
+        condition = 1;
+      }
+      else if (lineLost() == false && line_loss_time > time_to_stop)
+      {
+        line_loss_time = 0;
+        condition = 6;
+      }
+      break;
+
+    case 6:   // ожидание нажатия
+      Serial.println("\n Ожидание нажатия");
+      if (digitalRead(BTN))
+      {
+        condition = 1;
+      }
+      break;
+
+    default:
+      Serial.println("НЕОБРАБОТАННОЕ ИСКЛЮЧЕНИЕ!");
+      break;
   }
 
-  delay(20);
+    line_loss_time++;
+    delay(10);
 }
