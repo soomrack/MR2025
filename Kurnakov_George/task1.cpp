@@ -40,33 +40,19 @@ double indexing = 0.08;//8% индексация
 
 
 void alice_init() {
-    alice.bank_deposit = 1000 * 1000;// накопления
-    alice.income = 200 * 1000;//зп 
-    alice.clothes=10*1000;//расходы на одежду
-    alice.food=20*1000;//расходы на еду
-    alice.entertainment=10*1000;// расходы на развлечения
-    alice.car = 10 * 1000;//расходы на обслуживание машины
-    alice.home.mortgage = 60 * 1000;// ежемесячный платёж по ипотеке
-    alice.home.downpayment = 1000 * 1000;// первоначальный взнос
-    alice.has_apartment = 1;// живет в ипотечной квартире
-    alice.home.rent = 0;
-    alice.main_bank_account = 0;
-    alice.home.apartment_price = 5000 * 1000;//цена квартиры
-    alice.bank_deposit -= alice.home.downpayment; // первый взнос
-    alice.machine = 4000 * 1000;//цена купленной машины
+    alice.bank_account = 200000;
+    alice.income = 20000;
+    alice.mortage = 100000;
+    alice.monthly_payment = 50000;
+    alice.mortgage_balance = alice.mortage - alice.bank_account;
+    alice.investment_acc = 0;
 }
 void bob_init() {
-    bob.bank_deposit = 1000 * 1000;
-    bob.income = 200 * 1000;
-    bob.has_apartment = 0;
-    bob.home.rent = 40 * 1000;
-    bob.home.apartment_price = 5000 * 1000;
-    bob.clothes = 10 * 1000;
-    bob.food = 20 * 1000;
-    bob.entertainment = 10 * 1000;
-    bob.car = 10 * 1000;
-    bob.main_bank_account = 0;
-    bob.machine = 3000 * 1000;
+    bob.bank_account = 200000;
+    bob.income = 20000;
+    bob.investment_acc = 0;
+    bob.house = 1000000;
+    
 }
 
 
@@ -87,7 +73,7 @@ void alice_food(int month) {
 
 void alice_clothes(int month) {
     if (month == 1) {
-        alice.income *= (1.0 + inflation);
+        alice.clothes *= (1.0 + inflation);
     }
     alice.main_bank_account -= alice.clothes;
 }
@@ -103,7 +89,7 @@ void alice_entertainment(int month) {
 
 void alice_car(int month) {
     if (month == 1) {
-        alice.entertainment *= (1.0 + inflation);
+        alice.car *= (1.0 + inflation);
     }
     alice.main_bank_account -= alice.car;
 }
@@ -129,11 +115,14 @@ void alice_transfer_money(int month) {
 
 
 
-    void bob_food (int month) {
-        if (month == 1) {
-            bob.food *= (1.0 + inflation);
-        }
-        bob.main_bank_account -= bob.food;
+void bob_food (int month) {
+    if (month == 1) {
+        bob.food *= (1.0 + inflation);
+    }
+    if (month == 12) {
+        bob.main_bank_account -= 5000;
+    }
+    bob.main_bank_account -= bob.food;
     }
 
 
