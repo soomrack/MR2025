@@ -33,7 +33,11 @@ float last_error = 0; float integral = 0;
 bool system_active = false;
 bool last_button_state = LOW; // чтобы при первом запуске нажимать только 1 раз
 
-// Управление моторами 
+const char recover_status_spiral = 1;
+const char recover_status_align = 2;
+char recover_status = 0;
+
+// Управление моторами
 void set_motors(int left, int right) {
     // Serial.print("Motor L:"); Serial.print(left); Serial.print(" R:"); Serial.println(right);
     digitalWrite(MOTOR_LEFT_DIR_PIN, left >= 0);
@@ -112,114 +116,231 @@ bool line_lost_with_time_threshold() {
         && (millis() - line_seen_millis) >= line_seen_threshold_ms;
 }
 
-double tanh(double x) {
-    const double e2x=exp(2*x);
-    return (e2x-1.0)/(e2x+1.0);
+// Поиск линии по спирали, если она потеряна
+void spiral_search() {
+    const char spiral_status_turn = 1;
+    const char spiral_status_forward = 2;
+    static char spiral_status = 0;
+    static unsigned long go_until = 0;
+
+    Serial.print("spiral_status: "); Serial.println(spiral_status, DEC); 
+
+    static unsigned long recover_start_ms = 0;
+    static long i = 0;
+    i += 1;
+    if (!line_lost()) {
+        // Линия найдена, сбрасываем статус и переходим к выравниванию
+        Serial.println("Line noted, aligning");
+        recover_status = recover_status_align;
+        spiral_status = 0;
+        recover_start_ms = 0;
+        go_until = 0;
+        return;
+    } else if ((recover_start_ms != 0) and (millis() - recover_start_ms >= line_search_stop_threshold_ms)) {
+        // Остановка
+        Serial.println("Line not found, stopping bot");
+        tone(SOUND_PIN, 500, 1000);
+        set_motors(0, 0);
+        system_active = false;
+        recover_status = 0;
+        spiral_status = 0;
+        recover_start_ms = 0;
+        return;
+    }
+
+    const int search_speed = 120;
+    const int turn_time_ms = 10;
+    const float radius_coeff = 0.01;  // linear coeff, from zero to infinity
+    int go_forward_ms = (turn_time_ms / 2 + 1) * radius_coeff * i;
+
+    // Serial.println("here");
+
+    // чередуем вращение и движение вперёд
+    switch (spiral_status) {
+        default:
+            // только что начали искать линию
+            Serial.println("Line lost.");
+            tone(SOUND_PIN, 500, 500);
+            i = 0;
+            recover_start_ms = millis();
+            spiral_status = spiral_status_turn;
+            go_until = millis() + turn_time_ms;
+            return;
+        case spiral_status_turn:
+            set_motors(-search_speed, search_speed);  // turn left
+            if (millis() > go_until) {
+                // finished turning, переходим к движению вперёд
+                // set_motors(0, 0);  // мб можно убрать, если другие процессы происходят быстро
+                spiral_status = spiral_status_forward;
+                go_until = millis() + go_forward_ms;
+            }
+            return;
+        case spiral_status_forward:
+            set_motors(search_speed, search_speed);  // go forward
+            if (millis() > go_until) {
+                // finished going forward, переходим к вращению
+                // set_motors(0, 0);  // мб можно убрать, если другие процессы происходят быстро
+                spiral_status = spiral_status_turn;
+                go_until = millis() + turn_time_ms;
+            }
+            return;
+    }
 }
 
-// Поиск линии, если она потеряна 
-void recover_line() {
-    Serial.println("Line lost.");
-    tone(SOUND_PIN, 500, 500);
-    const unsigned long recover_start_ms = millis();
-    long i = 0;
-    while (line_lost()) {
-        const int search_speed = 120;
-        const int turn_time_ms = 10;
-        const float radius_coeff = 0.01; // linear coeff, from zero to infinity
-        int go_forward_ms = (turn_time_ms/2+1) * radius_coeff * i;
-
-        set_motors(-search_speed, search_speed); // turn left
-        delay(turn_time_ms);
-        set_motors(search_speed, search_speed); // go forward
-        delay(go_forward_ms);
-        set_motors(0, 0);
-
-        // delay(1);
-        if (millis() - recover_start_ms >= line_search_stop_threshold_ms) {
-            // Остановка
-            tone(SOUND_PIN, 500, 1000);
-            set_motors(0, 0);
-            system_active = false;
-            return;
-        }
-        i+=1;
-    }
-
-    // Линия найдена. Останавливаемся и вращаемся.
-    set_motors(0, 0);
-    Serial.println("Line found. Stop and rotate.");
-    tone(SOUND_PIN, 500, 100);
-    delay(200);
-    tone(SOUND_PIN, 500, 100);
+// Вращение бота для выравнивания с линией
+void align_line() {
     const int adjusting_speed = 120;
     const int wiggle_timeout_ms = 500; // Сколько мс робот будет ехать вперёд/назад до разворота
-    unsigned long line_seen_wiggle_millis = millis(); 
+
+    static char align_status = 0;
+    const char align_status_check = 1;
+    const char align_status_forward = 2;
+    const char align_status_turn = 3;
+    const char align_status_backward = 4;
+
+    static unsigned long recover_start_ms;
+    static unsigned long line_seen_wiggle_millis; 
     // Аналогично line_seen_millis, но для этого этапа.
-    // Предполагаем, что линия рядом, поэтому ставим время сейчас.
-    while (!is_aligned()) {
-        if (!line_lost()) { // Передний датчик на линии
-            Serial.println("On line: Front");
-            unsigned long started_going_ms = millis();
+    // Предполагаем, что линия рядом, поэтому в начале ставим текущее время.
+    static unsigned long started_going_ms;
+
+    Serial.print("align_status: "); Serial.println(align_status, DEC); 
+
+    switch (align_status) {
+        default:
+            // Только что заметили линию
+            set_motors(0, 0);
+            Serial.println("Line found. Stop and rotate.");
+
+            // tone-delay
+            // tone(SOUND_PIN, 500, 100);
+            // delay(200);
+            // tone(SOUND_PIN, 500, 100);
+
             line_seen_wiggle_millis = millis(); 
-            set_motors(adjusting_speed, adjusting_speed);
-            while( millis() - started_going_ms <= wiggle_timeout_ms ) {
-                if (back_is_on_line()) break;
-                if (line_lost()) break;
-                delay(1); // go forward
+            recover_start_ms = millis();
+
+            align_status = align_status_check;
+            return;
+        case align_status_check:
+            if (is_aligned()) {
+                // Линия выровнена
+                Serial.println("Aligned.");
+                set_motors(0, 0);
+                // Сбрасываем статусы
+                recover_status = 0;
+                align_status = 0;
+
+                // tone-delay
+                // tone(SOUND_PIN, 500, 100);
+                // delay(200);
+                // tone(SOUND_PIN, 500, 100);
+                // delay(200);
+                // tone(SOUND_PIN, 500, 100);
+
+                return;
             }
-            
-            started_going_ms = millis();
-            set_motors(adjusting_speed, -adjusting_speed);
-            while ( millis() - started_going_ms <= wiggle_timeout_ms ) {
-                if (back_is_on_line()) break;
-                if (!line_lost()) break;
-                delay(1); // turn right
+            else if (!line_lost()) { // Передний датчик на линии
+                started_going_ms = millis();
+                line_seen_wiggle_millis = millis(); 
+                align_status = align_status_forward;
             }
-        }
-        else if (back_is_on_line()) { // Задний датчик на линии
-            Serial.println("On line: Back");
-            unsigned long started_going_ms = millis();
-            line_seen_wiggle_millis = millis(); 
-            set_motors(-adjusting_speed, -adjusting_speed);
-            while( millis() - started_going_ms <= wiggle_timeout_ms ) {
-                if (!back_is_on_line()) break;
-                if (!line_lost()) break;
-                delay(1); // go backward
+            else if (back_is_on_line()) { // Задний датчик на линии
+                align_status = align_status_backward;
             }
-            
-            started_going_ms = millis();
-            set_motors(adjusting_speed, -adjusting_speed);
-            while ( millis() - started_going_ms <= wiggle_timeout_ms ) {
-                if (back_is_on_line()) break;
-                if (!line_lost()) break;
-                delay(1); // turn right
+            else { // линия между датчиками
+                align_status = align_status_turn;
             }
-        }
-        else { // линия между датчиками
-            Serial.println("On line: Between sensors");
-            unsigned long started_going_ms = millis();
-            set_motors(adjusting_speed, -adjusting_speed);
-            while( millis() - started_going_ms <= wiggle_timeout_ms ) {
-                if (back_is_on_line()) break;
-                if (line_lost()) break;
-                delay(1); // turn right
+
+            if (millis() - line_seen_wiggle_millis >= line_seen_threshold_2_ms ) {
+                // Линия потеряна снова
+                Serial.println("Line lost while aligning");
+
+                // tone-delay
+                // tone(SOUND_PIN, 500, 500);
+                // delay(1000);
+
+                // tone-delay
+                // debug: "print" state
+                // for (int i=0; i<align_status; i++) {
+                //     tone(SOUND_PIN, 500, 100);
+                //     delay(500);
+                // }
+                // delay(1000);
+
+                align_status = 0;
+                recover_status = 0;
+
+                return;
             }
-        }
-        if (millis() - line_seen_wiggle_millis >= line_seen_threshold_2_ms ) {
-            // Линия потеряна снова
-            Serial.println("Line lost while aligning");
             break;
-        }
+
+        case align_status_forward:
+            started_going_ms = millis();
+            set_motors(adjusting_speed, adjusting_speed);
+            if (millis() >= started_going_ms + wiggle_timeout_ms ) {
+                align_status = align_status_turn;
+                set_motors(0, 0);
+            }
+            else if (back_is_on_line()) {
+                align_status = align_status_turn;
+                set_motors(0, 0);
+            }
+            else if (line_lost()) {
+                align_status = align_status_turn;
+                set_motors(0, 0);
+            }
+            return;
+        case align_status_backward:
+            started_going_ms = millis();
+            set_motors(-adjusting_speed, -adjusting_speed); // go backward
+            if (millis() >= started_going_ms + wiggle_timeout_ms ) {
+                align_status = align_status_turn;
+                set_motors(0, 0);
+                // tone(SOUND_PIN, 200, 20); // debug: "print"
+            }
+            else if (!back_is_on_line()) {
+                align_status = align_status_turn;
+                set_motors(0, 0);
+            }
+            else if (!line_lost()) { // front on line
+                align_status = align_status_turn;
+                set_motors(0, 0);
+            }
+            return;
+        case align_status_turn:
+            started_going_ms = millis();
+            set_motors(adjusting_speed, -adjusting_speed); // turn right
+            if (millis() >= started_going_ms + wiggle_timeout_ms ) {
+                align_status = align_status_check;
+                set_motors(0, 0);
+            }
+            else if (back_is_on_line()) {
+                align_status = align_status_check;
+                set_motors(0, 0);
+            }
+            else if (!line_lost()) { // front on line
+                align_status = align_status_check;
+                set_motors(0, 0);
+            }
+            return;
     }
-    Serial.println("Alligned.");
-    set_motors(0, 0);
-    tone(SOUND_PIN, 500, 100);
-    delay(200);
-    tone(SOUND_PIN, 500, 100);
-    delay(200);
-    tone(SOUND_PIN, 500, 100);
-    // Линия выровнена
+}
+
+void recover_line() {
+    // static char recover_status = 0; // moved to global
+
+    Serial.print("recover_status: "); Serial.println(recover_status, DEC);
+
+    switch (recover_status) {
+        case recover_status_spiral:
+        default:
+            spiral_search();
+            break;
+        case recover_status_align:
+            align_line();
+            break;
+    }
 }
 
 // Следование по линии с использованием PID-регулятора
@@ -242,7 +363,6 @@ void toggle_system_active_on_button() {
     bool btnState = digitalRead(BUTTON_PIN);
     if (btnState == LOW && last_button_state == HIGH) {
         system_active = !system_active;
-        delay(80);
     }
     last_button_state = btnState;
 }
@@ -268,7 +388,7 @@ void setup() {
 void loop() {
     toggle_system_active_on_button();
     if (system_active) {
-        if ( line_lost_with_time_threshold() ) recover_line();
+        if ( line_lost_with_time_threshold() || (recover_status==recover_status_align) ) recover_line();
         else follow_track();
     }
 }
