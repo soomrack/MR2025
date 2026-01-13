@@ -62,6 +62,7 @@ int light_value = 0;
 class Sensor {
 public:
     virtual int read_value() = 0;
+    virtual int get_value() = 0;
 };
 
 class Sensor_GPIO: public Sensor {
@@ -77,7 +78,7 @@ public:
         return get_value();
     }
 
-    int get_value() const {
+    int get_value() override {
         return value;
     }
 
@@ -89,7 +90,13 @@ public:
     }
 };
 
-bool calculate_average(Sensor_GPIO* sensors, unsigned char numSensors = 1) {
+class Sensor_GPIOGroup: public Sensor_GPIO {
+  bool calculate_average(Sensor_GPIO* sensors, unsigned char numSensors = 1);
+  bool calculate_average(const Sensor_GPIO &sensor);
+  int get_value();
+};
+
+bool Sensor_GPIOGroup::calculate_average(Sensor_GPIO* sensors, unsigned char numSensors = 1) {
     unsigned char count_low = 0;
     unsigned char count_high = 0;
 
@@ -102,13 +109,19 @@ bool calculate_average(Sensor_GPIO* sensors, unsigned char numSensors = 1) {
         if (val >= sensors[i].max_trigger_value)
             count_high++;
     }
-
     return count_high > count_low;
 }
 
-bool calculate_average(const Sensor_GPIO &sensor) {
+
+
+bool Sensor_GPIOGroup::calculate_average(const Sensor_GPIO &sensor) {
     uint16_t val = sensor.get_value();
+    value = val;
     return (val >= sensor.max_trigger_value && !(val <= sensor.min_trigger_value));
+}
+
+int Sensor_GPIOGroup::get_value(){
+  return value;
 }
 
 void night_mode() {
@@ -138,10 +151,58 @@ void time(unsigned long current_time) {
 
 }
 
+class Fan {
+public:
+    bool on_heater;
+    bool on_timetable;
+    bool on_hot;
+    bool on_humidity;
+public:
+    void power();
+};
+
+void Fan::power()
+{
+    if( on_heater
+        || on_timetable
+        || on_hot
+        || on_humidity ) {
+        digitalWrite(PIN_D_FAN, HIGH);
+    }
+    else {
+        digitalWrite(PIN_D_FAN, LOW);
+    }
+}
+
+class Heater {
+public:
+  bool on_heater;
+  void power(){
+    digitalWrite(PIN_D_TEMP_ACTUATOR, on_heater);
+  }
+};
+
 Sensor_GPIO temp_sens_1(PIN_A_TEMP_SENS, LOW_TEMP_SENS, HIGH_TEMP_SENS);
 Sensor_GPIO moisture_soil_sens_1(PIN_A_SOIL_MOISTURE, WET_SOIL_MOISTURE, DRY_SOIL_MOISTURE);
 Sensor_GPIO moisture_air_sens_1(PIN_A_AIR_MOISTURE, WET_AIR_MOISTURE, WET_AIR_MOISTURE);
 Sensor_GPIO light_sens_1(PIN_A_LIGHT_SENS, HIGH_LIGHT_SENS, LOW_LIGHT_SENS);
+
+Sensor_GPIOGroup sensor_gpio_group();
+
+Fan fan;
+Heater heater;
+
+void control_temperature(const Sensor_GPIO &temp_sens, Fan &fan, Heater &heater)
+{
+    if (temp_sens.get_value() > 40) {
+        fan.on_hot = true;
+    }
+    if (temp_sens.get_value() < 20) {
+        fan.on_hot = false;
+        fan.on_heater = true;
+        heater.on_heater = true;
+    }
+}
 
 void setup() {
   // put your setup code here, to run once:
@@ -174,15 +235,20 @@ void loop() {
           moisture_soil_sens_1.read_value();
           moisture_air_sens_1.read_value();
           light_sens_1.read_value();
+          
+          sensor_gpio_group.calculate_average(temp_sens_1);
+          
         
 
 //          Sensor_GPIO sensors[] = {sensor1, sensor2, sensor3};  // Массив датчиков
 //          bool result = calculate_average(sensors, sizeof(sensors)/sizeof(sensors[0]));
-          high_temp = calculate_average(temp_sens_1);
-          dry_soil_moisture = calculate_average(moisture_soil_sens_1);
-          dry_air_moisture = calculate_average(moisture_air_sens_1);
-          low_light_value = calculate_average(light_sens_1);
-        
+//          high_temp = sensor_gpio_group.calculate_average(temp_sens_1);
+          dry_soil_moisture = sensor_gpio_group.calculate_average(moisture_soil_sens_1);
+          dry_air_moisture = sensor_gpio_group.calculate_average(moisture_air_sens_1);
+          low_light_value = sensor_gpio_group.calculate_average(light_sens_1);
+
+
+          control_temperature(sensor_gpio_group, fan, heater);
           
           temp_check();
           soil_moisture_check();
@@ -194,6 +260,9 @@ void loop() {
           temp_actuator();
           light_actuator();
           watering_actuator();
+
+          fan.power();
+          heater.power();
       }
   }
 
