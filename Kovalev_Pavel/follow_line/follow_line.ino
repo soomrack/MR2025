@@ -213,9 +213,9 @@ void align_line() {
             Serial.println("Line found. Stop and rotate.");
 
             // tone-delay
-            tone(SOUND_PIN, 500, 100);
-            delay(200);
-            tone(SOUND_PIN, 500, 100);
+            // tone(SOUND_PIN, 500, 100);
+            // delay(200);
+            // tone(SOUND_PIN, 500, 100);
 
             line_seen_wiggle_millis = millis(); 
             recover_start_ms = millis();
@@ -232,11 +232,11 @@ void align_line() {
                 align_status = 0;
 
                 // tone-delay
-                tone(SOUND_PIN, 500, 100);
-                delay(200);
-                tone(SOUND_PIN, 500, 100);
-                delay(200);
-                tone(SOUND_PIN, 500, 100);
+                // tone(SOUND_PIN, 500, 100);
+                // delay(200);
+                // tone(SOUND_PIN, 500, 100);
+                // delay(200);
+                // tone(SOUND_PIN, 500, 100);
 
                 return;
             }
@@ -255,16 +255,18 @@ void align_line() {
             if (millis() - line_seen_wiggle_millis >= line_seen_threshold_2_ms ) {
                 // Линия потеряна снова
                 Serial.println("Line lost while aligning");
-                tone(SOUND_PIN, 500, 500);
-                delay(1000);
+
+                // tone-delay
+                // tone(SOUND_PIN, 500, 500);
+                // delay(1000);
 
                 // tone-delay
                 // debug: "print" state
-                for (int i=0; i<align_status; i++) {
-                    tone(SOUND_PIN, 500, 100);
-                    delay(500);
-                }
-                delay(1000);
+                // for (int i=0; i<align_status; i++) {
+                //     tone(SOUND_PIN, 500, 100);
+                //     delay(500);
+                // }
+                // delay(1000);
 
                 align_status = 0;
                 recover_status = 0;
