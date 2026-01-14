@@ -10,6 +10,7 @@ const int PERIOD = 30;  // период симуляции
 typedef struct Person  {
     long long int account; //свободные деньги
     Money capital; //капитал
+    Money premia; //премия
     Money salary; //зарплата
     Money monthly_payment; //ежемесячный платёж
     Money necessary_expenses; //необходимые траты
@@ -97,6 +98,9 @@ void Alice_salary(const int month)
     }
     if (month == 12) {
         Alice.account += Alice.salary;
+    }
+     if (month == 3) {
+        Alice.account += Alice.premia;
     }
 }
 
