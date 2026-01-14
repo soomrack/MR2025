@@ -5,7 +5,8 @@
 #define PUMP_PIN 5
 #define LIGHT_PIN 6
 #define HEAT_PIN 4
-#define VENT_PIN 7
+#define VENT1_PIN 7
+#define VENT2_PIN 8
 
 #define DHT_PIN 12
 #define DEFAULT_LIGHT_SENSOR_PIN A0
@@ -91,7 +92,8 @@ SoilSensors soils;
 Pump pump = { PUMP_PIN, false };
 LightCtrl lamp = { LIGHT_PIN, false, {0,0} };
 Heater heater = { HEAT_PIN, false, {0,0} };
-Ventilation vent = { VENT_PIN, false, {30,75}, 0, 3600000UL, 60000UL, false };
+Ventilation vent1 = { VENT1_PIN, false, {30,75}, 0, 3600000UL, 60000UL, false };
+Ventilation vent2 = { VENT2_PIN, false, {30,75}, 0, 3600000UL, 60000UL, false };
 
 // === Время / дневной цикл (симуляция) ===
 unsigned long cycleStart = 0;
@@ -134,8 +136,10 @@ void Parameter_Initialization() {
   heater.is_on = false;
 
   // Вентиляция
-  vent.lastVentTime = currentMillis;
-  vent.timerActive = false;
+  vent1.lastVentTime = currentMillis;
+  vent1.timerActive = false;
+  vent2.lastVentTime = currentMillis;
+  vent2.timerActive = false;
 
   // Цикл день/ночь
   cycleStart = currentMillis;
@@ -228,16 +232,30 @@ void Algorithm_Soil() {
 // -------------------------------------------------------------
 // УПРАВЛЕНИЕ ВЕНТИЛЯЦИЕЙ ПО РАСПИСАНИЮ
 // -------------------------------------------------------------
-void Algorithm_vent_schedule_control(){
-  if (!vent.timerActive && (currentMillis - vent.lastVentTime >= vent.ventInterval)) {
-    vent.timerActive = true;
-    vent.lastVentTime = currentMillis;
+void Algorithm_vent1_schedule_control(){
+  if (!vent1.timerActive && (currentMillis - vent1.lastVentTime >= vent1.ventInterval)) {
+    vent1.timerActive = true;
+    vent1.lastVentTime = currentMillis;
   }
 
-  if (vent.timerActive) {
-    if (currentMillis - vent.lastVentTime >= vent.ventDuration) {
-      vent.timerActive = false;
-      vent.lastVentTime = currentMillis;
+  if (vent1.timerActive) {
+    if (currentMillis - vent1.lastVentTime >= vent1.ventDuration) {
+      vent1.timerActive = false;
+      vent1.lastVentTime = currentMillis;
+    }
+  }
+}
+
+void Algorithm_vent2_schedule_control(){
+  if (!vent2.timerActive && (currentMillis - vent2.lastVentTime >= vent2.ventInterval)) {
+    vent2.timerActive = true;
+    vent2.lastVentTime = currentMillis;
+  }
+
+  if (vent2.timerActive) {
+    if (currentMillis - vent2.lastVentTime >= vent2.ventDuration) {
+      vent2.timerActive = false;
+      vent2.lastVentTime = currentMillis;
     }
   }
 }
@@ -267,13 +285,22 @@ void Pump_power() {
   digitalWrite(pump.pin, pump.is_on ? HIGH : LOW);
 }
 
-void Ventilation_power() {
+void Ventilation1_power() {
   bool highHumidity = (air.is_normal 
-                       && air.humidity > vent.humidityLimits.maxVal);
-  bool needVentilation = (vent.timerActive || highHumidity || heater.is_on || pump.is_on);
+                       && air.humidity > vent1.humidityLimits.maxVal);
+  bool needVentilation = (vent1.timerActive || highHumidity || heater.is_on || pump.is_on);
   
-  vent.is_on = needVentilation;
-  digitalWrite(vent.pin, vent.is_on ? HIGH : LOW);
+  vent1.is_on = needVentilation;
+  digitalWrite(vent1.pin, vent1.is_on ? HIGH : LOW);
+}
+
+void Ventilation2_power() {
+  bool highHumidity = (air.is_normal 
+                       && air.humidity > vent2.humidityLimits.maxVal);
+  bool needVentilation = (vent2.timerActive || highHumidity || heater.is_on || pump.is_on);
+  
+  vent2.is_on = needVentilation;
+  digitalWrite(vent2.pin, vent2.is_on ? HIGH : LOW);
 }
 
 // -------------------------------------------------------------
@@ -283,7 +310,7 @@ void serialLog() {
   if (currentMillis - lastSerial < serialInterval) return;
   lastSerial = currentMillis;
 
-  bool highHumidity = (air.is_normal && air.humidity > vent.humidityLimits.maxVal);
+  bool highHumidity = (air.is_normal && air.humidity > vent1.humidityLimits.maxVal);
   
   Serial.println("=== STATUS ===");
   Serial.print("DHT ok: "); Serial.println(air.is_normal ? "YES" : "NO");
@@ -296,8 +323,10 @@ void serialLog() {
   long sumS = 0; for (int i=0;i<soils.count;i++) sumS += soils.values[i];
   Serial.print( soils.count ? sumS / soils.count : 0 );
   Serial.print("  Pump on: "); Serial.println(pump.is_on ? "YES" : "NO");
-  Serial.print("Vent on: "); Serial.println(vent.is_on ? "YES" : "NO");
-  Serial.print("Vent conditions - Timer: "); Serial.print(vent.timerActive ? "YES" : "NO");
+  Serial.print("Vent1 on: "); Serial.println(vent1.is_on ? "YES" : "NO");
+  Serial.print("Vent1 conditions - Timer: "); Serial.print(vent1.timerActive ? "YES" : "NO");
+  Serial.print("Vent2 on: "); Serial.println(vent2.is_on ? "YES" : "NO");
+  Serial.print("Vent2 conditions - Timer: "); Serial.print(vent2.timerActive ? "YES" : "NO");
   Serial.print(" HighHumidity: "); Serial.print(highHumidity ? "YES" : "NO");
   Serial.print(" Heating: "); Serial.print(heater.is_on ? "YES" : "NO");
   Serial.print(" Pumping: "); Serial.println(pump.is_on ? "YES" : "NO");
@@ -314,14 +343,16 @@ void setup() {
   pinMode(pump.pin, OUTPUT);
   pinMode(lamp.pin, OUTPUT);
   pinMode(heater.pin, OUTPUT);
-  pinMode(vent.pin, OUTPUT);
+  pinMode(vent1.pin, OUTPUT);
+  pinMode(vent2.pin, OUTPUT);
 
   Parameter_Initialization();
   
   digitalWrite(pump.pin, LOW);
   digitalWrite(lamp.pin, LOW);
   digitalWrite(heater.pin, LOW);
-  digitalWrite(vent.pin, LOW);
+  digitalWrite(vent1.pin, LOW);
+  digitalWrite(vent2.pin, LOW);
 }
 
 // -------------------------------------------------------------
@@ -339,13 +370,15 @@ void loop() {
   Algorithm_Lighting();
   Algorithm_Temperature();
   Algorithm_Soil();
-  Algorithm_vent_schedule_control();
+  Algorithm_vent1_schedule_control();
+  Algorithm_vent2_schedule_control();
   Algorithm_pump_state_control();
   
   Lamp_power();
   Heater_power();
   Pump_power();
-  Ventilation_power();
+  Ventilation1_power();
+  Ventilation2_power();
   
   serialLog();
 }
