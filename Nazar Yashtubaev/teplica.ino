@@ -1,0 +1,375 @@
+#include <DHT.h>
+#include <Adafruit_Sensor.h>
+
+#define PUMP_PIN 5           // pump control pin
+#define LIGHT_PIN 6          // light control pin
+#define HEAT_PIN 4           // heater control pin
+#define VENT_PIN 7           // fan control pin
+#define DHT_PIN 12           // DHT temperature and humidity sensor pin
+#define DEFAULT_LIGHT_SENSOR_PIN A0  // default analog light sensor pin
+#define DEFAULT_SOIL_SENSOR_PIN A3   // default analog soil moisture sensor pin
+
+// maximum number of sensors
+const int MAX_LIGHT_SENSORS = 4;     // maximum 4 light sensors
+const int MAX_SOIL_SENSORS = 4;      // maximum 4 soil sensors
+
+// range structure for sensor thresholds
+struct Range {
+  int minVal;  // lower range boundary
+  int maxVal;  // upper range boundary
+};
+
+// air sensor structure
+struct AirSensor {
+  int pin;          // sensor pin
+  int temperature;  // last temperature reading
+  int humidity;     // last humidity reading 
+  bool is_normal;   // sensor data validity flag
+};
+
+// light sensors structure
+struct LightSensors {
+  int pins[MAX_LIGHT_SENSORS];   // array of sensor pins
+  int values[MAX_LIGHT_SENSORS]; // array of sensor values
+  int count;                     // number of active sensors
+  Range limits;                  // light intensity thresholds
+  bool shouldBeOn;               // flag indicating if light should be on
+};
+
+// soil sensors structure
+struct SoilSensors {
+  int pins[MAX_SOIL_SENSORS];    // array of sensor pins
+  int values[MAX_SOIL_SENSORS];  // array of sensor values
+  int count;                     // number of active sensors
+  Range limits;                  // soil moisture thresholds
+  bool pumpNeeded;               // flag indicating if watering is needed
+  unsigned long lastPumpStart;   // start time of last watering
+  unsigned long lastPumpEnd;     // end time of last watering
+  unsigned long pumpMaxDuration; // maximum watering duration (ms)
+  unsigned long pumpInterval;    // interval between waterings (ms)
+};
+
+// pump control structure
+struct Pump {
+  int pin;    // pump control pin
+  bool is_on; // current pump state
+};
+
+// light control structure
+struct LightCtrl {
+  int pin;      // light control pin
+  bool is_on;   // current light state
+  Range limits; // light control thresholds
+};
+
+// heater control structure
+struct Heater {
+  int pin;      // heater control pin
+  bool is_on;   // current heater state
+  Range limits; // temperature control thresholds
+};
+
+// ventilation control structure
+struct Ventilation {
+  int pin;              // fan control pin
+  bool is_on;           // current fan state
+  Range humidityLimits; // humidity control thresholds
+  unsigned long lastVentTime;  // time of last ventilation
+  unsigned long ventInterval;  // interval between ventilations (ms)
+  unsigned long ventDuration;  // ventilation duration (ms)
+  bool timerActive;     // ventilation timer active flag
+};
+
+// global variables
+unsigned long currentMillis = 0;  // current time for all functions
+DHT dht(DHT_PIN, DHT11);          // DHT11 sensor object
+
+// structure initialization
+AirSensor air = {DHT_PIN, 0, 0, false};  // air sensor
+LightSensors lights;                      // light sensors
+SoilSensors soils;                        // soil sensors
+Pump pump = {PUMP_PIN, false};            // pump
+LightCtrl lamp = {LIGHT_PIN, false, {0, 0}};  // light
+Heater heater = {HEAT_PIN, false, {0, 0}};    // heater
+Ventilation vent = {VENT_PIN, false, {30, 75}, 0, 3600000UL, 60000UL, false};  // ventilation
+
+// time parameters
+unsigned long cycleStart = 0;                    // start of day-night cycle
+const unsigned long dayDuration = 10000UL;       // day duration 10 seconds
+const unsigned long nightDuration = 10000UL;     // night duration 10 seconds
+bool isNight = false;                            // night time flag
+
+unsigned long lastSerial = 0;                    // last serial output time
+const unsigned long serialInterval = 5000UL;     // serial output interval 5 seconds
+
+// system parameters initialization function
+void initParams() {
+  // initialize light sensors
+  lights.count = 1;                              // use 1 sensor
+  lights.pins[0] = DEFAULT_LIGHT_SENSOR_PIN;     // pin A0
+  lights.limits = {300, 800};                    // thresholds: min 300 (включить свет), max 800
+  lights.shouldBeOn = false;                     // light not needed initially
+
+  // initialize soil sensors
+  soils.count = 1;                               // use 1 sensor
+  soils.pins[0] = DEFAULT_SOIL_SENSOR_PIN;       // pin A3
+  soils.limits = {500, 600};                     // thresholds: min 500, max 600
+  soils.pumpNeeded = false;                      // watering not needed initially
+  soils.pumpMaxDuration = 10000UL;               // max watering time 10 seconds
+  soils.pumpInterval = 10000UL;                  // interval between waterings 10 seconds
+  soils.lastPumpEnd = 0;                         // last watering end time
+
+  // initialize devices
+  lamp.limits = lights.limits;                   // copy thresholds for light
+  heater.limits = {20, 27};                      // heat when temperature below 20°C
+  vent.lastVentTime = currentMillis;             // initialize ventilation time
+
+  // initialize day-night cycle
+  cycleStart = currentMillis;                    // remember cycle start time
+}
+
+// function to read all sensors
+void readSensors() {
+  // read DHT sensor (air temperature and humidity)
+  int h = dht.readHumidity();                    // read humidity
+  int t = dht.readTemperature();                 // read temperature
+  air.is_normal = !isnan(h) && !isnan(t);        // check data validity
+  if (air.is_normal) {                           // if data is valid
+    air.humidity = h;                            // save humidity
+    air.temperature = t;                         // save temperature
+  }
+
+  // read all light sensors
+  for (int i = 0; i < lights.count; i++)
+    lights.values[i] = analogRead(lights.pins[i]);  // read analog value
+
+  // read all soil moisture sensors
+  for (int i = 0; i < soils.count; i++)
+    soils.values[i] = analogRead(soils.pins[i]);    // read analog value
+}
+
+// function to update day-night cycle
+void updateDayNight() {
+  unsigned long elapsed = currentMillis - cycleStart;  // time since cycle start
+  if (elapsed < dayDuration) {
+    isNight = false;                           // daytime
+  } else if (elapsed < dayDuration + nightDuration) {
+    isNight = true;                            // nighttime
+  } else {
+    cycleStart = currentMillis;                // reset cycle
+    isNight = false;                           // start new day
+  }
+}
+
+// function to check light levels
+void checkLight() {
+  long sum = 0;                                // sum of sensor values
+  for (int i = 0; i < lights.count; i++) 
+    sum += lights.values[i];                   // sum all sensor values
+  
+  int averageLight = sum / lights.count;
+  
+  bool lowLight = averageLight < lights.limits.minVal;
+  lights.shouldBeOn = isNight || (!isNight && lowLight);
+}
+
+// function to check temperature
+void checkTemp() {
+  if (air.is_normal)                           // if DHT data is valid
+    // turn on heater if temperature below minimum
+    heater.is_on = air.temperature < heater.limits.minVal;
+}
+
+// function to check soil moisture
+void checkSoil() {
+  if (soils.count == 0) return;                // exit if no sensors
+  
+  long sum = 0;                                // sum of sensor values
+  for (int i = 0; i < soils.count; i++) 
+    sum += soils.values[i];                    // sum all sensor values
+  
+  int averageSoil = sum / soils.count;
+  
+  // watering needed if average value above threshold (higher value = drier soil)
+  bool soilIsDry = averageSoil > soils.limits.minVal;
+  
+  // check if enough time passed since last watering
+  bool enoughTimePassed = (currentMillis - soils.lastPumpEnd) >= soils.pumpInterval;
+  
+  // pump needed if soil is dry AND enough time passed
+  soils.pumpNeeded = soilIsDry && enoughTimePassed;
+  
+  // overwatering protection - auto stop after 10 seconds
+  if (pump.is_on && (currentMillis - soils.lastPumpStart > soils.pumpMaxDuration)) {
+    pump.is_on = false;
+    soils.pumpNeeded = false;
+    soils.lastPumpEnd = currentMillis;
+    Serial.println("PUMP: Auto-stop after 10 seconds");
+  }
+}
+
+// function to check scheduled ventilation
+void checkVent() {
+  // activate timer if interval passed and timer not active
+  if (!vent.timerActive && (currentMillis - vent.lastVentTime >= vent.ventInterval)) {
+    vent.timerActive = true;                   // activate ventilation timer
+    vent.lastVentTime = currentMillis;         // remember start time
+  }
+
+  // deactivate timer if ventilation time passed
+  if (vent.timerActive && (currentMillis - vent.lastVentTime >= vent.ventDuration)) {
+    vent.timerActive = false;                  // deactivate timer
+    vent.lastVentTime = currentMillis;         // update last ventilation time
+  }
+}
+
+// function to control pump
+void controlPump() {
+  if (soils.pumpNeeded && !pump.is_on) {       // if watering needed and pump off
+    pump.is_on = true;                         // turn on pump
+    soils.lastPumpStart = currentMillis;       // remember watering start time
+    Serial.println("PUMP: Starting 10-second watering cycle");
+  } else if (!soils.pumpNeeded && pump.is_on) { // if watering not needed and pump on
+    pump.is_on = false;                        // turn off pump
+    soils.lastPumpEnd = currentMillis;         // remember watering end time
+    Serial.println("PUMP: Stopping watering");
+  }
+}
+
+// function to control all devices
+void controlDevices() {
+  // light control: turn on if needed based on light level
+  lamp.is_on = lights.shouldBeOn;
+  digitalWrite(lamp.pin, !lamp.is_on);
+  
+  // heater control: turn on/off according to flag
+  digitalWrite(heater.pin, heater.is_on);
+  
+  // pump control: turn on/off according to flag
+  digitalWrite(pump.pin, pump.is_on);
+  
+  // ventilation control logic
+  bool highHumidity = air.is_normal && air.humidity > vent.humidityLimits.maxVal;
+  bool needVent = vent.timerActive ||    // by schedule
+                  highHumidity ||        // when humidity high
+                  heater.is_on ||        // when heater running
+                  pump.is_on;            // when pump running
+  vent.is_on = needVent;
+  digitalWrite(vent.pin, vent.is_on);
+}
+
+// function to log data to serial
+void serialLog() {
+  if (currentMillis - lastSerial < serialInterval) return;  // check interval
+  lastSerial = currentMillis;              // update last output time
+
+  // calculate average values
+  bool highHumidity = air.is_normal && air.humidity > vent.humidityLimits.maxVal;
+  long lightSum = 0, soilSum = 0;
+  
+  // sum all light sensor values
+  for (int i = 0; i < lights.count; i++) 
+    lightSum += lights.values[i];
+  
+  // sum all soil sensor values
+  for (int i = 0; i < soils.count; i++) 
+    soilSum += soils.values[i];
+
+  int avgLight = lightSum / lights.count;
+  int avgSoil = soilSum / soils.count;
+
+  // output system status
+  Serial.println("=== GREENHOUSE STATUS ===");
+  Serial.print("Time: ");
+  Serial.print(isNight ? "NIGHT" : "DAY");
+  Serial.print(" | DHT:"); 
+  Serial.print(air.is_normal ? "OK " : "FAIL ");
+  if (air.is_normal) {
+    Serial.print(air.temperature); 
+    Serial.print("C "); 
+    Serial.print(air.humidity); 
+    Serial.print("%");
+  }
+  Serial.println();
+  
+  Serial.print("Light: "); 
+  Serial.print(avgLight);
+  Serial.print("/");
+  Serial.print(lights.limits.minVal);
+  Serial.print(" | Lamp: "); 
+  Serial.println(lamp.is_on ? "ON" : "OFF");
+  
+  Serial.print("Soil: "); 
+  Serial.print(avgSoil);
+  Serial.print("/");
+  Serial.print(soils.limits.minVal);
+  Serial.print(" | Pump: "); 
+  Serial.println(pump.is_on ? "ON" : "OFF");
+  
+  // Additional pump timing info
+  if (pump.is_on) {
+    unsigned long wateringTime = currentMillis - soils.lastPumpStart;
+    Serial.print("Watering time: ");
+    Serial.print(wateringTime / 1000);
+    Serial.print("s / 10s");
+  } else {
+    unsigned long timeSinceLastWater = currentMillis - soils.lastPumpEnd;
+    if (timeSinceLastWater < soils.pumpInterval) {
+      Serial.print("Next watering in: ");
+      Serial.print((soils.pumpInterval - timeSinceLastWater) / 1000);
+      Serial.print("s");
+    } else {
+      Serial.print("Ready for watering");
+    }
+  }
+  Serial.println();
+  
+  Serial.print("Heater: "); 
+  Serial.print(heater.is_on ? "ON" : "OFF");
+  Serial.print(" | Ventilation: "); 
+  Serial.println(vent.is_on ? "ON" : "OFF");
+  
+  Serial.println("=========================");
+}
+
+void setup() {
+  Serial.begin(9600);          
+  dht.begin();                 // initialize DHT11 sensor
+  
+  // set control pins as outputs
+  pinMode(PUMP_PIN, OUTPUT);
+  pinMode(LIGHT_PIN, OUTPUT);
+  pinMode(HEAT_PIN, OUTPUT);
+  pinMode(VENT_PIN, OUTPUT);
+
+  initParams();                // initialize system parameters
+  
+  // ensure all devices are off at startup
+  digitalWrite(PUMP_PIN, LOW);
+  digitalWrite(LIGHT_PIN, LOW);
+  digitalWrite(HEAT_PIN, LOW);
+  digitalWrite(VENT_PIN, LOW);
+  
+  Serial.println("System started - NEW WATERING SCHEDULE:");
+  Serial.println("- Watering: 10 seconds ON, 10 seconds OFF");
+  Serial.println("- Light turns ON when light level < 300 or during night");
+  Serial.println("=== SYSTEM READY ===");
+}
+
+void loop() {
+  currentMillis = millis();    // update current time
+  
+  updateDayNight();            // update day-night cycle
+  readSensors();               // read data from all sensors
+  
+  checkLight();                // check light levels
+  checkTemp();                 // check temperature
+  checkSoil();                 // check soil moisture
+  checkVent();                 // check ventilation
+  controlPump();               // control pump
+  
+  controlDevices();            // control all devices
+  serialLog();                 // output data to serial port
+  
+  delay(100);                  // small delay for stability
+}
