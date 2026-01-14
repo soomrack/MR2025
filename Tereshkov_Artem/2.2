@@ -41,6 +41,7 @@ void Alice_init()
     Alice.capital = 0;
     Alice.account = 0;
     Alice.salary = 300 * 1000;
+    Alice.premia = 300 * 1000/2 ;
     Alice.monthly_payment = 192466; //на 30 лет через калькулятор ипотеки от яндекса под 17%
     Alice.necessary_expenses = 50 * 1000;
     Alice.contribution = 0;
@@ -99,8 +100,8 @@ void Alice_salary(const int month)
     if (month == 12) {
         Alice.account += Alice.salary;
     }
-     if (month == 3) {
-        Alice.account += Alice.premia;
+        if (month % 3 == 0) {
+        Alice.account += Alice.premium;
     }
 }
 
