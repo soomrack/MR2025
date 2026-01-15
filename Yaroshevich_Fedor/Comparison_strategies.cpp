@@ -1,7 +1,7 @@
 #include <stdio.h>
-#include <corecrt_math.h>
+#include <cmath>
 
-typedef int RUB;
+typedef double RUB;
 
 struct Person {
 	RUB bank_account; 
@@ -16,166 +16,170 @@ struct Person {
 	RUB flatcost; 
 	RUB deposit;  
 	RUB mortage;
-	int has_flat;
+	
+	RUB mortgage_balance;
+	RUB mortgage_monthly_payment;
+	RUB mortgage_total_paid;
+
+	bool has_flat;
 };
 
 struct Person walter;
 struct Person saul;
 
 
-void person_income(struct Person* p, const int year, const int month)
+void walter_income(const int year, const int month)
 {
 	if (month == 10) {
-		p->income = p->income * 1.05;
+		walter.income *= 1.05;
 	}
 	if (year == 2035 && month == 3) {
-		p->income *= 1.3;
+		walter.income *= 1.3;
 	}
-	p->bank_account += p->income;
+	walter.bank_account += walter.income;
 }
 
 
-void deposit_simulation(struct Person* p, const int year, const int month)
+void saul_income(const int year, const int month)
+{
+	if (month == 10) {
+		saul.income *= 1.05;
+	}
+	if (year == 2030 && month == 3) {
+		saul.income *= 1.2;
+	}
+	saul.bank_account += saul.income;
+}
+
+
+void deposit_simulation(struct Person& person, const int year, const int month)
 {
 	static double deposit_rate = 15;
 	static double month_rate = (deposit_rate * 0.01) / 12;
 
-	if (p->has_flat) {
-		printf("Walter already owns a flat!\n");
+	person.deposit = person.deposit * (1.0 + month_rate);
+
+	if (person.bank_account > 0) {
+		person.deposit += person.bank_account;
+		person.bank_account = 0;
+	}
+
+	if (person.bank_account < 0 && person.deposit > 0) {
+		double need = -person.bank_account;
+		double take = (person.deposit >= need) ? need : person.deposit;
+		person.deposit -= take;
+		person.bank_account += take;
+	}
+
+	if (person.has_flat == false && person.deposit >= person.flatcost) {
+		person.deposit -= person.flatcost;    
+		person.has_flat = true;
+	}
+}
+
+
+void mortage_simulation(Person& p, int year, int month)
+{
+	if (p.mortgage_balance <= 0)
 		return;
+
+	if (p.bank_account < p.mortgage_monthly_payment)
+		return;
+
+	double annual_rate = 15.0;
+	double month_rate = annual_rate / 12.0 / 100.0;
+
+	double interest = p.mortgage_balance * month_rate;
+	double principal = p.mortgage_monthly_payment - interest;
+
+	if (principal > p.mortgage_balance) {
+		principal = p.mortgage_balance;
+		p.mortgage_monthly_payment = principal + interest;
 	}
 
-	p->deposit = p->deposit * (1.0 + month_rate);
+	p.mortgage_balance -= principal;
+	p.bank_account -= p.mortgage_monthly_payment;
+	p.mortgage_total_paid += p.mortgage_monthly_payment;
 
-	if (p->bank_account > 0) {
-		p->deposit += p->bank_account;
-		p->bank_account = 0;
+	if (p.mortgage_balance <= 0) {
+		p.mortgage_balance = 0;
+		printf("Mortgage fully paid in %d.%02d\n", year, month);
 	}
 
-	if (p->bank_account < 0 && p->deposit > 0) {
-		static double need = -p->bank_account;
-		static double take = (p->deposit >= need) ? need : p->deposit;
-		p->deposit -= take;
-		p->bank_account += take;
-	}
-
-	if (p->deposit >= p->flatcost) {
-		p->deposit -= p->flatcost;  
-		p->has_flat = 1;            
+	if (month == 12) {
+		printf(
+			"Year %d | mortgage left: %.0f | total paid: %.0f\n\n",
+			year,
+			p.mortgage_balance,
+			p.mortgage_total_paid
+		);
 	}
 }
 
 
-void mortage_simulation(struct Person* p, const int year, const int month)
+void person_food(struct Person& person)
 {
-	static double remaining_loan = 0.0; 
-	static double monthly_payment = 0.0;
-	static int initialized = 0;
-	static double annual_rate = 22;
-
-	if (!initialized) {
-		double loan_amount = p->flatcost; 
-		double initial_payment = 1000000;       
-		double month_rate = (annual_rate / 12) / 100;
-		int years = 20;
-		int total_months = years * 12;
-
-		loan_amount -= initial_payment;
-		p->bank_account -= initial_payment;
-
-		double annuity_coeff =
-			(month_rate * pow(1.0 + month_rate, total_months)) /
-			(pow(1.0 + month_rate, total_months) - 1.0);
-
-		monthly_payment = loan_amount * annuity_coeff;
-		remaining_loan = loan_amount;
-		initialized = 1;
-
-		printf("Saul took mortage: %.0f RUB, monthly payment: %.0f RUB\n",
-			loan_amount, monthly_payment);
-	}
-
-	if (remaining_loan > 0.0) {
-		double month_rate = (annual_rate / 12) / 100;
-
-		double interest = remaining_loan * month_rate;
-
-		double principal_payment = monthly_payment - interest;
-
-		remaining_loan -= principal_payment;
-		if (remaining_loan < 0) remaining_loan = 0;
-
-		p->bank_account -= monthly_payment;
-		
-		if (month == 12) { 
-			printf("Year %d: mortgage balance %.0f RUB\n", year, remaining_loan);
-		}
-	}
+	person.food *= 1.008;
+	person.bank_account -= person.food;
 }
 
 
-
-void person_food(struct Person* p)
+void person_diff_services(struct Person& person)
 {
-	p->food *= 1.008;
-	p->bank_account -= p->food;
+	person.diff_services *= 1.008;
+	person.bank_account -= person.diff_services;
 }
 
 
-void person_diff_services(struct Person* p)
-{
-	p->diff_services *= 1.008;
-	p->bank_account -= p->diff_services;
-}
-
-
-void person_clothes(struct Person* p, const int month)
+void person_clothes(struct Person& person, const int month)
 {
 	if (month % 3 == 0) {
-		p->clothes *= 1.025;
-		p->bank_account -= p->clothes;
+		person.clothes *= 1.025;
+		person.bank_account -= person.clothes;
 	}
 }
 
 
-void person_unforeseen_expenses(struct Person* p, const int month)
+void person_unforeseen_expenses(struct Person& person, const int month)
 {
 	if (month % 3 == 0) {
-		p->unforeseen_expenses *= 1.025;
-		p->bank_account -= p->unforeseen_expenses;
+		person.unforeseen_expenses *= 1.025;
+		person.bank_account -= person.unforeseen_expenses;
 	}
 }
 
 
-void person_trip(struct Person* p, const int month)
+void person_trip(struct Person& person, const int month)
 {
 	if (month == 7) {
-		p->trip *= 1.08;
-		p->bank_account -= p->trip;
+		person.trip *= 1.08;
+		person.bank_account -= person.trip;
 	}
 }
 
 
-void person_technique(struct Person* p, const int year, const int month)
+void person_technique(struct Person& person, const int year, const int month)
 {
 	if (year % 5 == 0 && month == 1) {
-		p->technique *= 1.3;
-		p->bank_account -= p->technique;
+		person.technique *= 1.3;
+		person.bank_account -= person.technique;
 	}
 }
 
 
-void person_rent_flat(struct Person* p)
+void person_rent_flat(struct Person& person)
 {
-	p->rent_flat *= 1.005;
-	p->bank_account -= p->rent_flat;
+	if (person.has_flat)
+		return;
+	person.rent_flat *= 1.005;
+	person.bank_account -= person.rent_flat;
 }
 
 
-void person_flatcost(struct Person* p, const int month)
+void person_flatcost(struct Person& person, const int month)
 {
 	if (month == 7) {
-		p->flatcost = (p->flatcost * 1.1);
+		person.flatcost = (person.flatcost * 1.1);
 	}
 }
 
@@ -186,36 +190,38 @@ void simulation()
 	int month = 12;
 
 	while (!(year == 2045 && month == 9)) {
-		person_income(&walter, year, month);
-		person_income(&saul, year, month);
+		walter_income(year, month);
+		person_food(walter);
+		person_diff_services(walter);
+		person_clothes(walter, month);
+		person_unforeseen_expenses(walter, month);
+		person_trip(walter, month);
+		person_flatcost(walter, month);
+		person_technique(walter, year, month);
+		person_rent_flat(walter);
+		deposit_simulation(walter, year, month);
 
-		person_food(&walter);
-		person_food(&saul);
+		saul_income(year, month);
+		person_food(saul);
+		person_diff_services(saul);
+		person_clothes(saul, month);
+		person_unforeseen_expenses(saul, month);
+		person_trip(saul, month);
+		person_flatcost(saul, month);
+		person_technique(saul, year, month);
+		mortage_simulation(saul, year, month);
 
-		person_diff_services(&walter);
-		person_diff_services(&saul);
+		printf("saul capital = %.0f\n", saul.bank_account);
+		printf("walter capital = %.0f\n", walter.bank_account);
 
-		person_clothes(&walter, month);
-		person_clothes(&saul, month);
-
-		person_unforeseen_expenses(&walter, month);
-		person_unforeseen_expenses(&saul, month);
-
-		person_trip(&walter, month);
-		person_trip(&saul, month);
-
-		person_flatcost(&walter, month);
-		person_flatcost(&saul, month);
-
-		person_technique(&walter, year, month);
-		person_technique(&saul, year, month);
-
-		person_rent_flat(&walter);
-		deposit_simulation(&walter, year, month);
-		mortage_simulation(&saul, year, month);
-
-		printf("saul capital = %d\n\n", saul.bank_account);
-		printf("walter capital = %d\n", walter.bank_account);
+		if (month == 12) {
+			printf(
+				"Year %d | Walter flat: %s | Saul flat: %s\n\n",
+				year,
+				walter.has_flat ? "YES" : "NO",
+				saul.has_flat ? "YES" : "NO"
+			);
+		}
 
 		++month;
 		if (month == 13) {
@@ -228,15 +234,18 @@ void simulation()
 
 void print_person_info()
 {
-	printf("walter capital = %d\n", walter.bank_account);
-	printf("saul capital = %d\n", saul.bank_account);
-	printf("flatcost = %d\n", walter.flatcost);
-	printf("deposit = %d\n", walter.deposit);
+	printf("walter capital = %.0f\n", walter.bank_account);
+	printf("saul capital = %.0f\n\n", saul.bank_account);
+	printf("deposit = %.0f\n", walter.deposit);
+	printf("flatcost = %.0f\n", walter.flatcost);
+	printf("  Walter bank account: %.0f RUB\n", walter.bank_account);
+	printf("  Saul bank account: %.0f RUB\n", saul.bank_account);
 }
 
 
-void walter_int()
+void walter_init()
 {
+	walter.has_flat = false;
 	walter.bank_account = 1100 * 1000;
 	walter.income = 200 * 1000;
 	walter.food = 30 * 1000;
@@ -251,10 +260,11 @@ void walter_int()
 }
 
 
-void saul_int()
+void saul_init()
 {
+	saul.has_flat = true;
 	saul.bank_account = 1100 * 1000;
-	saul.income = 220 * 1000;
+	saul.income = 230 * 1000;
 	saul.food = 30 * 1000;
 	saul.diff_services = 25 * 1000;
 	saul.clothes = 15 * 1000;
@@ -262,14 +272,41 @@ void saul_int()
 	saul.trip = 120 * 1000;
 	saul.technique = 200 * 1000;
 	saul.flatcost = 10000 * 1000;
+
+	double annual_rate = 15.0;
+	int years = 20;
+	int total_months = years * 12;
+
+	double initial_payment = 1'000'000;
+	double loan_amount = saul.flatcost - initial_payment;
+
+	saul.bank_account -= initial_payment;
+	saul.mortgage_balance = loan_amount;
+	saul.mortgage_total_paid = 0;
+
+	double month_rate = annual_rate / 12.0 / 100.0;
+
+	double annuity =
+		(month_rate * pow(1 + month_rate, total_months)) /
+		(pow(1 + month_rate, total_months) - 1);
+
+	saul.mortgage_monthly_payment = loan_amount * annuity;
+
+	printf(
+		"Saul mortgage: %.0f, payment: %.0f\n",
+		loan_amount,
+		saul.mortgage_monthly_payment
+	);
 }
 
 
 int main()
 {	
-	walter_int();
-	saul_int();
+	walter_init();
+	saul_init();
+
 	simulation();
+
 	print_person_info();
 
 }
