@@ -1,0 +1,20 @@
+struct OmegabotState {
+    bool is_in_search;
+    bool is_following;
+}
+
+void loop()
+{
+    if (is_in_search) search_line();
+    if (is_following) follow_line();
+
+    sleep(10);
+}
+
+int main()
+{
+    while(l) {
+        loop();
+    }
+    return 0;
+}
