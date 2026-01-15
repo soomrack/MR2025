@@ -62,7 +62,7 @@ void alice_salary(int month)
         alice.salary *= 1.07; // ежегодное повышение зарплаты на 7%
     }
 if (month !=4) {
-    alice.account += alice.salary;
+    alice.account += alice.salary; //отпуск апрель
 }
 
 void alice_print() 
@@ -155,10 +155,9 @@ void simulation()
 
     while (!((year == 2025 + 30) && (month == 9))) {
         // Доходы, расходы, инвестиции и обновления стоимости
-        //лог отпуска
     if (month == 4) {
-            printf("Год %d, Апрель: Алиса в отпуске\n", year);
-        }    
+    printf(" %d год, Апрель: Алиса в отпуске (-%.0lldк руб)\n", year, alice.salary/1000);
+} 
         alice_salary(month);
         alice_mortgage();
         alice_wastes();
