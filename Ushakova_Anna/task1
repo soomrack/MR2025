@@ -1,22 +1,22 @@
-#include <stdio.h>
+#include <cstdio>
 
 typedef long long int RUB;
 
 struct Home {
-    RUB bill;           // коммунальные платежи
-    RUB value;          // стоимость дома (будет пересчитываться с инфляцией)
-    RUB rent;           // арендная плата
-    RUB mortgage_sum;   // общая сумма ипотеки
-    RUB first_pay;      // первоначальный взнос
-    RUB monthly_payment; // ежемесячный платеж
+    RUB bill;            
+    RUB value;           
+    RUB rent;            
+    RUB mortgage_sum;    
+    RUB first_pay;       
+    RUB monthly_payment; 
 };
 
 struct Person {
     RUB salary;
     RUB account;
-    RUB wastes; // food, clothes, etc
+    RUB wastes;   
     RUB deposit;
-    struct Home home;   // информация о жилье
+    struct Home home;   
 };
 
 struct Person bob;
@@ -24,151 +24,151 @@ struct Person alice;
 
 void alice_inite() 
 {
-    alice.account = 1000 * 1000;
-    alice.salary = 300 * 1000;
-    alice.wastes = 30 * 1000;
+    alice.account = 1000LL * 1000;
+    alice.salary  = 300LL * 1000;
+    alice.wastes  = 30LL * 1000;
     alice.deposit = 0;
 
-    // Инициализация данных о жилье Алисы (покупка)
-    alice.home.bill = 10 * 1000;           // коммунальные платежи
-    alice.home.value = 14 * 1000 * 1000;   // начальная стоимость дома
-    alice.home.rent = 0;                   // Алиса не платит аренду
-    alice.home.mortgage_sum = 14 * 1000 * 1000;
-    alice.home.first_pay = 1000 * 1000;
-    alice.home.monthly_payment = 217232;
+    alice.home.bill            = 10LL * 1000;
+    alice.home.value           = 14LL * 1000 * 1000;
+    alice.home.rent            = 0;
+    alice.home.mortgage_sum    = 14LL * 1000 * 1000;
+    alice.home.first_pay       = 1000LL * 1000;
+    alice.home.monthly_payment = 217232LL;
     
     alice.account -= alice.home.first_pay;
 }
 
 void bob_inite() 
 {
-    bob.account = 1000 * 1000;
-    bob.salary = 300 * 1000;
-    bob.wastes = 50 * 1000;
+    bob.account = 1000LL * 1000;
+    bob.salary  = 300LL * 1000;
+    bob.wastes  = 50LL * 1000;
     bob.deposit = 0;
 
-    // Инициализация данных о жилье Боба (аренда)
-    bob.home.bill = 0;                     // коммунальные обычно включены в аренду
-    bob.home.value = 0;                    // Боб не владеет недвижимостью
-    bob.home.rent = 60 * 1000;             // арендная плата
-    bob.home.mortgage_sum = 0;
-    bob.home.first_pay = 0;
+    bob.home.bill            = 0;
+    bob.home.value           = 0;
+    bob.home.rent            = 60LL * 1000;
+    bob.home.mortgage_sum    = 0;
+    bob.home.first_pay       = 0;
     bob.home.monthly_payment = 0;
 }
 
-void alice_salary(int month) 
+void alice_salary(int month, int year) 
 {
     if (month == 1) {
-        alice.salary *= 1.07; // ежегодное повышение зарплаты на 7%
+        alice.salary = (RUB)(alice.salary * 1.07);
     }
-if (month !=4) {
-    alice.account += alice.salary; //отпуск апрель
+
+    if (month == 1 || month == 4) {
+        return;
+    }
+
+    if ((year < 2026 || (year == 2026 && month <= 8)) &&
+        (month == 7 || month == 8)) {
+        return;
+    }
+
+    if (year > 2026 || (year == 2026 && month >= 9)) {
+        alice.account += alice.salary * 2;
+    } else {
+        alice.account += alice.salary;
+    }
 }
 
 void alice_print() 
 {
-    printf("Alice:\n");
-    printf("  Savings: %lld rub.\n", alice.deposit);
-    printf("  Current account: %lld rub.\n", alice.account);
-    printf("  Property value: %lld rub.\n", alice.home.value); // Стоимость недвижимости
-    printf("  Total capital: %lld rub.\n\n", alice.deposit + alice.account + alice.home.value);
+    std::printf("Alice:\n");
+    std::printf("  Savings: %lld rub.\n", alice.deposit);
+    std::printf("  Current account: %lld rub.\n", alice.account);
+    std::printf("  Property value: %lld rub.\n", alice.home.value);
+    std::printf("  Total capital: %lld rub.\n\n",
+           alice.deposit + alice.account + alice.home.value);
 }
 
-void alice_mortgage() 
-{
-    alice.account -= alice.home.monthly_payment;
-}
-
-void alice_wastes() 
-{
-    alice.account -= alice.wastes;
-}
-
-void alice_bill() 
-{
-    alice.account -= alice.home.bill;
-}
+void alice_mortgage()  { alice.account -= alice.home.monthly_payment; }
+void alice_wastes()    { alice.account -= alice.wastes; }
+void alice_bill()      { alice.account -= alice.home.bill; }
 
 void alice_deposit()
 {
-    // Ежемесячная капитализация депозита под 20% годовых
-    alice.deposit += alice.deposit * (20.0 / 12.0) / 100.0;
+    alice.deposit += (RUB)(alice.deposit * (20.0 / 12.0) / 100.0);
     alice.deposit += alice.account;
     alice.account = 0;
 }
 
-// Функции для Боба
 void bob_print() 
 {
-    printf("Bob:\n");
-    printf("  Savings: %lld rub.\n", bob.deposit);
-    printf("  Current account: %lld rub.\n", bob.account);
-    printf("  Total capital: %lld rub.\n\n", bob.deposit + bob.account);
+    std::printf("Bob:\n");
+    std::printf("  Savings: %lld rub.\n", bob.deposit);
+    std::printf("  Current account: %lld rub.\n", bob.account);
+    std::printf("  Total capital: %lld rub.\n\n", bob.deposit + bob.account);
 }
-
 
 void bob_salary(int month) 
 {
     if (month == 1) {
-        bob.salary *= 1.07; // ежегодное повышение зарплаты на 7%
+        bob.salary = (RUB)(bob.salary * 1.07);
     }
     bob.account += bob.salary;
 }
 
-void bob_rent()
-{
-    bob.account -= bob.home.rent;
-}
-
-void bob_wastes() 
-{
-    bob.account -= bob.wastes;
-}
+void bob_rent()   { bob.account -= bob.home.rent; }
+void bob_wastes() { bob.account -= bob.wastes; }
 
 void bob_deposit()
 {
-    // Ежемесячная капитализация депозита под 20% годовых
-    bob.deposit += bob.deposit * (20.0 / 12.0) / 100.0;
+    bob.deposit += (RUB)(bob.deposit * (20.0 / 12.0) / 100.0);
     bob.deposit += bob.account;
     bob.account = 0;
 }
 
-// Функция для пересчета стоимости недвижимости с учетом инфляции
 void update_home_value(int month)
 {
     if (month == 1) {
-        // Ежегодная инфляция на недвижимость - 5%
-        alice.home.value *= 1.05;
-        
-        // Ежегодное увеличение коммунальных платежей на 7%
-        alice.home.bill *= 1.07;
-        
-        // Ежегодное увеличение арендной платы на 5%
-        bob.home.rent *= 1.05;
+        alice.home.value = (RUB)(alice.home.value * 1.05);
+        alice.home.bill  = (RUB)(alice.home.bill * 1.07);
+        bob.home.rent    = (RUB)(bob.home.rent * 1.05);
     }
 }
 
 void simulation()
 {
     int month = 9;
-    int year = 2025;
+    int year  = 2025;
 
     while (!((year == 2025 + 30) && (month == 9))) {
-        // Доходы, расходы, инвестиции и обновления стоимости
-    if (month == 4) {
-    printf(" %d год, Апрель: Алиса в отпуске (-%.0lldк руб)\n", year, alice.salary/1000);
-} 
-        alice_salary(month);
+
+        if (month == 1) {
+            std::printf("%d year, Январь: отпуск (%.0lldk rub)\n",
+                   year, alice.salary / 1000);
+        }
+        if (month == 4) {
+            std::printf("%d year, Апрель: отпуск (%.0lldk rub)\n",
+                   year, alice.salary / 1000);
+        }
+        if ((year < 2026 || (year == 2026 && month <= 8)) &&
+            (month == 7 || month == 8)) {
+            std::printf("%d year, %s: уволена\n",
+                   year, (month == 7 ? "Июль" : "Август"));
+        }
+        if (year == 2026 && month == 9) {
+            std::printf("%d year, Сентябрь: новая работа x2\n", year);
+        }
+
+        alice_salary(month, year);
         alice_mortgage();
         alice_wastes();
         alice_bill();
         alice_deposit();
-        update_home_value(month);
-bob_salary(month);
+
+        bob_salary(month);
         bob_rent();
         bob_wastes();
         bob_deposit();
-        
+
+        update_home_value(month);
+
         month++;
         if (month == 13) {
             month = 1;
@@ -179,34 +179,31 @@ bob_salary(month);
 
 void print_result()
 {
-    printf("Results after 30 years:\n");
-    printf("========================\n");
+    std::printf("\nResults after 30 лет:\n");
+    std::printf("========================\n");
     
-    // Вывод результатов для Боба
-    printf("Bob:\n");
-    printf("  Savings: %lld rub.\n", bob.deposit);
-    printf("  Current account: %lld rub.\n", bob.account);
-    printf("  Total capital: %lld rub.\n\n", bob.deposit + bob.account);
-
-    // Вывод результатов для Алисы
-    printf("Alice:\n");
-    printf("  Savings: %lld rub.\n", alice.deposit);
-    printf("  Current account: %lld rub.\n", alice.account);
-    printf("  Property value: %lld rub.\n", alice.home.value);
-    printf("  Total capital: %lld rub.\n\n", alice.deposit + alice.account + alice.home.value);
-
-    // Итоговое сравнение
-    RUB bob_total = bob.deposit + bob.account;
+    RUB bob_total   = bob.deposit + bob.account;
     RUB alice_total = alice.deposit + alice.account + alice.home.value;
     
-    printf("FINAL COMPARISON:\n");
-    printf("Bob (rent): %lld rub.\n", bob_total);
-    printf("Alice (buy): %lld rub.\n", alice_total);
+    std::printf("Bob:\n");
+    std::printf("  Savings: %lld rub.\n", bob.deposit);
+    std::printf("  Current account: %lld rub.\n", bob.account);
+    std::printf("  Total capital: %lld rub.\n\n", bob_total);
+
+    std::printf("Alice:\n");
+    std::printf("  Savings: %lld rub.\n", alice.deposit);
+    std::printf("  Current account: %lld rub.\n", alice.account);
+    std::printf("  Property value: %lld rub.\n", alice.home.value);
+    std::printf("  Total capital: %lld rub.\n\n", alice_total);
+
+    std::printf("FINAL COMPARISON:\n");
+    std::printf("Bob (rent): %lld rub.\n", bob_total);
+    std::printf("Alice (buy): %lld rub.\n", alice_total);
     
     if (alice_total > bob_total) {
-        printf("Buying is better by %lld rub.\n", alice_total - bob_total);
+        std::printf("Buying is better by %lld rub.\n", alice_total - bob_total);
     } else {
-        printf("Renting is better by %lld rub.\n", bob_total - alice_total);
+        std::printf("Renting is better by %lld rub.\n", bob_total - alice_total);
     }
 }
 
@@ -216,6 +213,5 @@ int main()
     bob_inite();
     simulation();
     print_result();
-
     return 0;
 }
