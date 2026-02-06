@@ -97,17 +97,17 @@ void process_client_messages(int &client_socket, std::string &client_name){
         }
         
         buffer[bytes_received] = '\0';
-        std::string pre_message = trim(std::string(buffer));
+        std::string pre_message = trim(std::string(buffer)) + '\n';
 
         if(pre_message[0] != '/'){
             std::string message = "[" + client_name + "] " + pre_message;
             
             std::cout << message;
             broadcast_message(message, client_socket);
-        } else if (pre_message == "/hello"){
+        } else if (pre_message == "/hello\n"){
             std::cout << "всем общий привет\n" << std::endl;
             broadcast_message("всем общий привет\n", client_socket);
-        } else if (pre_message == "/megahello"){
+        } else if (pre_message == "/megahello\n"){
             std::cout << "ВСЕМ ОБЩИЙ МЕГАПРИВЕТ\n" << std::endl;
             broadcast_message("ВСЕМ ОБЩИЙ МЕГАПРИВЕТ\n", client_socket);
         } else {
