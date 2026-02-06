@@ -23,7 +23,7 @@ std::mutex clients_mutex;
 std::string receive_client_name(int &client_socket){
     std::string client_name;
     char buffer[1024];
-    // Получаем имя клиента
+
     int bytes_received = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
     if (bytes_received <= 0) {
         close(client_socket);
@@ -45,7 +45,7 @@ void broadcast_message(const std::string& message, int sender_socket) {
 }
 
 void add_client_to_list(int &client_socket, std::string client_name){
-    // Добавляем клиента в список
+
         std::lock_guard<std::mutex> lock(clients_mutex);
         clients.push_back({client_socket, client_name});
 }
@@ -69,7 +69,7 @@ void notify_client_left(const int &client_socket, const std::string &client_name
 }
 
 void remove_client_from_list(int &client_socket){
-    // Удаляем клиента из списка
+
         std::lock_guard<std::mutex> lock(clients_mutex);
         clients.erase(
             std::remove_if(clients.begin(), clients.end(),
@@ -87,7 +87,7 @@ std::string trim(const std::string &str){
 
 void process_client_messages(int &client_socket, std::string &client_name){
     char buffer[1024];
-    // Обрабатываем сообщения
+
     int bytes_received;
     while (true) {
         bytes_received = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
@@ -134,14 +134,14 @@ void handle_client(int client_socket) {
 
 
 int socket_init(int &server_socket){
-    // Создаем сокет для IPv6
+
     server_socket = socket(AF_INET6, SOCK_STREAM, 0);
     if (server_socket < 0) {
         std::cerr << "Ошибка создания сокета" << std::endl;
         return 1;
     }
     
-    // Настраиваем сокет
+
     int opt = 1;
     setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
     return 0;
@@ -150,7 +150,7 @@ int socket_init(int &server_socket){
 
 
 void address_init(sockaddr_in6 &server_addr, int port){
-    // Настраиваем адрес
+
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin6_family = AF_INET6;
     server_addr.sin6_addr = in6addr_any;
@@ -159,7 +159,7 @@ void address_init(sockaddr_in6 &server_addr, int port){
 
 
 void accept_connections(const int &server_socket){
-    // Принимаем подключения
+
     while (true) {
         struct sockaddr_in6 client_addr;
         socklen_t client_len = sizeof(client_addr);
@@ -180,7 +180,7 @@ void accept_connections(const int &server_socket){
 
 
 int bind_socket(const int& server_socket, const sockaddr_in6 &server_addr){
-    // Привязываем сокет
+
     if (bind(server_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         std::cerr << "Ошибка привязки сокета" << std::endl;
         close(server_socket);
@@ -193,7 +193,7 @@ int bind_socket(const int& server_socket, const sockaddr_in6 &server_addr){
 
 
 int start_listening(const int server_socket, int backlog = 10){
-    // Начинаем слушать
+
     if (listen(server_socket, backlog) < 0) {
         std::cerr << "Ошибка прослушивания" << std::endl;
         close(server_socket);
