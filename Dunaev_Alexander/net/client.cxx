@@ -102,7 +102,7 @@ void receive_messages(int &sock, const std::string &server_ip, int &port, sockad
                 std::cout << "[Вы снова в чате как: " << name << " ]"<< std::endl;
 
             } else {
-                exit(0);
+                exit(1);
             }
             continue;
         }
