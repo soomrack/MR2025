@@ -2,3 +2,7 @@ program
 *.exe
 /.idea
 /.vscode
+
+server
+
+client
