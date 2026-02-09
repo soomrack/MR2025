@@ -3,6 +3,6 @@ program
 /.idea
 /.vscode
 
-server
+chat_server
 
-client
+chat_client
