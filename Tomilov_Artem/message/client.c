@@ -28,7 +28,7 @@ int main(void) {
 static void client_run(void) {
     int sockfd = connect_to_server();
     printf("Connected to chat server.\n");
-    printf("Commands: \\help, \\users, \\disconnect\n\n");
+    printf("Commands: \\OSinfo, \\help, \\users, \\disconnect\n\n");
     chat_loop(sockfd);
 }
 
@@ -183,7 +183,7 @@ static int process_client_command(int sockfd, const char *input) {
         send(sockfd, disconnect_msg, strlen(disconnect_msg), 0);
         
         // Небольшая задержка, чтобы сервер успел обработать
-        usleep(100000); // 100ms
+        usleep(100000);
         
         return 0; // Сигнал к выходу
     }

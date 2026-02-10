@@ -5,6 +5,9 @@
 #include <arpa/inet.h>
 #include <sys/select.h>
 
+#include <sys/utsname.h>  // для uname()
+#include <sys/sysinfo.h>  // для sysinfo()
+
 #define PORT 5000
 #define BUF_SIZE 1024
 #define MAX_CLIENTS 10
@@ -48,12 +51,14 @@ static void broadcast(Client clients[], const char *msg, int except);
 static void cmd_disconnect(Client clients[], int idx, const char *args);
 static void cmd_help(Client clients[], int idx, const char *args);
 static void cmd_users(Client clients[], int idx, const char *args);
+static void cmd_OSinfo(Client clients[], int idx, const char *args);
 
 // Таблица команд
 static const ServerCommand commands[] = {
     {"disconnect", "Disconnect from chat", cmd_disconnect},
     {"help", "Show available commands", cmd_help},
     {"users", "List active users", cmd_users},
+    {"OSinfo", "Server information", cmd_OSinfo},
     {NULL, NULL, NULL}
 };
 
@@ -357,6 +362,67 @@ static void cmd_users(Client clients[], int idx, const char *args) {
                           "Total: %d user%s\n", count, count > 1 ? "s" : "");
     }
     
+    send(clients[idx].sock, msg, strlen(msg), 0);
+}
+
+static void cmd_OSinfo(Client clients[], int idx, const char *args) {
+    char msg[BUF_SIZE];
+    int offset = 0;
+    
+    struct utsname sys_info;
+    if (uname(&sys_info) != 0) {
+        char *msg = "[SERVER] Failed to get OS info\n";
+        send(clients[idx].sock, msg, strlen(msg), 0);
+        return;
+    }
+
+    struct sysinfo s_info;
+    if (sysinfo(&s_info) != 0) {
+        char *msg = "[SERVER] Failed to get system info\n";
+        send(clients[idx].sock, msg, strlen(msg), 0);
+        return;
+    }
+
+    /*
+    struct sysinfo {
+               long uptime;             Seconds since boot 
+               unsigned long loads[1];  1[0], 5[1], and 15[2] minute load averages
+               unsigned long totalram;  Total usable main memory size 
+               unsigned long freeram;   Available memory size 
+               unsigned long sharedram; Amount of shared memory 
+               unsigned long bufferram; Memory used by buffers
+               unsigned long totalswap; Total swap space size 
+               unsigned long freeswap;  Swap space still available
+               unsigned short procs;    Number of current processes
+               char _f[22];             Pads structure to 64 bytes
+           };
+    */
+   
+    offset += snprintf(msg + offset, sizeof(msg) - offset,
+                      "[SERVER] === OS Information ===\n");
+
+    offset += snprintf(msg + offset, sizeof(msg) - offset,
+                      "OS: %s\n", sys_info.sysname);
+    offset += snprintf(msg + offset, sizeof(msg) - offset,
+                      "Hostname: %s\n", sys_info.nodename);
+    offset += snprintf(msg + offset, sizeof(msg) - offset,
+                      "Kernel: %s\n", sys_info.release);
+    offset += snprintf(msg + offset, sizeof(msg) - offset,
+                      "Architecture: %s\n", sys_info.machine);
+
+
+    offset += snprintf(msg + offset, sizeof(msg) - offset,
+                      "[SERVER] === System Information ===\n");                  
+
+    offset += snprintf(msg + offset, sizeof(msg) - offset,
+                      "uptime: %ld \n", s_info.uptime);
+    offset += snprintf(msg + offset, sizeof(msg) - offset,
+                      "totalram: %lu \n", s_info.totalram);
+    offset += snprintf(msg + offset, sizeof(msg) - offset,
+                      "freeram: %lu \n", s_info.freeram);
+    offset += snprintf(msg + offset, sizeof(msg) - offset,
+                      "1 minute load average: %lu \n", s_info.loads[0]);
+
     send(clients[idx].sock, msg, strlen(msg), 0);
 }
 
