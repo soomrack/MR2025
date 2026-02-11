@@ -10,6 +10,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <fcntl.h>
+#include <termios.h>
 
 // ============================================================================
 // Структуры данных
@@ -30,6 +32,37 @@ std::mutex clients_mutex;
 // ============================================================================
 // Вспомогательные функции
 // ============================================================================
+
+
+std::string arduino_led_control(bool state) {
+    int uart = open("/dev/ttyS1", O_RDWR, O_NOCTTY);
+
+    if (uart == -1) {
+        return "Ошибка открытия UART\n";
+    }
+
+    struct termios options;
+    tcgetattr(uart, &options);
+    cfsetispeed(&options, B9600);
+    cfsetospeed(&options, B9600);
+    options.c_cflag |= (CLOCAL | CREAD);
+    options.c_cflag &= ~PARENB;
+    options.c_cflag &= ~CSTOPB;
+    options.c_cflag &= ~CSIZE;
+    options.c_cflag |= CS8;
+    tcsetattr(uart, TCSANOW, &options);
+
+    char cmd = state ? '1' : '0';
+    write(uart, &cmd, 1);
+
+    close(uart);
+
+    return state ? "Arduino LED включен\n" : \
+        "Arduino LED выключен";
+
+}
+
+
 
 std::string led_control(bool state) {
     // PA8 = (0 * 32) + 8 = 8
@@ -306,6 +339,10 @@ private:
             send_to_client(led_control(true), client_socket);
         } else if (command == "/led_off\n") {
             send_to_client(led_control(false), client_socket);
+        } else if (command == "/Aled_on\n") {
+            send_to_client(arduino_led_control(true), client_socket);
+        } else if (command == "/Aled_off\n") {
+            send_to_client(arduino_led_control(false), client_socket);
         } else {
             std::cout << command;
         }
