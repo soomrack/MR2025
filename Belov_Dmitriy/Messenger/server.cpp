@@ -1,182 +1,229 @@
-// ======= Подключения =======
 #include <WinSock2.h>
+#include <windows.h>
 #include <iostream>
 #include <vector>
+#include <thread>
+#include <mutex>
+#include <string>
 #include <stdexcept>
 #include <cstdint>
+#include <algorithm>
 
-#pragma comment(lib, "Ws2_32.lib") // Линкуем WinSock автоматически
+#pragma comment(lib, "Ws2_32.lib")
 
-// ======================================================
-//                ОПИСАНИЕ СООБЩЕНИЯ
-// ======================================================
+// ================= MESSAGE =================
 
-// Типы сообщений (можем расширять)
 enum class MessageType : uint32_t {
-    Text  = 1,
-    Image = 2,
-    Video = 3
+    Text = 1
 };
 
-// Заголовок сообщения
 struct MessageHeader {
-    MessageType type; // тип данных
-    uint32_t size;    // размер тела сообщения
+    MessageType type;
+    uint32_t size;
 };
 
-// Полное сообщение
-struct Message {
-    MessageHeader header;
-    std::vector<char> data; // универсальный контейнер под любые данные
+// ================= CLIENT =================
+
+struct Client {
+    SOCKET socket;
+    std::string color;
 };
 
-// ======================================================
-//                БАЗОВЫЙ КЛАСС СОКЕТА
-// ======================================================
+std::vector<Client> clients;
+std::mutex clientsMutex;
 
-class SocketBase {
-protected:
-    SOCKET sock = INVALID_SOCKET;
+std::vector<std::string> colorPool = {
+    "\033[31m", // red
+    "\033[32m", // green
+    "\033[33m", // yellow
+    "\033[34m", // blue
+    "\033[35m", // magenta
+    "\033[36m"  // cyan
+};
 
-    // Гарантированная отправка ВСЕХ байтов
-    void sendAll(SOCKET s, const char* data, int size) {
-        int sent = 0;
-        while (sent < size) {
-            int res = send(s, data + sent, size - sent, 0);
-            if (res <= 0)
-                throw std::runtime_error("send failed");
-            sent += res;
+const std::string RESET = "\033[0m";
+
+// ================= NETWORK =================
+
+void sendAll(SOCKET sock, const char* data, int size) {
+    int sent = 0;
+    while (sent < size) {
+        int res = send(sock, data + sent, size - sent, 0);
+        if (res <= 0)
+            throw std::runtime_error("send failed");
+        sent += res;
+    }
+}
+
+void recvAll(SOCKET sock, char* data, int size) {
+    int received = 0;
+    while (received < size) {
+        int res = recv(sock, data + received, size - received, 0);
+        if (res <= 0)
+            throw std::runtime_error("recv failed");
+        received += res;
+    }
+}
+
+// ================= EMOJI =================
+
+std::string replaceEmoji(std::string text) {
+
+    std::vector<std::pair<std::string, std::string>> emojis = {
+        {":fire:",  u8"🔥"},
+        {":smile:", u8"😄"},
+        {":sad:",   u8"😢"},
+        {":heart:", u8"❤️"},
+        {":ok:",    u8"👌"}
+    };
+
+    for (auto& e : emojis) {
+        size_t pos;
+        while ((pos = text.find(e.first)) != std::string::npos)
+            text.replace(pos, e.first.length(), e.second);
+    }
+
+    return text;
+}
+
+// ================= BROADCAST =================
+
+void broadcast(const MessageHeader& header,
+               const std::vector<char>& data,
+               SOCKET sender)
+{
+    std::lock_guard<std::mutex> lock(clientsMutex);
+
+    for (auto& c : clients) {
+        if (c.socket == sender)
+            continue;
+
+        try {
+            sendAll(c.socket, (char*)&header, sizeof(header));
+            sendAll(c.socket, data.data(), header.size);
         }
+        catch (...) {}
     }
+}
 
-    // Гарантированный приём ВСЕХ байтов
-    void recvAll(SOCKET s, char* data, int size) {
-        int received = 0;
-        while (received < size) {
-            int res = recv(s, data + received, size - received, 0);
-            if (res <= 0)
-                throw std::runtime_error("recv failed");
-            received += res;
-        }
-    }
+// ================= CLIENT HANDLER =================
 
-public:
-    virtual ~SocketBase() {
-        if (sock != INVALID_SOCKET)
-            closesocket(sock);
-    }
-};
+void handleClient(SOCKET clientSocket) {
 
-// ======================================================
-//                       СЕРВЕР
-// ======================================================
-
-class Server : public SocketBase {
-public:
-    void start(uint16_t port) {
-
-        // Создание сокета (IPv4 + TCP)
-        sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-        if (sock == INVALID_SOCKET)
-            throw std::runtime_error("socket failed");
-
-        sockaddr_in addr{};
-        addr.sin_family = AF_INET;
-        addr.sin_port = htons(port);
-        addr.sin_addr.s_addr = INADDR_ANY; // принимаем подключения с любого IP
-
-        // Привязка к порту
-        if (bind(sock, (sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR)
-            throw std::runtime_error("bind failed");
-
-        // Начинаем слушать
-        if (listen(sock, SOMAXCONN) == SOCKET_ERROR)
-            throw std::runtime_error("listen failed");
-
-        std::cout << "Server listening on port " << port << std::endl;
-    }
-
-    void run() {
-
-        sockaddr_in clientAddr{};
-        int size = sizeof(clientAddr);
-
-        // Ожидание клиента
-        SOCKET client = accept(sock, (sockaddr*)&clientAddr, &size);
-        if (client == INVALID_SOCKET)
-            throw std::runtime_error("accept failed");
-
-        std::cout << "Client connected\n";
-
+    try {
         while (true) {
 
-            try {
+            MessageHeader header{};
+            recvAll(clientSocket, (char*)&header, sizeof(header));
 
-                // ===== Читаем заголовок =====
-                MessageHeader header{};
-                recvAll(client, (char*)&header, sizeof(header));
-
-                // ===== Читаем тело =====
-                Message msg;
-                msg.header = header;
-                msg.data.resize(header.size);
-
-                recvAll(client, msg.data.data(), header.size);
-
-                // ===== Обработка типов =====
-
-                if (msg.header.type == MessageType::Text) {
-
-                    std::string text(msg.data.begin(), msg.data.end());
-                    std::cout << "Received text: " << text << std::endl;
-                }
-                else if (msg.header.type == MessageType::Image) {
-
-                    std::cout << "Received image, size: "
-                              << msg.header.size << " bytes\n";
-
-                    // Здесь можно сохранить файл
-                    // std::ofstream("image.jpg", std::ios::binary)...
-                }
-                else if (msg.header.type == MessageType::Video) {
-
-                    std::cout << "Received video, size: "
-                              << msg.header.size << " bytes\n";
-                }
-
-            }
-            catch (...) {
-                std::cout << "Client disconnected\n";
+            if (header.size > 1024 * 1024)
                 break;
+
+            std::vector<char> data(header.size);
+            recvAll(clientSocket, data.data(), header.size);
+
+            std::string message(data.begin(), data.end());
+
+            message = replaceEmoji(message);
+
+            std::string color;
+
+            {
+                std::lock_guard<std::mutex> lock(clientsMutex);
+                for (auto& c : clients)
+                    if (c.socket == clientSocket)
+                        color = c.color;
             }
+
+            std::string coloredMessage = color + message + RESET;
+
+            std::cout << coloredMessage << std::endl;
+
+            MessageHeader outHeader{
+                MessageType::Text,
+                static_cast<uint32_t>(coloredMessage.size())
+            };
+
+            std::vector<char> outData(
+                coloredMessage.begin(),
+                coloredMessage.end()
+            );
+
+            broadcast(outHeader, outData, clientSocket);
         }
-
-        closesocket(client);
     }
-};
+    catch (...) {}
 
-// ======================================================
-//                       MAIN
-// ======================================================
+    closesocket(clientSocket);
+
+    {
+        std::lock_guard<std::mutex> lock(clientsMutex);
+
+        clients.erase(
+            std::remove_if(clients.begin(), clients.end(),
+                [clientSocket](Client& c) {
+                    return c.socket == clientSocket;
+                }),
+            clients.end()
+        );
+
+        std::cout << "Client disconnected. Total: "
+                  << clients.size() << std::endl;
+    }
+}
+
+// ================= MAIN =================
 
 int main() {
 
-    WSADATA wsa;
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
 
-    // Инициализация WinSock
+    WSADATA wsa;
     WSAStartup(MAKEWORD(2, 2), &wsa);
 
-    try {
+    SOCKET serverSock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
-        Server server;
-        server.start(54000);
-        server.run();
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(54000);
+    addr.sin_addr.s_addr = INADDR_ANY;
 
-    }
-    catch (const std::exception& e) {
+    bind(serverSock, (sockaddr*)&addr, sizeof(addr));
+    listen(serverSock, SOMAXCONN);
 
-        std::cout << "Error: " << e.what() << std::endl;
+    std::cout << "Server listening on port 54000\n";
+
+    int colorIndex = 0;
+
+    while (true) {
+
+        SOCKET client =
+            accept(serverSock, nullptr, nullptr);
+
+        if (client == INVALID_SOCKET)
+            continue;
+
+        Client newClient;
+        newClient.socket = client;
+
+        {
+            std::lock_guard<std::mutex> lock(clientsMutex);
+
+            if (colorIndex < colorPool.size())
+                newClient.color = colorPool[colorIndex++];
+            else
+                newClient.color = "\033[37m";
+
+            clients.push_back(newClient);
+
+            std::cout << "Client connected. Total: "
+                      << clients.size() << std::endl;
+        }
+
+        std::thread(handleClient, client).detach();
     }
 
     WSACleanup();
+    return 0;
 }
