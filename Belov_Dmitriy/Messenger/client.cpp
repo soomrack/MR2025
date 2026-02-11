@@ -1,146 +1,155 @@
-
-// WinSock библиотека Windows для работы с сетью
 #include <WinSock2.h>
 #include <windows.h>
-
-// стандартные библиотеки C++
 #include <iostream>
 #include <string>
 #include <vector>
+#include <thread>
+#include <mutex>
+#include <sstream>
 #include <stdexcept>
 #include <cstdint>
 
-// Линкуем библиотеку WinSock
 #pragma comment(lib, "Ws2_32.lib")
 
-// =======================================================
-// СООБЩЕНИЕ 
-// =======================================================
-
-// Типы сообщений, можно расширять
 enum class MessageType : uint32_t {
-    Text  = 1,
-    Image = 2,
-    Video = 3
+    Text = 1
 };
 
-// Заголовок сообщения (служебная информация)
 struct MessageHeader {
-    MessageType type; // тип сообщения
-    uint32_t size;    // размер данных в байтах
+    MessageType type;
+    uint32_t size;
 };
 
-// =======================================================
-// БАЗОВЫЙ КЛАСС СОКЕТА 
-// =======================================================
+SOCKET clientSocket = INVALID_SOCKET;
+bool connected = false;
+bool running = true;
+std::mutex coutMutex;
 
-class SocketBase {
-protected:
-    SOCKET sock = INVALID_SOCKET; // дескриптор сокета
+void sendAll(const char* data, int size) {
+    int sent = 0;
+    while (sent < size) {
+        int res = send(clientSocket, data + sent, size - sent, 0);
+        if (res <= 0) throw std::runtime_error("send failed");
+        sent += res;
+    }
+}
 
-    // Гарантированная отправка всех байтов
-    void sendAll(const char* data, int size) {
-        int sent = 0;
-        while (sent < size) {
-            int res = send(sock, data + sent, size - sent, 0);
-            if (res <= 0)
-                throw std::runtime_error("send failed");
-            sent += res;
+void recvAll(char* data, int size) {
+    int received = 0;
+    while (received < size) {
+        int res = recv(clientSocket, data + received, size - received, 0);
+        if (res <= 0) throw std::runtime_error("recv failed");
+        received += res;
+    }
+}
+
+void receiveLoop() {
+    try {
+        while (connected) {
+            MessageHeader header{};
+            recvAll((char*)&header, sizeof(header));
+
+            std::vector<char> data(header.size);
+            recvAll(data.data(), header.size);
+
+            std::string text(data.begin(), data.end());
+
+            std::lock_guard<std::mutex> lock(coutMutex);
+            std::cout << "\n" << text << "\n> ";
         }
     }
-
-    // Гарантированный приём всех байтов
-    void recvAll(char* data, int size) {
-        int received = 0;
-        while (received < size) {
-            int res = recv(sock, data + received, size - received, 0);
-            if (res <= 0)
-                throw std::runtime_error("recv failed");
-            received += res;
-        }
+    catch (...) {
+        std::lock_guard<std::mutex> lock(coutMutex);
+        std::cout << "\nDisconnected.\n";
+        connected = false;
+        closesocket(clientSocket);
     }
+}
 
-public:
-    virtual ~SocketBase() {
-        if (sock != INVALID_SOCKET)
-            closesocket(sock);
+std::string replaceEmoji(std::string text) {
+    std::vector<std::pair<std::string, std::string>> emojis = {
+        {":fire:", u8"🔥"},
+        {":smile:", u8"😄"},
+        {":sad:", u8"😢"},
+        {":heart:", u8"❤️"},
+        {":ok:", u8"👌"}
+    };
+
+    for (auto& e : emojis) {
+        size_t pos;
+        while ((pos = text.find(e.first)) != std::string::npos)
+            text.replace(pos, e.first.length(), e.second);
     }
-};
-
-// =======================================================
-// КЛИЕНТ 
-// =======================================================
-
-class Client : public SocketBase {
-public:
-
-    // Подключение к серверу
-    void connectTo(const char* ip, uint16_t port) {
-
-        // создаём TCP сокет
-        sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-        if (sock == INVALID_SOCKET)
-            throw std::runtime_error("socket failed");
-
-        sockaddr_in addr{};
-        addr.sin_family = AF_INET;          // IPv4
-        addr.sin_port = htons(port);        // перевод порта в сетевой формат
-        addr.sin_addr.s_addr = inet_addr(ip); // преобразование строки IP
-
-        // подключаемся к серверу
-        if (connect(sock, (sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR)
-            throw std::runtime_error("connect failed");
-    }
-
-    // Отправка текстового сообщения
-    void sendText(const std::string& text) {
-
-        // Формируем заголовок
-        MessageHeader header{
-            MessageType::Text,
-            static_cast<uint32_t>(text.size())
-        };
-
-        // Сначала отправляем заголовок
-        sendAll((char*)&header, sizeof(header));
-
-        // Затем само сообщение
-        sendAll(text.data(), text.size());
-    }
-};
-
-// =======================================================
-// MAIN
-// =======================================================
+    return text;
+}
 
 int main() {
 
-    // Обязательная инициализация WinSock в Windows
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+
     WSADATA wsa;
-    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
-        std::cout << "WSAStartup failed\n";
-        return 1;
+    WSAStartup(MAKEWORD(2, 2), &wsa);
+
+    std::cout << "Messenger client started.\n";
+
+    std::string input;
+
+    while (running) {
+        std::cout << "> ";
+        std::getline(std::cin, input);
+
+        if (input.rfind("/connect", 0) == 0) {
+
+            if (connected) continue;
+
+            std::stringstream ss(input);
+            std::string cmd, ip;
+            int port;
+            ss >> cmd >> ip >> port;
+
+            clientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+
+            sockaddr_in addr{};
+            addr.sin_family = AF_INET;
+            addr.sin_port = htons(port);
+            addr.sin_addr.s_addr = inet_addr(ip.c_str());
+
+            if (connect(clientSocket, (sockaddr*)&addr, sizeof(addr)) == 0) {
+                connected = true;
+                std::thread(receiveLoop).detach();
+                std::cout << "Connected.\n";
+            }
+            else {
+                std::cout << "Connection failed.\n";
+            }
+        }
+        else if (input == "/quit") {
+            if (connected) {
+                connected = false;
+                closesocket(clientSocket);
+            }
+        }
+        else if (input == "/exit") {
+            running = false;
+            if (connected)
+                closesocket(clientSocket);
+        }
+        else {
+            if (!connected) continue;
+
+            std::string text = replaceEmoji(input);
+
+            MessageHeader header{
+                MessageType::Text,
+                static_cast<uint32_t>(text.size())
+            };
+
+            sendAll((char*)&header, sizeof(header));
+            sendAll(text.data(), text.size());
+        }
     }
 
-    try {
-        Client client;
-
-        // Подключаемся к локальному серверу
-        client.connectTo("127.0.0.1", 54000);
-
-        // Отправляем сообщение
-        client.sendText("Привет, сервер!");
-
-        // Пауза, чтобы соединение не закрылось мгновенно
-        Sleep(1000);
-    }
-    catch (const std::exception& e) {
-        std::cout << "Error: " << e.what() << std::endl;
-    }
-
-    // Освобождаем WinSock
     WSACleanup();
-
     return 0;
 }
-
