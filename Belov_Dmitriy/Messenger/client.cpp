@@ -83,6 +83,21 @@ std::string replaceEmoji(std::string text) {
     return text;
 }
 
+void printHelp() {
+    std::cout << "\n=== Доступные команды ===\n";
+    std::cout << "/connect <ip> <port> - подключиться к серверу\n";
+    std::cout << "/quit - отключиться от сервера\n";
+    std::cout << "/exit - выйти из программы\n";
+    std::cout << "/help - показать эту справку\n";
+    std::cout << "\n=== Доступные эмодзи ===\n";
+    std::cout << ":fire:  -> 🔥\n";
+    std::cout << ":smile: -> 😄\n";
+    std::cout << ":sad:   -> 😢\n";
+    std::cout << ":heart: -> ❤️\n";
+    std::cout << ":ok:    -> 👌\n";
+    std::cout << "==========================\n\n";
+}
+
 int main() {
 
     SetConsoleOutputCP(CP_UTF8);
@@ -92,6 +107,7 @@ int main() {
     WSAStartup(MAKEWORD(2, 2), &wsa);
 
     std::cout << "Messenger client started.\n";
+    printHelp();
 
     std::string input;
 
@@ -101,7 +117,10 @@ int main() {
 
         if (input.rfind("/connect", 0) == 0) {
 
-            if (connected) continue;
+            if (connected) {
+                std::cout << "Already connected. Use /quit first.\n";
+                continue;
+            }
 
             std::stringstream ss(input);
             std::string cmd, ip;
@@ -118,7 +137,7 @@ int main() {
             if (connect(clientSocket, (sockaddr*)&addr, sizeof(addr)) == 0) {
                 connected = true;
                 std::thread(receiveLoop).detach();
-                std::cout << "Connected.\n";
+                std::cout << "Connected to " << ip << ":" << port << "\n";
             }
             else {
                 std::cout << "Connection failed.\n";
@@ -128,15 +147,25 @@ int main() {
             if (connected) {
                 connected = false;
                 closesocket(clientSocket);
+                std::cout << "Disconnected.\n";
+            } else {
+                std::cout << "Not connected.\n";
             }
         }
         else if (input == "/exit") {
             running = false;
             if (connected)
                 closesocket(clientSocket);
+            std::cout << "Exiting...\n";
+        }
+        else if (input == "/help") {
+            printHelp();
         }
         else {
-            if (!connected) continue;
+            if (!connected) {
+                std::cout << "Not connected. Use /connect <ip> <port>\n";
+                continue;
+            }
 
             std::string text = replaceEmoji(input);
 
@@ -153,3 +182,4 @@ int main() {
     WSACleanup();
     return 0;
 }
+
