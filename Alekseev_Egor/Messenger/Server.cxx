@@ -3,15 +3,13 @@
 #include <iostream>
 #pragma comment(lib, "ws2_32.lib")
 
-int result;
-sockaddr_in address{}; //Структура для IPv4 адреса
-SOCKET server_fd;
-SOCKET client_fd;
+
+const unsigned short SERVER_PORT = 8080;
 
 
 bool WinSock_Init(){
     WSADATA wsaData;
-    result = WSAStartup(MAKEWORD(2, 2), &wsaData);
+    int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
     if (result != 0) {
         std::cerr << "WSAStartup failed\n";
         return false;
@@ -19,73 +17,68 @@ bool WinSock_Init(){
     else return true;    
 }
 
-bool Make_Socket(){
-    server_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (server_fd == INVALID_SOCKET) {
-        std::cerr << "Socket creation failed: " << WSAGetLastError() << "\n";
-        WSACleanup();
-        return false;
+SOCKET create_socket(){
+    SOCKET server_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (server_socket == INVALID_SOCKET) {
+        std::cerr << "Socket creation failed: " << WSAGetLastError() << std::endl;
     }
-    else return true;
+    return server_socket;
 }
 
-void Socket_Config(){
+sockaddr_in configure_socket(){
+    sockaddr_in address{};
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY; //Принимаются соединения на всех сетевых интерфейсах
-    address.sin_port = htons(8080);
+    address.sin_port = htons(SERVER_PORT);    
+    return address;
 }
 
-bool Binding(){
-    if (bind(server_fd, (sockaddr*)&address, sizeof(address)) == SOCKET_ERROR) {
-        std::cerr << "Bind failed: " << WSAGetLastError() << "\n";
-        closesocket(server_fd);
-        WSACleanup();
-        return false;
+bool bind_socket(SOCKET server_socket, const sockaddr_in&address){
+    if (bind(server_socket, (sockaddr*)&address, sizeof(address)) == SOCKET_ERROR){
+            std::cerr << "Bind failed: " << WSAGetLastError() << "\n";
+            return false;
     }
-    else return true;        
+    return true;  
 }
 
-bool listening(){
-    if (listen(server_fd, 1) == SOCKET_ERROR) {
+bool start_listening(SOCKET server_socket){
+    if (listen(server_socket, 1) == SOCKET_ERROR) {
         std::cerr << "Listen failed: " << WSAGetLastError() << "\n";
-        closesocket(server_fd);
-        WSACleanup();
         return false;
     }
-    else return true;    
+    return true;     
 }
 
-bool accept_connection(){
-    client_fd = accept(server_fd, nullptr, nullptr);
-    if (client_fd == INVALID_SOCKET) {
+SOCKET accept_connection(SOCKET server_socket){
+    SOCKET client_socket = accept(server_socket, nullptr, nullptr);
+    if (client_socket == INVALID_SOCKET) {
         std::cerr << "Accept failed: " << WSAGetLastError() << "\n";
-        closesocket(server_fd);
-        WSACleanup();
-        return false;
     }
     else{
         std::cout << "Connected successfully" << std::endl;
-        return true;
     }
+    return client_socket;
 }
 
-bool receive_message() {
+bool receive_message(SOCKET client_socket){
     char buffer[1024] = {};
-    int received_bytes = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+    int received_bytes = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
     
     if (received_bytes > 0) {
         buffer[received_bytes] = '\0';
-        if (std::string(buffer) == "*Quit") {
+        std::string message(buffer);
+
+        if (message == "*Quit") {
             std::cout << "Connection closed by client..." << std::endl;
             return false;
-        } else {
-            std::cout << '\n' << "Received message: " << buffer << std::endl;
-            std::cout << "---------------------------------------" << std::endl;
-            return true;
-        }
+        } 
+
+        std::cout << '\n' << "Received message: " << buffer << std::endl;
+        std::cout << "---------------------------------------" << std::endl;
+        return true;
     } 
-    else if (received_bytes == 0) {
-        std::cout << "Connection closed by client" << std::endl;
+    if (received_bytes == 0) {
+        std::cout << "Client disconnected..." << std::endl;
         return false;
     }
     else {
@@ -94,51 +87,71 @@ bool receive_message() {
     }
 }
 
-bool send_message(){
+bool send_message(SOCKET client_socket){
     std::string message;
     std::cout <<"Enter message" << std::endl;
     std::getline(std::cin, message);
-    if (message == "*Quit"){        //Принудительная остановка
+
+    if (message == "*Quit"){        
         std::cout << "Closing connection..." << std::endl;
-        result = send(client_fd, message.data(), message.length(), 0);
+        int result = send(client_socket, message.data(), message.length(), 0);
         if (result == SOCKET_ERROR) {
             std::cerr << "send failed: " << WSAGetLastError() << std::endl;
             return false;
             }
         return false;
         }
-    else{
-        result = send(client_fd, message.data(), message.length(), 0);
-        if (result == SOCKET_ERROR) {
-            std::cerr << "send failed: " << WSAGetLastError() << std::endl;
-            closesocket(client_fd);
-            WSACleanup();
-            return false;
-            }
-        else return true;
+   
+    int result = send(client_socket, message.data(), message.length(), 0);
+    if (result == SOCKET_ERROR) {
+        std::cerr << "send failed: " << WSAGetLastError() << std::endl;
+        return false;
         }
+    return (message !="*Quit");
 }
 
-void close_socket(){
-    closesocket(client_fd);
-    closesocket(server_fd);
-    WSACleanup();  // Освобождение ресурсов WinSock
+void close_socket(SOCKET server_socket, SOCKET client_socket){
+    if (client_socket != INVALID_SOCKET){
+        closesocket(client_socket);
+    }
+    if (server_socket != INVALID_SOCKET){
+        closesocket(server_socket);
+    }
+    WSACleanup();    
 }
-
 
 int main() {
     std::cout << "Starting server" << std::endl;
-    if (!WinSock_Init()) return 1;
-    if (!Make_Socket()) return 1;
-    Socket_Config();
-    if (!Binding()) return 1;
-    if (!listening()) return 1;
-    if (!accept_connection()) return 1;
 
-while (true){
-    if (!receive_message()) return 1;
-    if (!send_message()) return 1;
-}
-close_socket();
-return 0;
+    SOCKET server_socket = INVALID_SOCKET;
+    SOCKET client_socket = INVALID_SOCKET;
+    
+    if (!WinSock_Init()) return 1;
+    server_socket = create_socket();
+    if (server_socket == INVALID_SOCKET) return 1;
+    sockaddr_in address = configure_socket();
+    if (!bind_socket(server_socket, address)){
+        close_socket(server_socket, client_socket);
+        return 1;
+    }
+    if (!start_listening(server_socket)){
+        close_socket(server_socket, client_socket);
+        return 1;
+    }
+    client_socket = accept_connection(server_socket);
+    if (client_socket == INVALID_SOCKET){
+        close_socket(server_socket, client_socket);
+        return 1;
+    }
+    while (true){
+        if (!receive_message(client_socket)){
+            break;
+        }
+        if (!send_message(client_socket)){
+            break;
+        }
+    }
+    close_socket(server_socket, client_socket);
+    std::cout << "Stopping server..."<< std::endl;
+    return 0;
 }
