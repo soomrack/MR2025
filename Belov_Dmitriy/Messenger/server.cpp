@@ -14,72 +14,104 @@
 
 #pragma comment(lib, "Ws2_32.lib")
 
-// ================= MESSAGE =================
 
+// ============================================================
+// MESSAGE 
+// ============================================================
+
+// Минимальный протокол обмена:каждый пакет = заголовок + данные
 enum class MessageType : uint32_t {
     Text = 1
 };
 
-struct MessageHeader {
+
+struct MessageHeader {// Заголовок сообщает тип и размер полезной нагрузки
     MessageType type;
     uint32_t size;
 };
 
-// ================= CLIENT =================
 
-struct Client {
-    SOCKET socket;
-    std::string color;
+// ============================================================
+// CLIENT 
+// ============================================================
+
+struct Client {// Структура хранит состояние подключенного клиента
+    SOCKET socket;// Сервер не хранит сложного состояния — только сокет,
+    std::string color;// цвет 
     int colorIndex;
-    std::string clientId; // уникальный идентификатор (IP:порт)
+    std::string clientId;//и уникальный идентификатор
 };
 
+
+// Глобальное хранилище клиентов.
 std::vector<Client> clients;
-std::mutex clientsMutex;
-std::map<std::string, int> usedColors; // карта занятых цветов (clientId -> индекс цвета)
+std::mutex clientsMutex;// Доступ защищён mutex, так как клиенты обслуживаются в отдельных потоках
 
-std::vector<std::string> colorPool = {
-    "\033[31m", // red
-    "\033[32m", // green
-    "\033[33m", // yellow
-    "\033[34m", // blue
-    "\033[35m", // magenta
-    "\033[36m"  // cyan
+
+std::map<std::string, int> usedColors;// Карта занятых цветов
+
+
+std::vector<std::string> colorPool = {// Пул доступных цветов 
+    "\033[31m","\033[32m","\033[33m",
+    "\033[34m","\033[35m","\033[36m"
 };
+
 
 const std::string RESET = "\033[0m";
 
-// ================= GLOBAL =================
 
-std::atomic<bool> serverRunning{true};
+// ============================================================
+// GLOBAL 
+// ============================================================
+std::atomic<bool> serverRunning{ true };// serverRunning — флаг жизненного цикла сервера
 SOCKET serverSock = INVALID_SOCKET;
 
-// ================= NETWORK =================
+// ============================================================
+// UTILITY FUNCTIONS 
+// ============================================================
 
-void sendAll(SOCKET sock, const char* data, int size) {
+void setupConsole() { // Включаем UTF-8 для корректной работы с эмодзи
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+}
+
+
+void initWinSock() { // Инициализация сетевой подсистемы Windows
+    WSADATA wsa;
+    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+        throw std::runtime_error("WSAStartup failed");
+}
+
+void cleanupWinSock() {// Освобождение сетевых ресурсов, завершение
+    WSACleanup();
+}
+
+
+void sendAll(SOCKET sock, const char* data, int size) {// Гарантированная отправка всех байт сообщения
     int sent = 0;
     while (sent < size) {
         int res = send(sock, data + sent, size - sent, 0);
-        if (res <= 0)
-            throw std::runtime_error("send failed");
+        if (res <= 0) throw std::runtime_error("send failed");
         sent += res;
     }
 }
 
-void recvAll(SOCKET sock, char* data, int size) {
+
+void recvAll(SOCKET sock, char* data, int size) {// Гарантированное получение точного количества байт
     int received = 0;
     while (received < size) {
         int res = recv(sock, data + received, size - received, 0);
-        if (res <= 0)
-            throw std::runtime_error("recv failed");
+        if (res <= 0) throw std::runtime_error("recv failed");
         received += res;
     }
 }
 
-// ================= EMOJI =================
+
+// ============================================================
+// EMOJI 
+// ============================================================
 
 std::string replaceEmoji(std::string text) {
-
     std::vector<std::pair<std::string, std::string>> emojis = {
         {":fire:",  u8"🔥"},
         {":smile:", u8"😄"},
@@ -93,7 +125,6 @@ std::string replaceEmoji(std::string text) {
         while ((pos = text.find(e.first)) != std::string::npos)
             text.replace(pos, e.first.length(), e.second);
     }
-
     return text;
 }
 
@@ -111,50 +142,43 @@ void printCommands() {
     std::cout << "\n=== Команды сервера ===\n";
     std::cout << "/shutdown - завершить работу сервера\n";
     std::cout << "/status   - показать статус сервера\n";
-    std::cout << "/clients  - список подключенных клиентов\n";
-    std::cout << "/colors   - показать занятые цвета\n";
-    std::cout << "/help     - показать эту справку\n";
+    std::cout << "/clients  - список клиентов\n";
+    std::cout << "/colors   - занятые цвета\n";
+    std::cout << "/help     - помощь\n";
     std::cout << "========================\n\n";
 }
 
-// ================= CLIENT ID MANAGEMENT =================
+// ============================================================
+//  CLIENT MANAGEMENT 
+// ============================================================
 
-std::string getClientId(SOCKET clientSocket) {
+std::string getClientId(SOCKET clientSocket) {// Логика управления подключёнными клиентами
     sockaddr_in addr;
-    int addrLen = sizeof(addr);
-    if (getpeername(clientSocket, (sockaddr*)&addr, &addrLen) == 0) {
-        std::string ip = inet_ntoa(addr.sin_addr);
-        int port = ntohs(addr.sin_port);
-        return ip + ":" + std::to_string(port); // уникальная комбинация IP + порт
+    int len = sizeof(addr);
+    if (getpeername(clientSocket, (sockaddr*)&addr, &len) == 0) {
+        return std::string(inet_ntoa(addr.sin_addr)) + ":" +
+               std::to_string(ntohs(addr.sin_port));
     }
-    return "unknown:" + std::to_string(clientSocket);
+    return "unknown";
 }
 
-int assignColorIndex(const std::string& clientId) {
-    // Если у клиента уже был цвет - возвращаем его
-    if (usedColors.find(clientId) != usedColors.end()) {
+int assignColorIndex(const std::string& clientId) {// Назначение цвета клиенту, гарантирует уникальность цвета среди активных клиентов
+
+    if (usedColors.count(clientId))
         return usedColors[clientId];
-    }
-    
-    // Ищем первый свободный цвет
-    std::vector<bool> colorUsed(colorPool.size(), false);
-    
-    // Отмечаем занятые цвета
-    for (const auto& pair : usedColors) {
-        if (pair.second >= 0 && pair.second < colorPool.size()) {
-            colorUsed[pair.second] = true;
-        }
-    }
-    
-    // Ищем свободный индекс
-    for (int i = 0; i < colorPool.size(); i++) {
-        if (!colorUsed[i]) {
+
+    std::vector<bool> used(colorPool.size(), false);
+
+    for (auto& p : usedColors)
+        if (p.second >= 0 && p.second < colorPool.size())
+            used[p.second] = true;
+
+    for (int i = 0; i < colorPool.size(); i++)
+        if (!used[i]) {
             usedColors[clientId] = i;
             return i;
         }
-    }
-    
-    // Если все цвета заняты - используем белый
+
     return -1;
 }
 
@@ -162,18 +186,14 @@ void releaseColorIndex(const std::string& clientId) {
     usedColors.erase(clientId);
 }
 
-// ================= BROADCAST =================
-
-void broadcast(const MessageHeader& header,
+void broadcast(const MessageHeader& header, // Рассылка сообщения всем клиентам кроме отправителя
                const std::vector<char>& data,
-               SOCKET sender)
-{
+               SOCKET sender) {
+
     std::lock_guard<std::mutex> lock(clientsMutex);
 
     for (auto& c : clients) {
-        if (c.socket == sender)
-            continue;
-
+        if (c.socket == sender) continue;
         try {
             sendAll(c.socket, (char*)&header, sizeof(header));
             sendAll(c.socket, data.data(), header.size);
@@ -182,30 +202,29 @@ void broadcast(const MessageHeader& header,
     }
 }
 
-// ================= CLIENT HANDLER =================
+// ============================================================
+// ================= CLIENT THREAD ============================
+// ============================================================
 
 void handleClient(SOCKET clientSocket) {
 
     std::string clientId = getClientId(clientSocket);
-    
+
     try {
         while (serverRunning) {
 
             MessageHeader header{};
             recvAll(clientSocket, (char*)&header, sizeof(header));
 
-            if (header.size > 1024 * 1024)
-                break;
+            if (header.size > 1024 * 1024) break;
 
             std::vector<char> data(header.size);
             recvAll(clientSocket, data.data(), header.size);
 
             std::string message(data.begin(), data.end());
-
             message = replaceEmoji(message);
 
-            std::string color;
-            std::string clientInfo;
+            std::string color, clientInfo;
 
             {
                 std::lock_guard<std::mutex> lock(clientsMutex);
@@ -216,20 +235,14 @@ void handleClient(SOCKET clientSocket) {
                     }
             }
 
-            std::string coloredMessage = color + message + RESET;
+            std::string colored = color + message + RESET;
 
-            std::cout << clientInfo << coloredMessage << std::endl;
+            std::cout << clientInfo << colored << std::endl;
 
-            MessageHeader outHeader{
-                MessageType::Text,
-                static_cast<uint32_t>(coloredMessage.size())
-            };
+            MessageHeader outHeader{ MessageType::Text,
+                                     (uint32_t)colored.size() };
 
-            std::vector<char> outData(
-                coloredMessage.begin(),
-                coloredMessage.end()
-            );
-
+            std::vector<char> outData(colored.begin(), colored.end());
             broadcast(outHeader, outData, clientSocket);
         }
     }
@@ -240,86 +253,63 @@ void handleClient(SOCKET clientSocket) {
     {
         std::lock_guard<std::mutex> lock(clientsMutex);
 
-        clients.erase(
-            std::remove_if(clients.begin(), clients.end(),
-                [clientSocket](Client& c) {
-                    return c.socket == clientSocket;
-                }),
-            clients.end()
-        );
+        clients.erase(std::remove_if(clients.begin(), clients.end(),
+            [clientSocket](Client& c) { return c.socket == clientSocket; }),
+            clients.end());
 
-        // Освобождаем цвет этого конкретного клиента
         releaseColorIndex(clientId);
 
-        std::cout << "Client " << clientId << " disconnected. Total: "
-                  << clients.size() << std::endl;
+        std::cout << "Client " << clientId
+                  << " disconnected. Total: "
+                  << clients.size() << "\n";
     }
 }
 
-// ================= COMMAND HANDLER =================
+// ============================================================
+// ================= COMMAND THREAD ===========================
+// ============================================================
 
-void commandHandler() {
+void commandHandler() {// Отдельный поток для управления сервером.Позволяет серверу принимать клиентов, не блокируясь ожиданием ввода команд.
+
     std::string cmd;
-    
+
     while (serverRunning) {
+
         if (_kbhit()) {
             std::getline(std::cin, cmd);
-            
+
             if (cmd == "/shutdown") {
-                std::cout << "\nShutting down server...\n";
                 serverRunning = false;
                 break;
             }
             else if (cmd == "/status") {
-                std::cout << "\n=== Server Status ===\n";
-                std::cout << "Running: " << (serverRunning ? "Yes" : "No") << "\n";
-                std::cout << "Active clients: " << clients.size() << "\n";
-                std::cout << "Used colors: " << usedColors.size() << "\n";
-                std::cout << "=====================\n\n";
+                std::cout << "Active clients: "
+                          << clients.size() << "\n";
             }
             else if (cmd == "/clients") {
                 std::lock_guard<std::mutex> lock(clientsMutex);
-                std::cout << "\n=== Connected Clients (" << clients.size() << ") ===\n";
-                for (auto& c : clients) {
-                    std::cout << "ID: " << c.clientId
-                              << ", Socket: " << c.socket
-                              << ", Color: " << c.color << "text" << RESET 
-                              << " (index: " << c.colorIndex << ")\n";
-                }
-                std::cout << "================================\n\n";
+                for (auto& c : clients)
+                    std::cout << c.clientId << "\n";
             }
             else if (cmd == "/colors") {
-                std::lock_guard<std::mutex> lock(clientsMutex);
-                std::cout << "\n=== Used Colors (" << usedColors.size() << ") ===\n";
-                for (const auto& pair : usedColors) {
-                    std::string colorStr = (pair.second >= 0 && pair.second < colorPool.size()) 
-                                         ? colorPool[pair.second] : "\033[37m";
-                    std::cout << "Client ID: " << pair.first 
-                              << ", Color: " << colorStr << "text" << RESET 
-                              << " (index: " << pair.second << ")\n";
-                }
-                std::cout << "================================\n\n";
+                for (auto& p : usedColors)
+                    std::cout << p.first
+                              << " -> " << p.second << "\n";
             }
             else if (cmd == "/help") {
                 printCommands();
             }
-            else if (!cmd.empty()) {
-                std::cout << "Unknown command. Type /help for list of commands.\n";
-            }
         }
+
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 }
 
-// ================= MAIN =================
+// ============================================================
+// ================= SERVER START/STOP ========================
+// ============================================================
 
-int main() {
-
-    SetConsoleOutputCP(CP_UTF8);
-    SetConsoleCP(CP_UTF8);
-
-    WSADATA wsa;
-    WSAStartup(MAKEWORD(2, 2), &wsa);
+void createServerSocket() {
 
     serverSock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
@@ -330,20 +320,36 @@ int main() {
 
     bind(serverSock, (sockaddr*)&addr, sizeof(addr));
     listen(serverSock, SOMAXCONN);
+}
 
-    std::cout << "========================================\n";
-    std::cout << "Messenger server started\n";
-    std::cout << "Listening on port 54000\n";
-    std::cout << "Server IP: 127.0.0.1\n";
-    std::cout << "========================================\n\n";
-    
-    printEmojiHelp();
-    printCommands();
+void handleNewClient(SOCKET client) {
 
-    // Запускаем обработчик команд в отдельном потоке
-    std::thread cmdThread(commandHandler);
+    u_long mode = 0;
+    ioctlsocket(client, FIONBIO, &mode);
 
-    // Устанавливаем неблокирующий режим для accept
+    std::string id = getClientId(client);
+
+    Client newClient;
+    newClient.socket = client;
+    newClient.clientId = id;
+    newClient.colorIndex = assignColorIndex(id);
+
+    if (newClient.colorIndex >= 0)
+        newClient.color = colorPool[newClient.colorIndex];
+    else
+        newClient.color = "\033[37m";
+
+    {
+        std::lock_guard<std::mutex> lock(clientsMutex);
+        clients.push_back(newClient);
+        std::cout << "New client: " << id << "\n";
+    }
+
+    std::thread(handleClient, client).detach();
+}
+
+void runAcceptLoop() {// Основной цикл приёма новых клиентов
+
     u_long mode = 1;
     ioctlsocket(serverSock, FIONBIO, &mode);
 
@@ -352,74 +358,58 @@ int main() {
         SOCKET client = accept(serverSock, nullptr, nullptr);
 
         if (client == INVALID_SOCKET) {
-            int error = WSAGetLastError();
-            if (error == WSAEWOULDBLOCK) {
-                // Нет входящих соединений, продолжаем цикл
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            if (WSAGetLastError() == WSAEWOULDBLOCK) {
+                std::this_thread::sleep_for(
+                    std::chrono::milliseconds(100));
                 continue;
             }
-            else {
-                if (serverRunning) {
-                    std::cout << "Accept failed: " << error << std::endl;
-                }
-                break;
-            }
+            break;
         }
 
-        // Возвращаем блокирующий режим для клиентского сокета
-        mode = 0;
-        ioctlsocket(client, FIONBIO, &mode);
-
-        std::string clientId = getClientId(client);
-        
-        Client newClient;
-        newClient.socket = client;
-        newClient.clientId = clientId;
-        newClient.colorIndex = assignColorIndex(clientId);
-        
-        if (newClient.colorIndex >= 0 && newClient.colorIndex < colorPool.size()) {
-            newClient.color = colorPool[newClient.colorIndex];
-        } else {
-            newClient.color = "\033[37m"; // белый цвет
-            newClient.colorIndex = -1;
-        }
-
-        {
-            std::lock_guard<std::mutex> lock(clientsMutex);
-            clients.push_back(newClient);
-
-            std::cout << "\n[+" << std::to_string(client) << "] "
-                      << "New client connected.\n"
-                      << "  ID: " << clientId << "\n"
-                      << "  Color: " << newClient.color << "text" << RESET
-                      << " (index: " << newClient.colorIndex << ")\n"
-                      << "  Total clients: " << clients.size() << "\n";
-        }
-
-        std::thread(handleClient, client).detach();
+        handleNewClient(client);
     }
+}
 
-    // Ожидаем завершения потока команд
-    if (cmdThread.joinable()) {
+void shutdownServer(std::thread& cmdThread) {// Централизованная процедура завершения сервера.
+
+    if (cmdThread.joinable())
         cmdThread.join();
-    }
 
-    // Закрываем все клиентские соединения
     {
         std::lock_guard<std::mutex> lock(clientsMutex);
-        for (auto& c : clients) {
+        for (auto& c : clients)
             closesocket(c.socket);
-        }
+
         clients.clear();
         usedColors.clear();
     }
 
-    // Закрываем серверный сокет
-    if (serverSock != INVALID_SOCKET) {
+    if (serverSock != INVALID_SOCKET)
         closesocket(serverSock);
-    }
 
-    WSACleanup();
+    cleanupWinSock();
     std::cout << "Server stopped.\n";
+}
+
+// ============================================================
+// ================= MAIN =====================================
+// ============================================================
+
+int main() {
+    // Вся логика распределена по слоям выше.
+
+    setupConsole();
+    initWinSock();
+    createServerSocket();
+
+    printEmojiHelp();
+    printCommands();
+
+    std::thread cmdThread(commandHandler);
+
+    runAcceptLoop();
+    shutdownServer(cmdThread);
+
     return 0;
 }
+
