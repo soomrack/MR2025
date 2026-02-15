@@ -1,0 +1,80 @@
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <iostream>
+#include <cstring>
+#include <string> 
+#pragma comment(lib, "ws2_32.lib")
+
+using namespace std;
+
+int main() {
+    WSADATA wsaData;
+    int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
+
+    if (result != 0) {
+        cout << "WSAStartup failed: " << result << endl;
+        system("pause");
+        return 1;
+    }
+
+    SOCKET client_fd = socket(AF_INET, SOCK_STREAM, 0);
+
+    if (client_fd == INVALID_SOCKET) {
+        cout << "Socket creation failed: " << WSAGetLastError() << endl;
+        WSACleanup();
+        system("pause");
+        return 1;
+    }
+
+    sockaddr_in server_addr = {};
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(8080);
+
+    const char* server_ip = "192.168.0.114"; 
+
+    if (inet_pton(AF_INET, server_ip, &server_addr.sin_addr) <= 0) {
+        cout << "Invalid address or address not supported" << endl;
+        closesocket(client_fd);
+        WSACleanup();
+        system("pause");
+        return 1;
+    }
+
+    if (connect(client_fd, (sockaddr*)&server_addr, sizeof(server_addr)) == SOCKET_ERROR) {
+        cout << "Connection failed: " << WSAGetLastError() << endl;
+        closesocket(client_fd);
+        WSACleanup();
+        system("pause");
+        return 1;
+    }
+
+    cout << "Connected to server successfully!" << endl;
+
+    cout << "\nEnter your message: ";
+
+    string message; 
+    getline(cin, message);
+
+    if (message.empty()) { 
+        message = "Default message"; 
+        cout << "Using default message: " << message << endl;
+    }
+  
+    int bytes_sent = send(client_fd, message.c_str(), message.length(), 0);
+
+    if (bytes_sent == SOCKET_ERROR) {
+        cout << "Send failed: " << WSAGetLastError() << endl;
+    }
+    else {
+        cout << "\nMessage sent successfully!" << endl;
+        cout << "Sent " << bytes_sent << " bytes" << endl;
+        cout << "Message: " << message << endl;
+    }
+
+    closesocket(client_fd);
+    WSACleanup();
+
+    cout << "\nClient shut down" << endl;
+    system("pause");
+    return 0;
+}
