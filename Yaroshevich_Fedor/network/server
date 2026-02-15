@@ -1,0 +1,89 @@
+#pragma comment(lib, "ws2_32.lib")
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <iostream>
+#include <cstring>
+using namespace std;
+
+int main() {
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        cout << "WSAStartup failed" << endl;
+        system("pause");
+        return 1;
+    }
+
+    SOCKET server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd == INVALID_SOCKET) {
+        cout << "Socket creation failed" << endl;
+        WSACleanup();
+        system("pause");
+        return 1;
+    }
+
+    sockaddr_in server_addr = {};
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    server_addr.sin_port = htons(8080);
+
+    if (bind(server_fd, (sockaddr*)&server_addr, sizeof(server_addr)) == SOCKET_ERROR) {
+        cout << "Bind failed" << endl;
+        closesocket(server_fd);
+        WSACleanup();
+        system("pause");
+        return 1;
+    }
+
+    if (listen(server_fd, 1) == SOCKET_ERROR) {
+        cout << "Listen failed" << endl;
+        closesocket(server_fd);
+        WSACleanup();
+        system("pause");
+        return 1;
+    }
+
+    cout << "==================================" << endl;
+    cout << "Server is listening on port 8080..." << endl;
+    cout << "Waiting for client connection..." << endl;
+    cout << "==================================" << endl;
+
+    SOCKET client_fd = accept(server_fd, nullptr, nullptr);
+    if (client_fd == INVALID_SOCKET) {
+        cout << "Accept failed" << endl;
+        closesocket(server_fd);
+        WSACleanup();
+        system("pause");
+        return 1;
+    }
+
+    cout << "Client connected successfully!" << endl;
+
+    char buffer[1024] = {};
+    int bytes_received = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+
+    if (bytes_received > 0) {
+        buffer[bytes_received] = '\0';
+        cout << "\n**********************************" << endl;
+        cout << "RECEIVED MESSAGE:" << endl;
+        cout << "**********************************" << endl;
+        cout << buffer << endl;
+        cout << "**********************************" << endl;
+        cout << "Bytes received: " << bytes_received << endl;
+    }
+    else if (bytes_received == 0) {
+        cout << "Client closed connection" << endl;
+    }
+    else {
+        cout << "Receive failed" << endl;
+    }
+
+    closesocket(client_fd);
+    closesocket(server_fd);
+    WSACleanup();
+
+    cout << "\n==================================" << endl;
+    cout << "Server finished." << endl;
+    cout << "Press any key to exit..." << endl;
+    system("pause");  
+    return 0;
+}
