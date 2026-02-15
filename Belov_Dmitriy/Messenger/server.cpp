@@ -294,7 +294,7 @@ void commandHandler() {// Отдельный поток для управлен�
             else if (cmd == "/colors") {
                 for (auto& p : usedColors)
                     std::cout << p.first
-                              << " -> " << p.second << "\n";
+                              << " -> " << colorPool[p.second] << "COLOR" << RESET << "\n";
             }
             else if (cmd == "/help") {
                 printCommands();
