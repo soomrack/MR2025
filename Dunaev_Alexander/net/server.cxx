@@ -29,6 +29,8 @@ struct Client {
 std::vector<Client> clients;
 std::mutex clients_mutex;
 
+const std::string LOG_FILE = "/home/qwerty/arduino_sensor.log";
+
 // ============================================================================
 // Вспомогательные функции
 // ============================================================================
@@ -46,6 +48,11 @@ std::string get_OS_info();
  
 std::string get_temp_info(); 
 
+std::string get_all_logs();
+
+std::string get_warnings();
+
+std::string get_new_logs(const std::string &client_name);
 
 // ============================================================================
 // Класс Server
@@ -85,7 +92,7 @@ private:
     void remove_client(int client_socket);
     void notify_join(int client_socket, const std::string &client_name);
     void notify_leave(int client_socket, const std::string &client_name);
-    void process_command(const std::string &command, int client_socket, const std::string &pre_message);
+    void process_command(const std::string &command, const std::string &client_name, int client_socket, const std::string &pre_message);
     void process_messages(int client_socket, const std::string &client_name);
 };
 
@@ -245,6 +252,75 @@ std::string get_temp_info() {
     double temp = std::stod(temp_str) / 1000.0;
     
     return "Температура процессора: " + std::to_string(temp) + "°C\n";
+}
+
+
+std::string get_all_logs(){
+    std::ifstream file(LOG_FILE);
+    if (!file.is_open()) return "Лог-файл не найден\n";
+
+    std::string result;
+    std::string line;
+    while (std::getline(file, line)) {
+        result += line + "\n";
+    }
+
+    return result.empty() ? "Лог пуст\n" : result;
+}
+
+
+std::string get_warnings() {
+    std::ifstream file(LOG_FILE);
+    if (!file.is_open()) return "Лог-файл не найден\n";
+
+    std::string result;
+    std::string line;
+    while (std::getline(file, line)) {
+        if (line.find("[WARNING]") != std::string::npos) {
+            result += line + "\n";
+        }
+    }
+
+    return result.empty() ? "Нет предупрежедений\n" : result;
+}
+
+
+std::string get_new_logs(const std::string &client_name) {
+    std::string last_read_path = "/home/qwerty/last_read_" + client_name + ".txt";
+
+    int last_line = -1;
+    std::ifstream last_read_file(last_read_path);
+    if (last_read_file.is_open()) {
+        last_read_file >> last_line;
+        last_read_file.close();
+    }
+
+    std::ifstream file(LOG_FILE);
+    if (!file.is_open()) return "Лог-файл не найден\n";
+
+    std::string result;
+    std::string line;
+    int current_line = 0;
+
+    while (std::getline(file, line)) {
+        if(current_line >= last_line){
+            result += line + "\n";
+        }
+        current_line++;
+    }
+
+
+    std::ofstream save_file(last_read_path);
+    if(!save_file.is_open()) {
+        return "Ошибка сохранения состояния для " + client_name + "\n";
+    }
+
+    save_file << (current_line - 1);
+
+    if (last_line == -1) return "Первый вызов - состояние сохранено. Следующий /get_new_logs покажет новые логи\n";
+    return result.empty() ? "Новых логов нет\n" : result;
+
+    return result.empty() ? "Новых логов нет\n" : result;
 }
 
 
@@ -414,7 +490,7 @@ void MessageHandler::notify_leave(int client_socket, const std::string &client_n
 }
 
 
-void MessageHandler::process_command(const std::string &command, int client_socket, const std::string &pre_message) {
+void MessageHandler::process_command(const std::string &command, const std::string &client_name, int client_socket, const std::string &pre_message) {
     if (command == "/hello\n") {
         std::cout << "всем общий привет\n" << std::endl;
         broadcast_message("всем общий привет\n", client_socket);
@@ -437,6 +513,12 @@ void MessageHandler::process_command(const std::string &command, int client_sock
         send_to_client(arduino_led_control(true), client_socket);
     } else if (command == "/Aled_off\n") {
         send_to_client(arduino_led_control(false), client_socket);
+    } else if (command =="/get_new_logs\n") {
+        send_to_client(get_new_logs(client_name), client_socket);
+    } else if (command == "/get_all_logs\n") {
+        send_to_client(get_all_logs(), client_socket);
+    } else if (command == "/get_warnings\n") {
+        send_to_client(get_warnings(), client_socket);
     } else {
         std::cout << command;
     }
@@ -466,7 +548,7 @@ void MessageHandler::process_messages(int client_socket, const std::string &clie
             std::cout << formatted_msg;
             broadcast_message(formatted_msg, client_socket);
         } else {
-            process_command(message, client_socket, pre_message);
+            process_command(message, client_name, client_socket, pre_message);
         }
     }
 }
