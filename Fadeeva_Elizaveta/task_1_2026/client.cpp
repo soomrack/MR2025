@@ -19,7 +19,9 @@
 // Пока один тип (Text), но enum class оставлен
 // чтобы легко добавить новые типы (например File, Image и т.д.)
 enum class MessageType : uint32_t {
-    Text = 1
+    Text = 1,
+    Connect = 2,     // Новый тип для подключения с именем
+    Disconnect = 3    // Новый тип для отключения
 };
 
 
@@ -29,12 +31,19 @@ struct MessageHeader {
     uint32_t size;// размер тела сообщения в байта
 };
 
+// Можно добавить структуру для сообщения с метаданными
+struct TextMessage {
+    std::string username;
+    std::string timestamp;
+    std::string content;
+};
 
 // Глобальный сокет клиента, оставлен глобальным чтобы receiveLoop мог работать в отдельном потоке
 SOCKET clientSocket = INVALID_SOCKET;
 bool connected = false;// Флаг подключения к серверу
 bool running = true;// Флаг работы всей программы
 std::mutex coutMutex;// для безопасного вывода в консоль, потому что receiveLoop работает в отдельном потоке
+std::string username;  // <-- НОВОЕ: имя пользователя
 
 
 // ============================================================
@@ -79,6 +88,64 @@ void recvAll(char* data, int size) {// Получение всех байтов
         if (res <= 0) throw std::runtime_error("recv failed");
         received += res;
     }
+}
+
+// ============================================================
+// НОВАЯ ФУНКЦИЯ: ввод имени пользователя
+// ============================================================
+std::string getUsername() {
+    std::string name;
+    while (true) {
+        std::cout << "Enter your name (3-20 characters): ";
+        std::getline(std::cin, name);
+
+        // Убираем пробелы в начале и конце
+        size_t first = name.find_first_not_of(" \t");
+        size_t last = name.find_last_not_of(" \t");
+        if (first == std::string::npos || last == std::string::npos) {
+            std::cout << "Name cannot be empty!\n";
+            continue;
+        }
+        name = name.substr(first, last - first + 1);
+
+        // Проверка длины
+        if (name.length() < 3) {
+            std::cout << "Name too short! Minimum 3 characters.\n";
+            continue;
+        }
+        if (name.length() > 20) {
+            std::cout << "Name too long! Maximum 20 characters.\n";
+            continue;
+        }
+
+        // Проверка на допустимые символы (можно расширить)
+        bool valid = true;
+        for (char c : name) {
+            if (!isalnum(c) && c != '_' && c != '-' && c != ' ') {
+                valid = false;
+                break;
+            }
+        }
+        if (!valid) {
+            std::cout << "Name can only contain letters, numbers, spaces, underscores and hyphens!\n";
+            continue;
+        }
+
+        return name;
+    }
+}
+
+// ============================================================
+// НОВАЯ ФУНКЦИЯ: получение текущего времени
+// ============================================================
+std::string getCurrentTime() {
+    time_t now = time(0);
+    struct tm timeinfo;
+    localtime_s(&timeinfo, &now);  // Windows-safe version
+
+    char buffer[80];
+    strftime(buffer, sizeof(buffer), "%H:%M:%S", &timeinfo);
+    return std::string(buffer);
 }
 
 // ============================================================
@@ -136,52 +203,124 @@ void receiveLoop() {// Поток приёма сообщений
 // ВЫСОКОУРОВНЕВАЯ ЛОГИКА 
 // ============================================================
 
-bool connectToServer(const std::string& ip, int port) {//  подключение к серверу через сокет
+bool connectToServer(const std::string& ip, int port) {
+    // Сначала запрашиваем имя
+    username = getUsername();
+    if (username.empty()) return false;
 
     clientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (clientSocket == INVALID_SOCKET) {
+        std::cout << "Socket creation failed.\n";
+        return false;
+    }
 
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
     addr.sin_addr.s_addr = inet_addr(ip.c_str());
 
-    if (connect(clientSocket, (sockaddr*)&addr,
-        sizeof(addr)) == 0) {
-
+    if (connect(clientSocket, (sockaddr*)&addr, sizeof(addr)) == 0) {
         connected = true;
 
-        // При успешном подключении запускаем поток приёма
-        std::thread(receiveLoop).detach();
-        std::cout << "Connected to "
-                  << ip << ":" << port << "\n";
-        return true;
+        // Отправляем имя серверу как отдельное сообщение
+        try {
+            // Создаём сообщение с именем
+            std::string connectMsg = username;
+            MessageHeader header{ MessageType::Connect, (uint32_t)connectMsg.size() };
+            sendAll((char*)&header, sizeof(header));
+            sendAll(connectMsg.data(), connectMsg.size());
+
+            // Запускаем поток приёма сообщений
+            std::thread(receiveLoop).detach();
+
+            std::cout << "Connected to " << ip << ":" << port << " as '" << username << "'\n";
+            return true;
+        }
+        catch (...) {
+            std::cout << "Failed to send username.\n";
+            closesocket(clientSocket);
+            connected = false;
+            return false;
+        }
     }
 
     std::cout << "Connection failed.\n";
     return false;
 }
 
-void disconnectFromServer() {// Отдельная функция отключения
+void disconnectFromServer() {
     if (connected) {
+        try {
+            // Отправляем сообщение об отключении
+            std::string disconnectMsg = username;
+            MessageHeader header{ MessageType::Disconnect, (uint32_t)disconnectMsg.size() };
+            sendAll((char*)&header, sizeof(header));
+            sendAll(disconnectMsg.data(), disconnectMsg.size());
+        }
+        catch (...) {
+            // Игнорируем ошибки при отключении
+        }
+
         connected = false;
         closesocket(clientSocket);
-        std::cout << "Disconnected.\n";
+        std::cout << "Disconnected from server.\n";
     }
 }
 
-void sendMessage(const std::string& input) {// Отправка сообщения
+void sendMessage(const std::string& input) {
+    // Формируем сообщение с именем и временем
+    std::string timeStr = getCurrentTime();
+    std::string processedContent = replaceEmoji(input);
 
-    std::string text = replaceEmoji(input);
+    // Формат: [Имя Время] Сообщение
+    std::string fullMessage = "[" + username + " " + timeStr + "] " + processedContent;
 
     MessageHeader header{
         MessageType::Text,
-        (uint32_t)text.size()
+        (uint32_t)fullMessage.size()
     };
 
     sendAll((char*)&header, sizeof(header));
-    sendAll(text.data(), text.size());
+    sendAll(fullMessage.data(), fullMessage.size());
 }
 
+
+bool spam(const std::string& input) {  // Добавляем параметр input
+    if (!connected) {
+        std::cout << "Not connected.\n";
+        return false;  // Возвращаем false вместо continue
+    }
+
+    std::stringstream ss(input);
+    std::string cmd;
+    int count;
+    std::string message;
+
+    ss >> cmd >> count;
+    std::getline(ss, message);
+
+    if (!message.empty() && message[0] == ' ')
+        message = message.substr(1);
+
+    for (int i = 0; i < count; i++) {
+        try {
+            if (i > 0) std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+            std::string spamMsg = message;
+            if (count > 1) {
+                spamMsg = "[" + std::to_string(i + 1) + "/" +
+                    std::to_string(count) + "] " + message;
+            }
+
+            sendMessage(spamMsg);
+        }
+        catch (...) {
+            std::cout << "Spam interrupted.\n";
+            break;
+        }
+    }
+    return true;
+}
 // ============================================================
 // Служебные сообщения в консоль при запуске клиента/UI
 // ============================================================
@@ -226,6 +365,9 @@ void runClientEventLoop() {
         else if (input == "/exit") {
             running = false;
             disconnectFromServer();
+        }
+        else if (input.rfind("/spam", 0) == 0) {
+            spam(input);  // Передаём input
         }
         else if (input == "/help") {
             printHelp();
