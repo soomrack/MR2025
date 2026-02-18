@@ -21,7 +21,9 @@
 
 // Минимальный протокол обмена:каждый пакет = заголовок + данные
 enum class MessageType : uint32_t {
-    Text = 1
+    Text = 1,
+    Connect = 2,     // Новый тип для подключения с именем
+    Disconnect = 3    // Новый тип для отключения
 };
 
 
@@ -31,15 +33,22 @@ struct MessageHeader {// Заголовок сообщает тип и разм�
 };
 
 
+struct TextMessage {
+    std::string username;
+    std::string timestamp;
+    std::string content;
+};
 // ============================================================
 // CLIENT 
 // ============================================================
 
-struct Client {// Структура хранит состояние подключенного клиента
-    SOCKET socket;// Сервер не хранит сложного состояния — только сокет,
-    std::string color;// цвет 
+struct Client {
+    SOCKET socket;
+    std::string color;
     int colorIndex;
-    std::string clientId;//и уникальный идентификатор
+    std::string clientId;      // IP:port
+    std::string username;       // <-- НОВОЕ: имя пользователя
+    std::string joinTime;       // <-- НОВОЕ: время подключения
 };
 
 
@@ -206,98 +215,165 @@ void broadcast(const MessageHeader& header, // Рассылка сообщени
 // ================= CLIENT THREAD ============================
 // ============================================================
 
+
 void handleClient(SOCKET clientSocket) {
-
     std::string clientId = getClientId(clientSocket);
-
+    std::string username = "Unknown";
+    std::string clientColor;
+    
     try {
-        while (serverRunning) {
-
-            MessageHeader header{};
-            recvAll(clientSocket, (char*)&header, sizeof(header));
-
-            if (header.size > 1024 * 1024) break;
-
-            std::vector<char> data(header.size);
-            recvAll(clientSocket, data.data(), header.size);
-
-            std::string message(data.begin(), data.end());
-            message = replaceEmoji(message);
-
-            std::string color, clientInfo;
-
-            {
-                std::lock_guard<std::mutex> lock(clientsMutex);
-                for (auto& c : clients)
-                    if (c.socket == clientSocket) {
-                        color = c.color;
-                        clientInfo = "[Client " + c.clientId + "] ";
-                    }
+        // Сначала получаем имя клиента (первое сообщение должно быть Connect)
+        MessageHeader header{};
+        recvAll(clientSocket, (char*)&header, sizeof(header));
+        
+        if (header.type != MessageType::Connect || header.size > 256) {
+            std::cout << "Invalid connect message from " << clientId << "\n";
+            closesocket(clientSocket);
+            return;
+        }
+        
+        std::vector<char> data(header.size);
+        recvAll(clientSocket, data.data(), header.size);
+        username = std::string(data.begin(), data.end());
+        
+        // Обновляем информацию о клиенте
+        {
+            std::lock_guard<std::mutex> lock(clientsMutex);
+            for (auto& c : clients) {
+                if (c.socket == clientSocket) {
+                    c.username = username;
+                    c.joinTime = GetCurrentTime();  // ИСПРАВЛЕНО
+                    clientColor = c.color;
+                    break;
+                }
             }
-
-            std::string colored = color + message + RESET;
-
-            std::cout << clientInfo << colored << std::endl;
-
-            MessageHeader outHeader{ MessageType::Text,
-                                     (uint32_t)colored.size() };
-
-            std::vector<char> outData(colored.begin(), colored.end());
-            broadcast(outHeader, outData, clientSocket);
+        }
+        
+        std::cout << clientColor << "Client " << clientId << " joined as '" 
+                  << username << "'" << RESET << "\n";
+        
+        // Оповещаем всех о новом пользователе
+        std::string joinMsg = "*** " + username + " joined the chat ***";
+        MessageHeader notifyHeader{ MessageType::Text, (uint32_t)joinMsg.size() };
+        std::vector<char> notifyData(joinMsg.begin(), joinMsg.end());
+        broadcast(notifyHeader, notifyData, INVALID_SOCKET);
+        
+        // Основной цикл обработки сообщений
+        while (serverRunning) {
+            recvAll(clientSocket, (char*)&header, sizeof(header));
+            
+            if (header.size > 1024 * 1024) break;
+            
+            std::vector<char> msgData(header.size);
+            recvAll(clientSocket, msgData.data(), header.size);
+            
+            if (header.type == MessageType::Text) {
+                std::string message(msgData.begin(), msgData.end());
+                
+                // Выводим в консоль сервера с цветом
+                std::cout << clientColor << "[" << username << "] " 
+                          << message << RESET << std::endl;
+                
+                // Добавляем цвет к сообщению перед рассылкой
+                std::string coloredMessage = clientColor + message + RESET;
+                
+                MessageHeader outHeader{ MessageType::Text, (uint32_t)coloredMessage.size() };
+                std::vector<char> outData(coloredMessage.begin(), coloredMessage.end());
+                
+                broadcast(outHeader, outData, clientSocket);
+            }
+            else if (header.type == MessageType::Disconnect) {
+                std::cout << clientColor << "Client '" << username 
+                          << "' disconnected" << RESET << "\n";
+                break;
+            }
         }
     }
-    catch (...) {}
-
+    catch (...) {
+        std::cout << clientColor << "Client '" << username 
+                  << "' connection lost" << RESET << "\n";
+    }
+    
+    // Уведомляем о выходе
+    std::string leaveMsg = "*** " + username + " left the chat ***";
+    MessageHeader leaveHeader{ MessageType::Text, (uint32_t)leaveMsg.size() };
+    std::vector<char> leaveData(leaveMsg.begin(), leaveMsg.end());
+    broadcast(leaveHeader, leaveData, clientSocket);
+    
     closesocket(clientSocket);
-
+    
     {
         std::lock_guard<std::mutex> lock(clientsMutex);
-
         clients.erase(std::remove_if(clients.begin(), clients.end(),
             [clientSocket](Client& c) { return c.socket == clientSocket; }),
             clients.end());
-
         releaseColorIndex(clientId);
-
-        std::cout << "Client " << clientId
-                  << " disconnected. Total: "
-                  << clients.size() << "\n";
+        
+        std::cout << "Client '" << username << "' removed. Total: " << clients.size() << "\n";
     }
 }
 
+
+// ============================================================
+// НОВАЯ ФУНКЦИЯ: получение времени для сервера
+// ============================================================
+std::string getCurrentTime() {
+    time_t now = time(0);
+    struct tm timeinfo;
+    localtime_s(&timeinfo, &now);
+    
+    char buffer[80];
+    strftime(buffer, sizeof(buffer), "%H:%M:%S", &timeinfo);
+    return std::string(buffer);
+}
 // ============================================================
 // ================= COMMAND THREAD ===========================
 // ============================================================
 
-void commandHandler() {// Отдельный поток для управления сервером.Позволяет серверу принимать клиентов, не блокируясь ожиданием ввода команд.
 
+void commandHandler() {// Отдельный поток для управления сервером
     std::string cmd;
 
     while (serverRunning) {
-
+        // Проверяем, нажата ли клавиша (неблокирующий ввод)
         if (_kbhit()) {
             std::getline(std::cin, cmd);
 
             if (cmd == "/shutdown") {
+                std::cout << "Shutting down server...\n";
                 serverRunning = false;
                 break;
             }
             else if (cmd == "/status") {
-                std::cout << "Active clients: "
-                          << clients.size() << "\n";
+                std::lock_guard<std::mutex> lock(clientsMutex);
+                std::cout << "=== SERVER STATUS ===\n";
+                std::cout << "Active clients: " << clients.size() << "\n";
+                std::cout << "Server running: " << (serverRunning ? "Yes" : "No") << "\n";
+                std::cout << "====================\n";
             }
             else if (cmd == "/clients") {
                 std::lock_guard<std::mutex> lock(clientsMutex);
-                for (auto& c : clients)
-                    std::cout << c.clientId << "\n";
+                std::cout << "=== CONNECTED CLIENTS (" << clients.size() << ") ===\n";
+                for (auto& c : clients) {
+                    std::cout << " - " << c.username 
+                              << " [" << c.clientId << "]" 
+                              << " (joined: " << c.joinTime << ")\n";
+                }
+                std::cout << "==============================\n";
             }
             else if (cmd == "/colors") {
-                for (auto& p : usedColors)
-                    std::cout << p.first
-                              << " -> " << colorPool[p.second] << "COLOR" << RESET << "\n";
+                std::cout << "=== COLOR ALLOCATIONS ===\n";
+                for (auto& p : usedColors) {
+                    std::cout << p.first << " -> " 
+                              << colorPool[p.second] << "COLOR" << RESET << "\n";
+                }
+                std::cout << "=========================\n";
             }
             else if (cmd == "/help") {
                 printCommands();
+            }
+            else if (!cmd.empty()) {
+                std::cout << "Unknown command. Type /help for list.\n";
             }
         }
 
@@ -323,28 +399,29 @@ void createServerSocket() {
 }
 
 void handleNewClient(SOCKET client) {
-
     u_long mode = 0;
     ioctlsocket(client, FIONBIO, &mode);
-
+    
     std::string id = getClientId(client);
-
+    
     Client newClient;
     newClient.socket = client;
     newClient.clientId = id;
+    newClient.username = "Pending...";  // Временное имя
+    newClient.joinTime = "";
     newClient.colorIndex = assignColorIndex(id);
-
+    
     if (newClient.colorIndex >= 0)
         newClient.color = colorPool[newClient.colorIndex];
     else
         newClient.color = "\033[37m";
-
+    
     {
         std::lock_guard<std::mutex> lock(clientsMutex);
         clients.push_back(newClient);
-        std::cout << "New client: " << id << "\n";
+        std::cout << "New connection from " << id << " (waiting for name)\n";
     }
-
+    
     std::thread(handleClient, client).detach();
 }
 
@@ -412,4 +489,3 @@ int main() {
 
     return 0;
 }
-
