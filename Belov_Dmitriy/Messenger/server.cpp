@@ -56,16 +56,12 @@ struct Client {
 std::vector<Client> clients;
 std::mutex clientsMutex;// Доступ защищён mutex, так как клиенты обслуживаются в отдельных потоках
 
-
 std::map<std::string, int> usedColors;// Карта занятых цветов
-
 
 std::vector<std::string> colorPool = {// Пул доступных цветов 
     "\033[31m","\033[32m","\033[33m",
     "\033[34m","\033[35m","\033[36m"
 };
-
-
 const std::string RESET = "\033[0m";
 
 
@@ -211,6 +207,7 @@ void broadcast(const MessageHeader& header, // Рассылка сообщени
     }
 }
 
+std::string getCurrentTime();
 // ============================================================
 // ================= CLIENT THREAD ============================
 // ============================================================
@@ -242,7 +239,7 @@ void handleClient(SOCKET clientSocket) {
             for (auto& c : clients) {
                 if (c.socket == clientSocket) {
                     c.username = username;
-                    c.joinTime = GetCurrentTime();  // ИСПРАВЛЕНО
+                    c.joinTime = getCurrentTime();  
                     clientColor = c.color;
                     break;
                 }
@@ -331,6 +328,50 @@ std::string getCurrentTime() {
 // ============================================================
 
 
+
+// Объявление функций для обработки команд
+void handleShutdown(std::atomic<bool>& serverRunning) {
+    std::cout << "Shutting down server...\n";
+    serverRunning = false;
+}
+
+void handleStatus(const std::vector<Client>& clients, bool serverRunning) {
+    std::lock_guard<std::mutex> lock(clientsMutex);
+    std::cout << "=== SERVER STATUS ===\n";
+    std::cout << "Active clients: " << clients.size() << "\n";
+    std::cout << "Server running: " << (serverRunning ? "Yes" : "No") << "\n";
+    std::cout << "====================\n";
+}
+
+void handleClients(const std::vector<Client>& clients) {
+    std::lock_guard<std::mutex> lock(clientsMutex);
+    std::cout << "=== CONNECTED CLIENTS (" << clients.size() << ") ===\n";
+    for (auto& c : clients) {
+        std::cout << " - " << c.username
+            << " [" << c.clientId << "]"
+            << " (joined: " << c.joinTime << ")\n";
+    }
+    std::cout << "==============================\n";
+}
+
+void handleColors(const std::map<std::string, int>& usedColors,
+                  const std::vector<std::string>& colorPool) {
+    std::cout << "=== COLOR ALLOCATIONS ===\n";
+    for (auto& p : usedColors) {
+        std::cout << colorPool[p.second] << "COLOR" << RESET << "\n";
+    }
+    std::cout << "=========================\n";
+}
+
+
+void handleHelp() {
+    printCommands(); 
+}
+
+void handleUnknownCommand() {
+    std::cout << "Unknown command. Type /help for list.\n";
+}
+
 void commandHandler() {// Отдельный поток для управления сервером
     std::string cmd;
 
@@ -340,40 +381,23 @@ void commandHandler() {// Отдельный поток для управлен�
             std::getline(std::cin, cmd);
 
             if (cmd == "/shutdown") {
-                std::cout << "Shutting down server...\n";
-                serverRunning = false;
+                handleShutdown(serverRunning);
                 break;
             }
             else if (cmd == "/status") {
-                std::lock_guard<std::mutex> lock(clientsMutex);
-                std::cout << "=== SERVER STATUS ===\n";
-                std::cout << "Active clients: " << clients.size() << "\n";
-                std::cout << "Server running: " << (serverRunning ? "Yes" : "No") << "\n";
-                std::cout << "====================\n";
+                handleStatus(clients, serverRunning);
             }
             else if (cmd == "/clients") {
-                std::lock_guard<std::mutex> lock(clientsMutex);
-                std::cout << "=== CONNECTED CLIENTS (" << clients.size() << ") ===\n";
-                for (auto& c : clients) {
-                    std::cout << " - " << c.username 
-                              << " [" << c.clientId << "]" 
-                              << " (joined: " << c.joinTime << ")\n";
-                }
-                std::cout << "==============================\n";
+                handleClients(clients);
             }
             else if (cmd == "/colors") {
-                std::cout << "=== COLOR ALLOCATIONS ===\n";
-                for (auto& p : usedColors) {
-                    std::cout << p.first << " -> " 
-                              << colorPool[p.second] << "COLOR" << RESET << "\n";
-                }
-                std::cout << "=========================\n";
+                handleColors(usedColors, colorPool);
             }
             else if (cmd == "/help") {
-                printCommands();
+                handleHelp();
             }
             else if (!cmd.empty()) {
-                std::cout << "Unknown command. Type /help for list.\n";
+                handleUnknownCommand();
             }
         }
 
