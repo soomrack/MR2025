@@ -284,43 +284,6 @@ void sendMessage(const std::string& input) {
     sendAll(fullMessage.data(), fullMessage.size());
 }
 
-
-bool spam(const std::string& input) {  // Добавляем параметр input
-    if (!connected) {
-        std::cout << "Not connected.\n";
-        return false;  // Возвращаем false вместо continue
-    }
-    
-    std::stringstream ss(input);
-    std::string cmd;
-    int count;
-    std::string message;
-    
-    ss >> cmd >> count;
-    std::getline(ss, message);
-    
-    if (!message.empty() && message[0] == ' ')
-        message = message.substr(1);
-    
-    for (int i = 0; i < count; i++) {
-        try {
-            if (i > 0) std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            
-            std::string spamMsg = message;
-            if (count > 1) {
-                spamMsg = "[" + std::to_string(i+1) + "/" + 
-                         std::to_string(count) + "] " + message;
-            }
-            
-            sendMessage(spamMsg);
-        }
-        catch (...) {
-            std::cout << "Spam interrupted.\n";
-            break;
-        }
-    }
-    return true;
-}
 // ============================================================
 // Служебные сообщения в консоль при запуске клиента/UI
 // ============================================================
@@ -366,9 +329,6 @@ void runClientEventLoop() {
             running = false;
             disconnectFromServer();
         }
-        else if (input.rfind("/spam", 0) == 0) {
-            spam(input);  // Передаём input
-        }
         else if (input == "/help") {
             printHelp();
         }
@@ -399,3 +359,4 @@ int main() {
     cleanupWinSock();// завершение
     return 0;
 }
+
