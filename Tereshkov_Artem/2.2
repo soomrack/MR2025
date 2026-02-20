@@ -49,35 +49,37 @@ void Alice_init()
     Alice.rate_contribution = 1.014; // вклад под 17% годовых
 }
 
-
- double search_inflation() // данные взяты с https://calcus.ru/inflyaciya с 2010-2023 год
+// для генерации случайного значения инфляции
+double search_inflation() // данные взяты с https://calcus.ru/inflyaciya с 2010-2023 год
 { 
     int probability = (rand() % 100);
     double inflation;
-
+    
+    // Распределение вероятностей для разных уровней инфляции
     if (probability > 90) {
         inflation = (1001 + rand() % 2);
     }
-    if (probability <= 90 && probability > 60) {
-        inflation=(1004 + rand() % 2);
+    else if (probability <= 90 && probability > 60) {
+        inflation = (1004 + rand() % 2);
     }
-    if (probability <= 60 && probability > 10) {
+    else if (probability <= 60 && probability > 10) {
         inflation = (1007 + rand() % 2);
     }
-    if (probability <= 10) {
+    else {  // probability <= 10
         inflation = (1010 + rand() % 4);
     }
-    return((double) inflation / 1000.0);
+    
+    return (double) inflation / 1000.0;
 }
 
-
+// для индексации зарплаты
 double indexation()
 {
-    return((double) (100 + rand() % 9) / 100.0);
+    return (double) (100 + rand() % 9) / 100.0;
 }
 
 
-void Bob_salary(const int month)
+void Bob_salary(const int month) // Функция начисления зарплаты Бобу
 {
     if (month == 1) {
         Bob.salary *= indexation();
@@ -86,21 +88,30 @@ void Bob_salary(const int month)
 }
 
 
-void Alice_salary(const int month)
+void Alice_salary(const int month, const int total_months_passed) // ИСПРАВЛЕНО: добавлен параметр
 {
+    static int salary_doubled = 0; // Флаг: была ли зарплата уже удвоена
+  
     if (month == 1) {
         Alice.salary *= indexation();
+        Alice.premia = Alice.salary / 2;
     }
 
-    Alice.account = Alice.salary;
+    Alice.account = Alice.salary; // Начисляем базовую зарплату
 
-    if (month % 3 == 0) {
-        Alice.account += 4*1000;
+    // Проверяем, прошло ли 5 лет и 3 месяца с начала симуляции (63 месяца)
+    if (total_months_passed >= 63 && salary_doubled == 0) {
+        Alice.salary *= 2;                   // Удваиваем зарплату
+        salary_doubled = 1;                  // Устанавливаем флаг, что зарплата удвоена
+        Alice.premia = Alice.salary / 2;     // Премия тоже удваивается (половина новой зарплаты)
     }
+    
     if (month == 12) {
         Alice.account += Alice.salary;
     }
-        if (month % 3 == 0) {
+    
+    // Премия начисляется каждые 3 месяца 
+    if (month % 3 == 0) {  
         Alice.account += Alice.premia;
     }
 }
@@ -151,12 +162,12 @@ void Bob_capital(const double inflation)
 void simulation()
 {
     int month = START_MONTH, year = START_YEAR;
+    int total_months_passed = 0;  //  добавляем счётчик месяцев
 
     while (year < START_YEAR + PERIOD)  {
+        double inflation = search_inflation();  // ИСПРАВЛЕНО: Money -> double
 
-        Money inflation = search_inflation();
-
-        Alice_salary(month);
+        Alice_salary(month, total_months_passed);
         Alice_expenses(inflation);
         Alice_contribution();
         Alice_capital(inflation);
@@ -167,6 +178,8 @@ void simulation()
         Bob_capital(inflation); 
 
         month++;
+        total_months_passed++;  // ИСПРАВЛЕНО: увеличиваем счётчик каждый месяц
+        
         if (month > 12)  {
             year++;
             month = 1;
@@ -177,14 +190,14 @@ void simulation()
 
 void print()
 {
-    printf("%lld\n", Alice.capital);
-    printf("%lld\n", Bob.capital);
+    printf("Капитал Алисы: %lld\n", Alice.capital);
+    printf("Капитал Боба: %lld\n", Bob.capital);
 
     if (Alice.capital > Bob.capital)  {
-        printf("Alice win!\n");
+        printf("Алиса выиграла!\n");
     }
     else  {
-        printf("Bob win!\n");
+        printf("Боб выиграл!\n");
     }
 }
 
@@ -197,4 +210,6 @@ int main()
     simulation();
 
     print();
+    
+    return 0;
 }
