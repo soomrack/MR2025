@@ -6,3 +6,5 @@ program
 chat_server
 
 chat_client
+
+.log
