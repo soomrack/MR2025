@@ -131,7 +131,7 @@ static int connect_to_server(void) {
 
     // Подключение к локальному серверу
     // Замените "127.0.0.1" на IP сервера в локальной сети если нужно
-    if (inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr) <= 0) {
+    if (inet_pton(AF_INET, "192.168.0.117", &server_addr.sin_addr) <= 0) {
         perror("inet_pton");
         close(sockfd);
         return -1;
