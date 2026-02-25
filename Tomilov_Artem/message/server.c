@@ -15,8 +15,6 @@
 
 #define PORT 5000
 #define BUF_SIZE 1024
-#define MAX_CLIENTS 10
-#define NAME_LEN 32
 
 #define COLOR_RESET   "\033[0m"
 #define COLOR_BOLD    "\033[1m"
@@ -136,6 +134,10 @@ static const ServerCommand commands[] = {
     {"log_last",   "Show last 15 log entries",      cmd_log_last},
     {"log_all",    "Show entire log file",          cmd_log_all},
     {"log_clear",  "Clear the log file",            cmd_log_clear},
+    {"drive_forward", "Drive motors forward",       cmd_drive_forward},
+    {"drive_back",    "Drive motors backward",      cmd_drive_back},
+    {"drive_stop",    "Stop motors",                cmd_drive_stop},
+    {"drive_speed",   "Set motor speed 0-100",      cmd_drive_speed},
     {NULL, NULL, NULL}
 };
 
