@@ -10,6 +10,9 @@
 #include <sys/utsname.h>
 #include <sys/sysinfo.h>
 
+#include "types.h"
+#include "motor.h"
+
 #define PORT 5000
 #define BUF_SIZE 1024
 #define MAX_CLIENTS 10
@@ -41,21 +44,8 @@ static const char* user_colors[] = {
 #define LOG_INTERVAL_SEC 10                  // Как часто писать в лог (секунды)
 
 // ============================================================================
-// СТРУКТУРЫ ДАННЫХ
+// СТРУКТУРЫ ДАННЫХ update: add types.h ServerCommand and Client is there
 // ============================================================================
-
-typedef struct {
-    int sock;
-    char name[NAME_LEN];
-    int named;
-    int color_index;
-} Client;
-
-typedef struct {
-    const char *name;
-    const char *description;
-    void (*handler)(Client[], int, const char*);
-} ServerCommand;
 
 typedef struct {
     int server_fd;
@@ -188,6 +178,11 @@ int main(void) {
     printf("Initializing client array (max %d clients)...\n", MAX_CLIENTS);
     clients_array_init(state.clients);
 
+    printf("Initializing motor module \n");
+    if (motor_init() < 0) {
+        printf("Motor module unavaliable \n");
+    }
+
     printf("Log file: %s (interval: %ds)\n", LOG_FILE, LOG_INTERVAL_SEC);
 
     printf(" Server ready!\n\n");
@@ -209,6 +204,10 @@ int main(void) {
     }
 
     close(state.server_fd);
+
+    printf("Stopping motor module \n");
+    motor_cleanup();
+
     printf("[EXIT] Server stopped. Goodbye!\n");
     return 0;
 }

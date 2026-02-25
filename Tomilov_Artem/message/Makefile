@@ -1,11 +1,9 @@
-# Makefile для чат-мессенджера
-
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c99 -pedantic
 LDFLAGS = 
 
 # Файлы
-SERVER_SRC = server.c
+SERVER_SRC = server.c motor.c
 CLIENT_SRC = client.c
 SERVER_BIN = chat_server
 CLIENT_BIN = chat_client
@@ -14,10 +12,10 @@ CLIENT_BIN = chat_client
 all: $(SERVER_BIN) $(CLIENT_BIN)
 
 $(SERVER_BIN): $(SERVER_SRC)
-	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $(SERVER_SRC) $(LDFLAGS)
 
 $(CLIENT_BIN): $(CLIENT_SRC)
-	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $(CLIENT_SRC) $(LDFLAGS)
 
 # Компиляция только сервера
 server: $(SERVER_BIN)
