@@ -30,8 +30,6 @@ static void motor_reply(int sock, const char *msg);
 // РЕАЛИЗАЦИЯ: ИНИЦИАЛИЗАЦИЯ
 // ============================================================================
 
-// Настраивает UART порт для общения со STM32.
-// Параметры: 115200 бод, 8 бит данных, без чётности, 1 стоп-бит (8N1).
 static int uart_open(void) {
     int fd = open(MOTOR_UART_PORT, O_RDWR | O_NOCTTY | O_NDELAY);
     if (fd < 0) {
@@ -66,18 +64,17 @@ int motor_init(void) {
     g_uart_fd = uart_open();
     if (g_uart_fd < 0) {
         printf("[MOTOR] Failed to open UART port: %s\n", MOTOR_UART_PORT);
-        printf("[MOTOR] Check: sudo raspi-config → Interface Options → Serial Port\n");
         return -1;
     }
 
     g_speed       = MOTOR_SPEED_DEFAULT;
     g_initialized = 1;
 
-    printf("[MOTOR] UART opened: %s at %d baud\n", MOTOR_UART_PORT, MOTOR_BAUD_RATE);
+    printf("[MOTOR] UART opened: %s  %d \n", MOTOR_UART_PORT, MOTOR_BAUD_RATE);
     printf("[MOTOR] Default speed: %d%%\n", g_speed);
     printf("[MOTOR] Log file: %s\n", MOTOR_LOG_FILE);
 
-    // Отправляем STOP при старте чтобы убедиться что моторы стоят
+    // Отправляем STOP при старте
     uart_send("STOP\n");
     motor_log("SERVER", "INIT — motors stopped at startup");
 
@@ -95,16 +92,11 @@ void motor_cleanup(void) {
 }
 
 // ============================================================================
-// РЕАЛИЗАЦИЯ: UART ОТПРАВКА
+// UART ОТПРАВКА
 // ============================================================================
 
 // Отправляет строку-команду на STM32 через UART.
 static void uart_send(const char *cmd) {
-    if (g_uart_fd < 0) {
-        printf("[MOTOR] UART not open, cannot send: %s", cmd);
-        return;
-    }
-
     int len  = strlen(cmd);
     int sent = write(g_uart_fd, cmd, len);
     if (sent < 0) {
@@ -115,7 +107,7 @@ static void uart_send(const char *cmd) {
 }
 
 // ============================================================================
-// РЕАЛИЗАЦИЯ: СКОРОСТЬ
+// СКОРОСТЬ
 // ============================================================================
 
 void motor_set_speed(int speed) {
