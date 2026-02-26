@@ -3,6 +3,7 @@
 #include <iostream>
 #include <unistd.h>
 
+
 int main() {
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
@@ -21,8 +22,17 @@ int main() {
         return 1;
     }
 
-    const char* message = "Hello TCP/IP from C++!";
-    send(sock, message, strlen(message), 0);
+    std::string line;
+    std::cout << "Введите сообщения (Ctrl+D для выхода):\n";
+    while (std::getline(std::cin, line)) {
+        // добавляем символ конца строки как разделитель сообщений
+        line.push_back('\n');
+        ssize_t sent = send(sock, line.c_str(), line.size(), 0);
+        if (sent < 0) {
+            perror("send");
+            break;
+        }
+    }
 
     close(sock);
     return 0;
