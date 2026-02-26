@@ -1,8 +1,22 @@
 #include <arpa/inet.h>
 #include <cstring>
 #include <iostream>
+#include <thread>
 #include <unistd.h>
 
+void recieve_loop(int sock) {
+    char buffer[1024];
+    while (true) {
+        ssize_t bytes = recv(sock, buffer, sizeof(buffer) - 1, 0);
+        if (bytes <= 0) {
+            // 0 — сервер закрыл соединение; <0 — ошибка
+            std::cout << "Соединение с сервером закрыто\n";
+            break;
+        }
+        buffer[bytes] = '\0';
+        std::cout << "[сообщение] " << buffer; // сервер уже шлёт с '\n'
+    }
+}
 
 int main() {
     int sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -21,6 +35,10 @@ int main() {
         perror("connect");
         return 1;
     }
+
+    // поток, принимающий сообщения от сервера
+    std::thread receiver(recieve_loop, sock);
+    receiver.detach(); // можно не ждать его явно: закроется при завершении процесса
 
     std::string line;
     std::cout << "Введите сообщения (Ctrl+D для выхода):\n";
