@@ -47,7 +47,9 @@ int main() {
     while (true) {
         FD_ZERO(&readfds);
         FD_SET(server_fd, &readfds);
+        FD_SET(STDIN_FILENO, &readfds);
         int max_fd = server_fd;
+        if (STDIN_FILENO > max_fd) max_fd = STDIN_FILENO;
 
         // добавить клиентов в набор
         for (int i = 0; i < MAX_CLIENTS; ++i) {
@@ -62,6 +64,20 @@ int main() {
         if (activity < 0) {
             perror("select");
             break;
+        }
+        
+        // Завершение работы по Ctrl+D
+        if (FD_ISSET(STDIN_FILENO, &readfds)) {
+            char c;
+            if (read(STDIN_FILENO, &c, 1) > 0) {
+                // if (c == 'q') {  // 'q' + Enter
+                //     std::cout << "Сервер завершается...\n";
+                //     break;
+                // }
+            } else {
+                std::cout << "Сервер завершается (Ctrl+D)...\n";
+                break;
+            }
         }
 
         // новое подключение
