@@ -4,7 +4,7 @@
 #include <thread>
 #include <unistd.h>
 
-void recieve_loop(int sock) {
+void receive_loop(int sock) {
     char buffer[1024];
     while (true) {
         ssize_t bytes = recv(sock, buffer, sizeof(buffer) - 1, 0);
@@ -37,7 +37,7 @@ int main() {
     }
 
     // поток, принимающий сообщения от сервера
-    std::thread receiver(recieve_loop, sock);
+    std::thread receiver(receive_loop, sock);
     receiver.detach(); // можно не ждать его явно: закроется при завершении процесса
 
     std::string line;
