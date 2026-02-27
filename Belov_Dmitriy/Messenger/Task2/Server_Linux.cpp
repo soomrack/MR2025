@@ -70,6 +70,11 @@ int serverSock = -1;
 std::mutex logMutex;
 std::ofstream logFile;
 
+
+// ===== MONITORING SETTINGS =====
+constexpr int MONITOR_INTERVAL_SEC = 10;      // опрос раз в 10 секунд
+constexpr double CPU_TEMP_LIMIT = 70.0;      // порог температуры
+constexpr int RAM_LIMIT_PERCENT = 80;        // порог RAM
 // ============================================================
 // TIME UTILS
 // ============================================================
@@ -331,11 +336,14 @@ std::string getCPUTemp() {
     oss << celsius << " C";
     return oss.str();
 }
+
+
 void handleShutdown() {
     logEvent("Command: /shutdown");
     std::cout << "Shutting down server...\n";
     serverRunning = false;
 }
+
 
 void handleStatus() {
     std::lock_guard<std::mutex> lock(clientsMutex);
@@ -344,11 +352,13 @@ void handleStatus() {
              std::to_string(clients.size()) + ")");
 }
 
+
 void handleTime() {
     std::string t = getSystemTimeFull();
     std::cout << "System time: " << t << "\n";
     logEvent("Command: /time -> " + t);
 }
+
 
 void handleUptime() {
     std::string up = getUptime();
@@ -356,11 +366,13 @@ void handleUptime() {
     logEvent("Command: /uptime -> " + up);
 }
 
+
 void handleRAM() {
     std::string ram = getRAMUsage();
     std::cout << "RAM usage: " << ram << "\n";
     logEvent("Command: /ram -> " + ram);
 }
+
 
 void handleCPU() {
     std::string cpu = getCPUTemp();
@@ -402,6 +414,88 @@ void commandHandler() {
     }
 }
 
+// ============================================================
+// Monitoring THREAD
+// ============================================================
+int getRAMUsagePercent() {
+    std::ifstream file("/proc/meminfo");
+    std::string key;
+    long total = 0, available = 0;
+
+    while (file >> key) {
+        if (key == "MemTotal:") file >> total;
+        else if (key == "MemAvailable:") {
+            file >> available;
+            break;
+        }
+        file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+
+    long used = total - available;
+    return (used * 100) / total;
+}
+
+
+double getCPUTempValue() {
+    std::ifstream file("/sys/class/thermal/thermal_zone0/temp");
+    if (!file.is_open()) return -1;
+
+    long temp;
+    file >> temp;
+    return temp / 1000.0;
+}
+
+
+void monitoringLoop() {
+
+    while (serverRunning) {
+
+        double cpuTemp = getCPUTempValue();
+        int ramPercent = getRAMUsagePercent();
+        std::string uptime = getUptime();
+
+        std::ostringstream logLine;
+        logLine << "MONITOR | CPU: " << cpuTemp
+                << " C | RAM: " << ramPercent
+                << "% | Uptime: " << uptime;
+
+        logEvent(logLine.str());
+
+        // ===== Проверка порогов =====
+        bool warning = false;
+        std::string warningMsg;
+
+        if (cpuTemp > CPU_TEMP_LIMIT) {
+            warning = true;
+            warningMsg += "CPU TEMP HIGH (" + std::to_string(cpuTemp) + " C) ";
+        }
+
+        if (ramPercent > RAM_LIMIT_PERCENT) {
+            warning = true;
+            warningMsg += "RAM USAGE HIGH (" + std::to_string(ramPercent) + "%)";
+        }
+
+        if (warning) {
+
+            std::string fullMsg = "[WARNING] " + warningMsg;
+
+            std::cout << "\033[31m" << fullMsg << RESET << "\n";
+            logEvent(fullMsg);
+
+            // отправка всем клиентам
+            MessageHeader header{
+                MessageType::Text,
+                (uint32_t)fullMsg.size()
+            };
+
+            std::vector<char> data(fullMsg.begin(), fullMsg.end());
+            broadcast(header, data, -1);
+        }
+
+        std::this_thread::sleep_for(
+            std::chrono::seconds(MONITOR_INTERVAL_SEC));
+    }
+}
 // ============================================================
 // ACCEPT LOOP
 // ============================================================
@@ -497,8 +591,12 @@ int main() {
     printCommands();
 
     std::thread cmdThread(commandHandler);
+    std::thread monitorThread(monitoringLoop);
 
     runAcceptLoop();
+
+    if (monitorThread.joinable())
+         monitorThread.join();
 
     shutdownServer(cmdThread);
 
