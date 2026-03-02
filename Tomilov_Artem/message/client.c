@@ -4,15 +4,21 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/select.h>
+#include <termios.h>
 #include <time.h>
 
-#define PORT 5000
-#define BUF_SIZE 1024
+#define PORT              5000
+#define BUF_SIZE          1024
 #define RECONNECT_TIMEOUT 60
 #define RECONNECT_INTERVAL 3
 
+// Маркер от сервера: сервер посылает эту строку когда обрабатывает \drive
+#define DRIVE_MODE_START_MARKER  "DRIVE_MODE_START"
+// Маркер от сервера: выход из режима (после нажатия q)
+#define DRIVE_MODE_END_MARKER    "DRIVE_MODE_END"
+
 // ============================================================================
-// СТРУКТУРЫ И ГЛОБАЛЬНЫЕ КОНСТАНТЫ
+// СТРУКТУРЫ И ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
 // ============================================================================
 
 typedef struct {
@@ -21,31 +27,42 @@ typedef struct {
     time_t disconnect_time;
 } ClientState;
 
-// ============================================================================
-// ПРОТОТИПЫ ФУНКЦИЙ: ИНИЦИАЛИЗАЦИЯ И УПРАВЛЕНИЕ ПОДКЛЮЧЕНИЕМ
-// ============================================================================
-
-static void     client_state_init(ClientState *state);
-static int      connect_to_server(void);
-static int      try_reconnect(ClientState *state);
-static void     show_welcome_message(void);
+// Состояние WASD-режима
+static int             g_drive_mode = 0;
+static struct termios  g_old_termios;
 
 // ============================================================================
-// ПРОТОТИПЫ ФУНКЦИЙ: ОСНОВНОЙ ЦИКЛ ЧАТА
+// ПРОТОТИПЫ: ИНИЦИАЛИЗАЦИЯ И ПОДКЛЮЧЕНИЕ
 // ============================================================================
 
-static int      chat_loop(ClientState *state);
-static void     fdset_prepare(int sockfd, fd_set *readfds, int *max_sd);
-static int      handle_server_message(ClientState *state, char *buffer);
-static int      handle_user_input(ClientState *state, char *buffer);
+static void client_state_init(ClientState *state);
+static int  connect_to_server(void);
+static int  try_reconnect(ClientState *state);
+static void show_welcome_message(void);
 
 // ============================================================================
-// ПРОТОТИПЫ ФУНКЦИЙ: ОБРАБОТКА КОМАНД И СООБЩЕНИЙ
+// ПРОТОТИПЫ: WASD DRIVE MODE
 // ============================================================================
 
-static int      is_client_command(const char *input);
-static int      process_client_command(ClientState *state, const char *input);
-static int      send_to_server(int sockfd, const char *message);
+static void drive_mode_enter(void);
+static void drive_mode_exit(void);
+
+// ============================================================================
+// ПРОТОТИПЫ: ОСНОВНОЙ ЦИКЛ ЧАТА
+// ============================================================================
+
+static int  chat_loop(ClientState *state);
+static void fdset_prepare(int sockfd, fd_set *readfds, int *max_sd);
+static int  handle_server_message(ClientState *state, char *buffer);
+static int  handle_user_input(ClientState *state, char *buffer);
+
+// ============================================================================
+// ПРОТОТИПЫ: ОБРАБОТКА КОМАНД И СООБЩЕНИЙ
+// ============================================================================
+
+static int is_client_command(const char *input);
+static int process_client_command(ClientState *state, const char *input);
+static int send_to_server(int sockfd, const char *message);
 
 // ============================================================================
 // MAIN
@@ -54,12 +71,11 @@ static int      send_to_server(int sockfd, const char *message);
 int main(void) {
     ClientState state;
     int running = 1;
-    
+
     printf("=== CHAT CLIENT STARTING ===\n\n");
 
-    printf("Initializing client state...\n");
     client_state_init(&state);
-    
+
     printf("Connecting to server at 127.0.0.1:%d...\n", PORT);
     state.sockfd = connect_to_server();
     if (state.sockfd < 0) {
@@ -67,52 +83,60 @@ int main(void) {
         return 1;
     }
     state.connected = 1;
-    printf("[SUCCESS] Connected to chat server\n\n");
-    
+    printf("[OK] Connected to chat server\n\n");
+
     show_welcome_message();
-    
-    printf("Starting main chat loop...\n");
+
+    printf("Starting chat...\n");
     printf("----------------------------------------\n\n");
-    
+
     while (running) {
-        // Основной цикл чата
         int result = chat_loop(&state);
-        
+
         if (result == 0) {
             // Пользователь вышел намеренно
             running = 0;
         } else if (result == -1 && state.connected == 0) {
-            // Потеряно соединение - пытаемся переподключиться
-            printf("\nRECONNECT Connection lost. Attempting to reconnect...\n");
-            
+            // Потеряно соединение — пытаемся переподключиться
+            printf("\n[RECONNECT] Connection lost. Attempting to reconnect...\n");
+
+            // Если были в drive-режиме — восстанавливаем терминал
+            if (g_drive_mode) {
+                drive_mode_exit();
+            }
+
             if (try_reconnect(&state)) {
-                printf("SUCCESS Reconnected to server!\n");
+                printf("[OK] Reconnected to server!\n");
                 show_welcome_message();
-                // Продолжаем цикл
             } else {
-                printf("ERROR Failed to reconnect. Exiting...\n");
+                printf("[ERROR] Failed to reconnect. Exiting...\n");
                 running = 0;
             }
         }
     }
-    
-    // ШАГ 5: Очистка ресурсов и выход
+
     printf("\nCleaning up and exiting...\n");
+
+    // На случай если терминал остался в raw-режиме
+    if (g_drive_mode) {
+        drive_mode_exit();
+    }
+
     if (state.connected && state.sockfd > 0) {
         close(state.sockfd);
     }
-    printf("EXIT Goodbye!\n");
-    
+
+    printf("[EXIT] Goodbye!\n");
     return 0;
 }
 
 // ============================================================================
-// РЕАЛИЗАЦИЯ: ИНИЦИАЛИЗАЦИЯ И УПРАВЛЕНИЕ ПОДКЛЮЧЕНИЕМ
+// РЕАЛИЗАЦИЯ: ИНИЦИАЛИЗАЦИЯ И ПОДКЛЮЧЕНИЕ
 // ============================================================================
 
 static void client_state_init(ClientState *state) {
-    state->sockfd = -1;
-    state->connected = 0;
+    state->sockfd         = -1;
+    state->connected      = 0;
     state->disconnect_time = 0;
 }
 
@@ -127,10 +151,9 @@ static int connect_to_server(void) {
     }
 
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(PORT);
+    server_addr.sin_port   = htons(PORT);
 
-    // Подключение к локальному серверу
-    // Замените "127.0.0.1" на IP сервера в локальной сети если нужно
+    // Замените на IP сервера если нужно
     if (inet_pton(AF_INET, "192.168.0.117", &server_addr.sin_addr) <= 0) {
         perror("inet_pton");
         close(sockfd);
@@ -147,27 +170,27 @@ static int connect_to_server(void) {
 
 static int try_reconnect(ClientState *state) {
     time_t start_time = time(NULL);
-    int attempt = 0;
-    
+    int    attempt    = 0;
+
     state->disconnect_time = start_time;
-    
+
     while (difftime(time(NULL), start_time) < RECONNECT_TIMEOUT) {
         attempt++;
-        printf("RECONNECT Attempt #%d...\n", attempt);
-        
+        printf("[RECONNECT] Attempt #%d...\n", attempt);
+
         int new_sockfd = connect_to_server();
         if (new_sockfd >= 0) {
-            state->sockfd = new_sockfd;
-            state->connected = 1;
+            state->sockfd          = new_sockfd;
+            state->connected       = 1;
             state->disconnect_time = 0;
             return 1;
         }
-        
-        printf("RECONNECT Failed. Retrying in %d seconds...\n", RECONNECT_INTERVAL);
+
+        printf("[RECONNECT] Failed. Retrying in %d seconds...\n", RECONNECT_INTERVAL);
         sleep(RECONNECT_INTERVAL);
     }
-    
-    printf("RECONNECT Timeout reached (%d seconds)\n", RECONNECT_TIMEOUT);
+
+    printf("[RECONNECT] Timeout reached (%d seconds)\n", RECONNECT_TIMEOUT);
     return 0;
 }
 
@@ -176,15 +199,45 @@ static void show_welcome_message(void) {
     printf(" Welcome to MAX 10.0!\n");
     printf("========================================\n");
     printf("Available commands:\n");
-    printf("  \\help        - Show server commands\n");
-    printf("  \\users       - List online users\n");
-    printf("  \\emoji       - Show emoji shortcuts\n");
-    printf("  \\OSinfo      - Show server OS info\n");
-    printf("  \\disconnect  - Disconnect from server\n");
-    printf("========================================\n");
-    printf("Use emoji in your messages\n");
-    printf("Type :) :D :heart: :fire: and more\n");
+    printf("  \\help         - Show server commands\n");
+    printf("  \\users        - List online users\n");
+    printf("  \\emoji        - Show emoji shortcuts\n");
+    printf("  \\OSinfo       - Show server OS info\n");
+    printf("  \\drive        - Enter WASD robot control\n");
+    printf("  \\drive_speed N- Set motor speed 0-100\n");
+    printf("  \\disconnect   - Disconnect from server\n");
     printf("========================================\n\n");
+}
+
+// ============================================================================
+// РЕАЛИЗАЦИЯ: WASD DRIVE MODE
+// ============================================================================
+
+// Переключаем терминал в raw-режим:
+// - без буферизации строк (ICANON выключен)
+// - без эха символов (ECHO выключен)
+// Это позволяет читать каждое нажатие клавиши мгновенно.
+static void drive_mode_enter(void) {
+    struct termios raw;
+    tcgetattr(STDIN_FILENO, &g_old_termios);
+    raw = g_old_termios;
+
+    raw.c_lflag &= ~(ICANON | ECHO);   // убираем буферизацию и эхо
+    raw.c_cc[VMIN]  = 1;               // читаем по одному символу
+    raw.c_cc[VTIME] = 0;               // без таймаута
+
+    tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+    g_drive_mode = 1;
+
+    printf("\n[DRIVE] Entering WASD mode\n");
+    printf("[DRIVE] w=forward  s=back  a=left  d=right  space=stop  q=exit\n\n");
+}
+
+// Восстанавливаем оригинальные настройки терминала.
+static void drive_mode_exit(void) {
+    tcsetattr(STDIN_FILENO, TCSANOW, &g_old_termios);
+    g_drive_mode = 0;
+    printf("\n[DRIVE] Exited WASD mode\n");
 }
 
 // ============================================================================
@@ -193,52 +246,50 @@ static void show_welcome_message(void) {
 
 static int chat_loop(ClientState *state) {
     fd_set readfds;
-    char buffer[BUF_SIZE];
-    
+    char   buffer[BUF_SIZE];
+
     if (!state->connected || state->sockfd < 0) {
         return -1;
     }
-    
+
     while (state->connected) {
         int max_sd;
         fdset_prepare(state->sockfd, &readfds, &max_sd);
-        
-        // Используем timeout для проверки состояния
+
         struct timeval timeout;
-        timeout.tv_sec = 1;
+        timeout.tv_sec  = 1;
         timeout.tv_usec = 0;
-        
+
         int activity = select(max_sd + 1, &readfds, NULL, NULL, &timeout);
-        
+
         if (activity < 0) {
             perror("select");
             state->connected = 0;
             return -1;
         }
-        
+
         if (activity == 0) {
-            // Timeout - просто продолжаем
             continue;
         }
 
-        // Проверяем сообщения от сервера
+        // Сообщения от сервера
         if (FD_ISSET(state->sockfd, &readfds)) {
             int result = handle_server_message(state, buffer);
             if (result <= 0) {
-                return result; // -1 = потеря связи, 0 = выход пользователя
+                return result;
             }
         }
 
-        // Проверяем ввод пользователя
+        // Ввод пользователя
         if (state->connected && FD_ISSET(STDIN_FILENO, &readfds)) {
             int result = handle_user_input(state, buffer);
             if (result == 0) {
-                return 0; // Пользователь вышел
+                return 0;
             }
         }
     }
-    
-    return -1; // Потеряно соединение
+
+    return -1;
 }
 
 static void fdset_prepare(int sockfd, fd_set *readfds, int *max_sd) {
@@ -248,57 +299,115 @@ static void fdset_prepare(int sockfd, fd_set *readfds, int *max_sd) {
     *max_sd = sockfd > STDIN_FILENO ? sockfd : STDIN_FILENO;
 }
 
+// Обрабатывает входящее сообщение от сервера.
+// Проверяет маркеры DRIVE_MODE_START и DRIVE_MODE_END
+// чтобы синхронно переключать режим терминала.
 static int handle_server_message(ClientState *state, char *buffer) {
     int n = read(state->sockfd, buffer, BUF_SIZE - 1);
-    
+
     if (n <= 0) {
-        if (n < 0) {
-            perror("read");
-        }
+        if (n < 0) perror("read");
         printf("\nConnection to server lost\n");
         state->connected = 0;
         close(state->sockfd);
         state->sockfd = -1;
-        return -1; // Сигнал о потере связи
+        return -1;
     }
-    
+
     buffer[n] = '\0';
+
+    // Проверяем маркер входа в drive-режим
+    if (strstr(buffer, DRIVE_MODE_START_MARKER)) {
+        // Выводим сообщение сервера (справку) без маркера
+        // Маркер нужен только нам, пользователю его показывать не надо
+        char *marker = strstr(buffer, DRIVE_MODE_START_MARKER);
+        *marker = '\0';
+        printf("%s", buffer);
+        fflush(stdout);
+        drive_mode_enter();
+        return 1;
+    }
+
+    // Проверяем маркер выхода из drive-режима
+    if (strstr(buffer, DRIVE_MODE_END_MARKER)) {
+        char *marker = strstr(buffer, DRIVE_MODE_END_MARKER);
+        *marker = '\0';
+        printf("%s", buffer);
+        fflush(stdout);
+        drive_mode_exit();
+        return 1;
+    }
+
     printf("%s", buffer);
     fflush(stdout);
-    
-    return 1; // Продолжаем
+    return 1;
 }
 
+// Обрабатывает нажатие клавиши или ввод строки от пользователя.
+// В drive-режиме: каждое нажатие сразу шлётся как \drive_key X.
+// В обычном режиме: читаем целую строку и обрабатываем как команду/сообщение.
 static int handle_user_input(ClientState *state, char *buffer) {
-    if (!fgets(buffer, BUF_SIZE, stdin)) {
-        return 1; // EOF или ошибка чтения - продолжаем
+    // -------------------------------------------------------
+    // WASD DRIVE MODE — читаем по одному символу без \n
+    // -------------------------------------------------------
+    if (g_drive_mode) {
+        char key;
+        int  n = read(STDIN_FILENO, &key, 1);
+        if (n <= 0) return 1;
+
+        if (key == 'q') {
+            // Отправляем q на сервер, сервер остановит моторы
+            // и пришлёт DRIVE_MODE_END — тогда мы выйдем из режима
+            char msg[32];
+            snprintf(msg, sizeof(msg), "\\drive_key q\n");
+            if (!send_to_server(state->sockfd, msg)) {
+                state->connected = 0;
+                return -1;
+            }
+            return 1;
+        }
+
+        // Отправляем нажатую клавишу на сервер
+        char msg[32];
+        // Пробел передаём как отдельный символ
+        snprintf(msg, sizeof(msg), "\\drive_key %c\n", key);
+        if (!send_to_server(state->sockfd, msg)) {
+            state->connected = 0;
+            return -1;
+        }
+        return 1;
     }
-    
-    // Убираем перевод строки для проверки команд
+
+    // -------------------------------------------------------
+    // ОБЫЧНЫЙ РЕЖИМ — читаем строку целиком
+    // -------------------------------------------------------
+    if (!fgets(buffer, BUF_SIZE, stdin)) {
+        return 1;  // EOF или ошибка — продолжаем
+    }
+
+    // Убираем \n для проверки команд
     size_t len = strlen(buffer);
     if (len > 0 && buffer[len - 1] == '\n') {
         buffer[len - 1] = '\0';
+        len--;
     }
-    
+
     // Пропускаем пустые строки
-    if (strlen(buffer) == 0) {
-        return 1;
-    }
-    
-    // Проверяем, является ли это командой
+    if (len == 0) return 1;
+
+    // Проверяем на клиентскую команду
     if (is_client_command(buffer)) {
         return process_client_command(state, buffer);
     }
-    
-    // Обычное сообщение - восстанавливаем перевод строки
+
+    // Обычное сообщение — восстанавливаем \n и шлём
     strcat(buffer, "\n");
-    
     if (!send_to_server(state->sockfd, buffer)) {
         state->connected = 0;
-        return -1; // Ошибка отправки
+        return -1;
     }
-    
-    return 1; // Продолжаем
+
+    return 1;
 }
 
 // ============================================================================
@@ -310,36 +419,37 @@ static int is_client_command(const char *input) {
 }
 
 static int process_client_command(ClientState *state, const char *input) {
-    const char *cmd = input + 1; // Пропускаем '\'
-    
+    const char *cmd = input + 1;  // пропускаем '\'
+
     // Локальная команда disconnect
     if (strcmp(cmd, "disconnect") == 0) {
         printf("[CLIENT] Disconnecting from server...\n");
-        
-        // Отправляем команду на сервер для корректного отключения
+
         const char *disconnect_msg = "\\disconnect\n";
         send_to_server(state->sockfd, disconnect_msg);
-        
-        // Небольшая задержка, чтобы сервер успел обработать
-        sleep(100000);
-        
+
+        sleep(100000);  // 100ms — дать серверу обработать
+
         state->connected = 0;
         close(state->sockfd);
         state->sockfd = -1;
-        
-        return 0; // Сигнал к выходу
+        return 0;  // сигнал к выходу
     }
-    
-    // Остальные команды отправляем на сервер
-    char buffer[BUF_SIZE];
-    snprintf(buffer, BUF_SIZE, "%s\n", input);
-    
-    if (!send_to_server(state->sockfd, buffer)) {
+
+    // Команда \drive — сервер обработает и пришлёт DRIVE_MODE_START
+    // handle_server_message поймает маркер и вызовет drive_mode_enter()
+    // Здесь просто отправляем команду серверу как обычно
+
+    // Все остальные команды шлём на сервер
+    char send_buf[BUF_SIZE];
+    snprintf(send_buf, BUF_SIZE, "%s\n", input);
+
+    if (!send_to_server(state->sockfd, send_buf)) {
         state->connected = 0;
         return -1;
     }
-    
-    return 1; // Продолжаем
+
+    return 1;
 }
 
 static int send_to_server(int sockfd, const char *message) {

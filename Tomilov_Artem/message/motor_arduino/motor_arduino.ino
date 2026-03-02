@@ -1,6 +1,7 @@
 // =============================================================
 // Управление моторами с RPi через Serial1 (пины 18/19)
 // + дублирование в Serial Monitor для отладки
+// Команды: FORWARD, BACK, LEFT, RIGHT, STOP, SPEED:N
 // =============================================================
 
 #define MOTOR_LEFT_PWM_PIN  6
@@ -59,6 +60,22 @@ void do_back() {
     Serial.println(motor_speed);
 }
 
+// Поворот влево: левый мотор назад, правый вперёд
+void do_left() {
+    int spd = map(motor_speed, 0, 100, 0, 255);
+    drive(-spd, spd);
+    Serial.print("[OK] LEFT speed=");
+    Serial.println(motor_speed);
+}
+
+// Поворот вправо: левый мотор вперёд, правый назад
+void do_right() {
+    int spd = map(motor_speed, 0, 100, 0, 255);
+    drive(spd, -spd);
+    Serial.print("[OK] RIGHT speed=");
+    Serial.println(motor_speed);
+}
+
 void do_stop() {
     drive(0, 0);
     Serial.println("[OK] STOP");
@@ -77,6 +94,10 @@ void parse_command(const char *cmd) {
         do_forward();
     } else if (strcmp(cmd, "BACK") == 0) {
         do_back();
+    } else if (strcmp(cmd, "LEFT") == 0) {
+        do_left();
+    } else if (strcmp(cmd, "RIGHT") == 0) {
+        do_right();
     } else if (strcmp(cmd, "STOP") == 0) {
         do_stop();
     } else if (strncmp(cmd, "SPEED:", 6) == 0) {
@@ -115,6 +136,7 @@ void serial_process() {
             if (cmd_idx < (int)sizeof(cmd_buf) - 1) {
                 cmd_buf[cmd_idx++] = b;
             } else {
+                // Переполнение буфера — сбрасываем
                 cmd_idx = 0;
             }
         }
@@ -147,6 +169,7 @@ void setup() {
     Serial.println("========================================");
     Serial.println("  Waiting for commands from RPi...");
     Serial.println("  Serial1 (pins 18/19) at 115200 baud");
+    Serial.println("  Commands: FORWARD BACK LEFT RIGHT STOP SPEED:N");
     Serial.println("========================================");
 }
 

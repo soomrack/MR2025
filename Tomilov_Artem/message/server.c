@@ -13,13 +13,13 @@
 #include "types.h"
 #include "motor.h"
 
-#define PORT 5000
+#define PORT     5000
 #define BUF_SIZE 1024
 
-#define COLOR_RESET   "\033[0m"
-#define COLOR_BOLD    "\033[1m"
+#define COLOR_RESET  "\033[0m"
+#define COLOR_BOLD   "\033[1m"
 
-static const char* user_colors[] = {
+static const char *user_colors[] = {
     "\033[1;31m",
     "\033[1;32m",
     "\033[1;33m",
@@ -38,106 +38,105 @@ static const char* user_colors[] = {
 // КОНСТАНТЫ ЛОГИРОВАНИЯ
 // ============================================================================
 
-#define LOG_FILE         "server_stats.log"  // Файл лога (рядом с бинарником)
-#define LOG_INTERVAL_SEC 10                  // Как часто писать в лог (секунды)
+#define LOG_FILE         "server_stats.log"
+#define LOG_INTERVAL_SEC 10
 
 // ============================================================================
-// СТРУКТУРЫ ДАННЫХ update: add types.h ServerCommand and Client is there
+// СТРУКТУРЫ ДАННЫХ
 // ============================================================================
 
 typedef struct {
-    int server_fd;
+    int    server_fd;
     Client clients[MAX_CLIENTS];
-    int running;
+    int    running;
 } ServerState;
 
 // ============================================================================
 // ПРОТОТИПЫ: ИНИЦИАЛИЗАЦИЯ И УПРАВЛЕНИЕ СЕРВЕРОМ
 // ============================================================================
 
-static void     server_state_init(ServerState *state);
-static int      server_socket_create(void);
-static void     server_socket_configure(int fd);
-static void     clients_array_init(Client clients[]);
-static void     signal_handlers_setup(void);
-static void     show_startup_message(void);
+static void server_state_init(ServerState *state);
+static int  server_socket_create(void);
+static void server_socket_configure(int fd);
+static void clients_array_init(Client clients[]);
+static void signal_handlers_setup(void);
+static void show_startup_message(void);
 
 // ============================================================================
 // ПРОТОТИПЫ: ОСНОВНОЙ ЦИКЛ СЕРВЕРА
 // ============================================================================
 
-static void     server_main_loop(ServerState *state);
-static void     fdset_build(int server_fd, Client clients[], fd_set *set, int *max_sd);
-static void     handle_new_connection(ServerState *state);
-static void     handle_client_activity(ServerState *state, fd_set *readfds);
+static void server_main_loop(ServerState *state);
+static void fdset_build(int server_fd, Client clients[], fd_set *set, int *max_sd);
+static void handle_new_connection(ServerState *state);
+static void handle_client_activity(ServerState *state, fd_set *readfds);
 
 // ============================================================================
 // ПРОТОТИПЫ: ОБРАБОТКА КЛИЕНТОВ И СООБЩЕНИЙ
 // ============================================================================
 
-static void     accept_new_client(int server_fd, Client clients[]);
-static void     process_client_message(Client clients[], int idx);
-static int      is_command(const char *msg);
-static void     process_command(Client clients[], int idx, const char *cmd);
-static void     process_regular_message(Client clients[], int idx, const char *msg);
-static void     process_name_setup(Client *client, const char *name);
-static void     replace_emoji_shortcuts(char *text, size_t max_len);
+static void accept_new_client(int server_fd, Client clients[]);
+static void process_client_message(Client clients[], int idx);
+static int  is_command(const char *msg);
+static void process_command(Client clients[], int idx, const char *cmd);
+static void process_regular_message(Client clients[], int idx, const char *msg);
+static void process_name_setup(Client *client, const char *name);
+static void replace_emoji_shortcuts(char *text, size_t max_len);
 
 // ============================================================================
 // ПРОТОТИПЫ: УПРАВЛЕНИЕ КЛИЕНТАМИ
 // ============================================================================
 
-static void     announce_user_joined(Client clients[], Client *new_client);
-static void     announce_user_left(Client clients[], Client *leaving_client);
-static void     client_disconnect(Client *client);
-static void     broadcast(Client clients[], const char *msg, int except);
-static int      count_active_users(Client clients[]);
-static int      assign_color_to_client(Client clients[], int client_idx);
+static void announce_user_joined(Client clients[], Client *new_client);
+static void announce_user_left(Client clients[], Client *leaving_client);
+static void client_disconnect(Client *client);
+static void broadcast(Client clients[], const char *msg, int except);
+static int  count_active_users(Client clients[]);
+static int  assign_color_to_client(Client clients[], int client_idx);
 
 // ============================================================================
 // ПРОТОТИПЫ: КОМАНДЫ СЕРВЕРА
 // ============================================================================
 
-static void     cmd_disconnect(Client clients[], int idx, const char *args);
-static void     cmd_help(Client clients[], int idx, const char *args);
-static void     cmd_users(Client clients[], int idx, const char *args);
-static void     cmd_OSinfo(Client clients[], int idx, const char *args);
-static void     cmd_emoji(Client clients[], int idx, const char *args);
+static void cmd_disconnect(Client clients[], int idx, const char *args);
+static void cmd_help      (Client clients[], int idx, const char *args);
+static void cmd_users     (Client clients[], int idx, const char *args);
+static void cmd_OSinfo    (Client clients[], int idx, const char *args);
+static void cmd_emoji     (Client clients[], int idx, const char *args);
 
 // ============================================================================
 // ПРОТОТИПЫ: КОМАНДЫ ЛОГОВ
 // ============================================================================
 
-static void     cmd_log_last(Client clients[], int idx, const char *args);
-static void     cmd_log_all(Client clients[], int idx, const char *args);
-static void     cmd_log_clear(Client clients[], int idx, const char *args);
+static void cmd_log_last (Client clients[], int idx, const char *args);
+static void cmd_log_all  (Client clients[], int idx, const char *args);
+static void cmd_log_clear(Client clients[], int idx, const char *args);
 
 // ============================================================================
 // ПРОТОТИПЫ: РАБОТА С ЛОГОМ И СИСТЕМНОЙ ИНФОРМАЦИЕЙ
 // ============================================================================
 
-static float    read_cpu_temp(void);
-static void     log_write_entry(void);
-static void     log_send_last(int sock, int n);
-static void     log_send_all(int sock);
+static float read_cpu_temp(void);
+static void  log_write_entry(void);
+static void  log_send_last(int sock, int n);
+static void  log_send_all(int sock);
 
 // ============================================================================
 // ТАБЛИЦА КОМАНД
 // ============================================================================
 
 static const ServerCommand commands[] = {
-    {"disconnect", "Disconnect from chat",          cmd_disconnect},
-    {"help",       "Show available commands",       cmd_help},
-    {"users",      "List active users",             cmd_users},
-    {"OSinfo",     "Server information",            cmd_OSinfo},
-    {"emoji",      "Show emoji shortcuts",          cmd_emoji},
-    {"log_last",   "Show last 15 log entries",      cmd_log_last},
-    {"log_all",    "Show entire log file",          cmd_log_all},
-    {"log_clear",  "Clear the log file",            cmd_log_clear},
-    {"drive_forward", "Drive motors forward",       cmd_drive_forward},
-    {"drive_back",    "Drive motors backward",      cmd_drive_back},
-    {"drive_stop",    "Stop motors",                cmd_drive_stop},
-    {"drive_speed",   "Set motor speed 0-100",      cmd_drive_speed},
+    {"disconnect",   "Disconnect from chat",              cmd_disconnect  },
+    {"help",         "Show available commands",           cmd_help        },
+    {"users",        "List active users",                 cmd_users       },
+    {"OSinfo",       "Server information",                cmd_OSinfo      },
+    {"emoji",        "Show emoji shortcuts",              cmd_emoji       },
+    {"log_last",     "Show last 15 log entries",          cmd_log_last    },
+    {"log_all",      "Show entire log file",              cmd_log_all     },
+    {"log_clear",    "Clear the log file",                cmd_log_clear   },
+    {"drive",        "Enter WASD robot drive mode",       cmd_drive       },
+    {"drive_key",    "Send drive key w/a/s/d/space/q",    cmd_drive_key   },
+    {"drive_speed",  "Set motor speed 0-100",             cmd_drive_speed },
     {NULL, NULL, NULL}
 };
 
@@ -162,7 +161,7 @@ static void signal_handler(int signum) {
 int main(void) {
     ServerState state;
 
-    printf("chat max10.0 STARTING\n\n");
+    printf("Chat MAX 10.0 STARTING\n\n");
 
     printf("Setting up signal handlers...\n");
     signal_handlers_setup();
@@ -180,14 +179,13 @@ int main(void) {
     printf("Initializing client array (max %d clients)...\n", MAX_CLIENTS);
     clients_array_init(state.clients);
 
-    printf("Initializing motor module \n");
+    printf("Initializing motor module...\n");
     if (motor_init() < 0) {
-        printf("Motor module unavaliable \n");
+        printf("[WARN] Motor module unavailable — drive commands disabled\n");
     }
 
     printf("Log file: %s (interval: %ds)\n", LOG_FILE, LOG_INTERVAL_SEC);
-
-    printf(" Server ready!\n\n");
+    printf("Server ready!\n\n");
     show_startup_message();
 
     printf("Starting main event loop...\n");
@@ -195,7 +193,7 @@ int main(void) {
 
     server_main_loop(&state);
 
-    printf("\n Shutting down server...\n");
+    printf("\nShutting down server...\n");
 
     for (int i = 0; i < MAX_CLIENTS; i++) {
         if (state.clients[i].sock > 0) {
@@ -207,7 +205,7 @@ int main(void) {
 
     close(state.server_fd);
 
-    printf("Stopping motor module \n");
+    printf("Stopping motor module...\n");
     motor_cleanup();
 
     printf("[EXIT] Server stopped. Goodbye!\n");
@@ -220,7 +218,7 @@ int main(void) {
 
 static void server_state_init(ServerState *state) {
     state->server_fd = -1;
-    state->running = 1;
+    state->running   = 1;
     memset(state->clients, 0, sizeof(state->clients));
 }
 
@@ -236,9 +234,9 @@ static int server_socket_create(void) {
 
     server_socket_configure(fd);
 
-    addr.sin_family = AF_INET;
+    addr.sin_family      = AF_INET;
     addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port = htons(PORT);
+    addr.sin_port        = htons(PORT);
 
     if (bind(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
         perror("bind");
@@ -264,8 +262,8 @@ static void server_socket_configure(int fd) {
 
 static void clients_array_init(Client clients[]) {
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        clients[i].sock = 0;
-        clients[i].named = 0;
+        clients[i].sock        = 0;
+        clients[i].named       = 0;
         clients[i].color_index = -1;
         memset(clients[i].name, 0, NAME_LEN);
     }
@@ -279,14 +277,13 @@ static void signal_handlers_setup(void) {
 
 static void show_startup_message(void) {
     printf("========================================\n");
-    printf("  Chat MAX 10.0 is Running! 💬\n");
+    printf("  Chat MAX 10.0 is Running!\n");
     printf("========================================\n");
     printf("Port: %d\n", PORT);
     printf("Max clients: %d\n", MAX_CLIENTS);
-    printf("Features: Colors + Emoji + Stats Log!\n");
     printf("Available commands:\n");
     for (int i = 0; commands[i].name != NULL; i++) {
-        printf("  \\%-12s - %s\n", commands[i].name, commands[i].description);
+        printf("  \\%-14s - %s\n", commands[i].name, commands[i].description);
     }
     printf("========================================\n");
     printf("Press Ctrl+C to stop the server\n");
@@ -316,14 +313,15 @@ static void server_main_loop(ServerState *state) {
             break;
         }
 
-        // -----------------------------------------------------------------
-        // Периодическое логирование температуры и памяти в файл
-        // -----------------------------------------------------------------
+        // Периодическое логирование температуры и памяти
         time_t now = time(NULL);
         if (now - g_last_log_time >= LOG_INTERVAL_SEC) {
             log_write_entry();
             g_last_log_time = now;
         }
+
+        // Читаем энкодеры если есть данные от Arduino
+        uart_read_encoders();
 
         if (activity == 0) continue;
 
@@ -354,7 +352,8 @@ static void handle_new_connection(ServerState *state) {
 
 static void handle_client_activity(ServerState *state, fd_set *readfds) {
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (state->clients[i].sock > 0 && FD_ISSET(state->clients[i].sock, readfds)) {
+        if (state->clients[i].sock > 0 &&
+            FD_ISSET(state->clients[i].sock, readfds)) {
             process_client_message(state->clients, i);
         }
     }
@@ -376,15 +375,16 @@ static void accept_new_client(int server_fd, Client clients[]) {
 
     for (int i = 0; i < MAX_CLIENTS; i++) {
         if (clients[i].sock == 0) {
-            clients[i].sock = fd;
+            clients[i].sock  = fd;
             clients[i].named = 0;
             assign_color_to_client(clients, i);
 
-            const char *welcome = " Welcome to the chat! \nEnter your name: ";
+            const char *welcome = "Welcome to the chat!\nEnter your name: ";
             send(fd, welcome, strlen(welcome), 0);
 
-            printf("[CONNECTION] New client from %s:%d (slot %d, color index %d)\n",
-                   inet_ntoa(addr.sin_addr), ntohs(addr.sin_port), i, clients[i].color_index);
+            printf("[CONNECTION] New client from %s:%d (slot %d, color %d)\n",
+                   inet_ntoa(addr.sin_addr), ntohs(addr.sin_port),
+                   i, clients[i].color_index);
             return;
         }
     }
@@ -397,7 +397,7 @@ static void accept_new_client(int server_fd, Client clients[]) {
 
 static void process_client_message(Client clients[], int idx) {
     char buffer[BUF_SIZE];
-    int n = read(clients[idx].sock, buffer, BUF_SIZE - 1);
+    int  n = read(clients[idx].sock, buffer, BUF_SIZE - 1);
 
     if (n <= 0) {
         if (clients[idx].named) {
@@ -437,7 +437,7 @@ static void process_name_setup(Client *client, const char *name) {
 
     char welcome[BUF_SIZE];
     snprintf(welcome, BUF_SIZE,
-             "[SERVER] Welcome, %s! Type \\help or \\emoji to get started. 💬\n",
+             "[SERVER] Welcome, %s! Type \\help to see commands.\n",
              client->name);
     send(client->sock, welcome, strlen(welcome), 0);
 
@@ -446,8 +446,8 @@ static void process_name_setup(Client *client, const char *name) {
 
 static void process_command(Client clients[], int idx, const char *cmd) {
     const char *command = cmd + 1;
-    const char *args = strchr(command, ' ');
-    char cmd_name[32];
+    const char *args    = strchr(command, ' ');
+    char        cmd_name[32];
 
     if (args) {
         size_t len = args - command;
@@ -470,7 +470,7 @@ static void process_command(Client clients[], int idx, const char *cmd) {
 
     char error[BUF_SIZE];
     snprintf(error, BUF_SIZE,
-             "[SERVER] Unknown command: \\%s (type \\help for available commands)\n",
+             "[SERVER] Unknown command: \\%s (type \\help for list)\n",
              cmd_name);
     send(clients[idx].sock, error, strlen(error), 0);
 }
@@ -494,10 +494,7 @@ static void process_regular_message(Client clients[], int idx, const char *msg) 
 // ============================================================================
 
 static void replace_emoji_shortcuts(char *text, size_t max_len) {
-    struct {
-        const char *shortcut;
-        const char *emoji;
-    } emoji_map[] = {
+    struct { const char *shortcut; const char *emoji; } emoji_map[] = {
         {":)",      "😊"},
         {":smile:", "😊"},
         {":D",      "😂"},
@@ -513,8 +510,8 @@ static void replace_emoji_shortcuts(char *text, size_t max_len) {
 
     char result[BUF_SIZE * 2] = {0};
     const char *src = text;
-    char *dst = result;
-    size_t result_len = 0;
+    char       *dst = result;
+    size_t      result_len = 0;
 
     while (*src && result_len < max_len - 1) {
         int replaced = 0;
@@ -525,10 +522,10 @@ static void replace_emoji_shortcuts(char *text, size_t max_len) {
                 size_t emoji_len = strlen(emoji_map[i].emoji);
                 if (result_len + emoji_len < max_len - 1) {
                     strcpy(dst, emoji_map[i].emoji);
-                    dst += emoji_len;
-                    src += shortcut_len;
+                    dst        += emoji_len;
+                    src        += shortcut_len;
                     result_len += emoji_len;
-                    replaced = 1;
+                    replaced    = 1;
                     break;
                 }
             }
@@ -559,8 +556,8 @@ static void announce_user_left(Client clients[], Client *leaving_client) {
 
 static void client_disconnect(Client *client) {
     close(client->sock);
-    client->sock = 0;
-    client->named = 0;
+    client->sock        = 0;
+    client->named       = 0;
     client->color_index = -1;
     memset(client->name, 0, NAME_LEN);
 }
@@ -584,7 +581,8 @@ static int count_active_users(Client clients[]) {
 }
 
 static int assign_color_to_client(Client clients[], int client_idx) {
-    int color_usage[NUM_COLORS] = {0};
+    int color_usage[NUM_COLORS];
+    memset(color_usage, 0, sizeof(color_usage));
 
     for (int i = 0; i < MAX_CLIENTS; i++) {
         if (i != client_idx && clients[i].sock > 0 && clients[i].color_index >= 0) {
@@ -592,12 +590,12 @@ static int assign_color_to_client(Client clients[], int client_idx) {
         }
     }
 
-    int min_usage = color_usage[0];
+    int min_usage  = color_usage[0];
     int best_color = 0;
 
     for (int i = 1; i < (int)NUM_COLORS; i++) {
         if (color_usage[i] < min_usage) {
-            min_usage = color_usage[i];
+            min_usage  = color_usage[i];
             best_color = i;
         }
     }
@@ -610,18 +608,15 @@ static int assign_color_to_client(Client clients[], int client_idx) {
 // РЕАЛИЗАЦИЯ: ЛОГИРОВАНИЕ СТАТИСТИКИ В ФАЙЛ
 // ============================================================================
 
-// Читает температуру CPU из sysfs (Raspberry Pi и большинство Linux).
-// Возвращает температуру в градусах Цельсия или -1.0 при ошибке.
 static float read_cpu_temp(void) {
     FILE *f = fopen("/sys/class/thermal/thermal_zone0/temp", "r");
     if (!f) return -1.0f;
     int raw = 0;
     fscanf(f, "%d", &raw);
     fclose(f);
-    return raw / 1000.0f;  // значение хранится в милли-градусах
+    return raw / 1000.0f;
 }
 
-// Дописывает одну строку статистики в конец файла лога.
 static void log_write_entry(void) {
     struct sysinfo si;
     if (sysinfo(&si) != 0) {
@@ -657,7 +652,6 @@ static void log_write_entry(void) {
     printf("[LOG] Written: CPU %.1f C, RAM free %lu MB\n", temp, free_mb);
 }
 
-// Считывает файл лога и отправляет клиенту последние n строк.
 static void log_send_last(int sock, int n) {
     FILE *f = fopen(LOG_FILE, "r");
     if (!f) {
@@ -666,9 +660,8 @@ static void log_send_last(int sock, int n) {
         return;
     }
 
-    // Читаем все строки в кольцевой буфер на 500 строк
-    char  lines[500][BUF_SIZE];
-    int   count = 0;
+    char lines[500][BUF_SIZE];
+    int  count = 0;
 
     while (fgets(lines[count % 500], BUF_SIZE, f)) {
         count++;
@@ -688,9 +681,8 @@ static void log_send_last(int sock, int n) {
              "[LOG] === Last %d entries (of %d total) ===\n", show, count);
     send(sock, header, strlen(header), 0);
 
-    // Вычисляем начало нужного нам диапазона в кольцевом буфере
     int stored = (count < 500) ? count : 500;
-    int head   = count % 500;  // следующая позиция для записи
+    int head   = count % 500;
     int start  = (head - show + stored) % stored;
 
     for (int i = 0; i < show; i++) {
@@ -702,7 +694,6 @@ static void log_send_last(int sock, int n) {
     send(sock, footer, strlen(footer), 0);
 }
 
-// Отправляет весь файл лога клиенту построчно.
 static void log_send_all(int sock) {
     FILE *f = fopen(LOG_FILE, "r");
     if (!f) {
@@ -725,14 +716,15 @@ static void log_send_all(int sock) {
 }
 
 // ============================================================================
-// РЕАЛИЗАЦИЯ: КОМАНДЫ СЕРВЕРА (оригинальные)
+// РЕАЛИЗАЦИЯ: КОМАНДЫ СЕРВЕРА
 // ============================================================================
 
 static void cmd_disconnect(Client clients[], int idx, const char *args) {
     (void)args;
     const char *goodbye = "[SERVER] Goodbye! See you soon!\n";
     send(clients[idx].sock, goodbye, strlen(goodbye), 0);
-    printf("[COMMAND] User '%s' disconnected via \\disconnect\n", clients[idx].name);
+    printf("[COMMAND] User '%s' disconnected via \\disconnect\n",
+           clients[idx].name);
     if (clients[idx].named) {
         announce_user_left(clients, &clients[idx]);
     }
@@ -742,13 +734,13 @@ static void cmd_disconnect(Client clients[], int idx, const char *args) {
 static void cmd_help(Client clients[], int idx, const char *args) {
     (void)args;
     char help[BUF_SIZE * 2];
-    int offset = 0;
+    int  offset = 0;
 
     offset += snprintf(help + offset, sizeof(help) - offset,
                        "[SERVER] Available commands:\n");
     for (int i = 0; commands[i].name != NULL; i++) {
         offset += snprintf(help + offset, sizeof(help) - offset,
-                           "  \\%-12s - %s\n",
+                           "  \\%-14s - %s\n",
                            commands[i].name, commands[i].description);
     }
     send(clients[idx].sock, help, strlen(help), 0);
@@ -757,8 +749,8 @@ static void cmd_help(Client clients[], int idx, const char *args) {
 static void cmd_users(Client clients[], int idx, const char *args) {
     (void)args;
     char msg[BUF_SIZE * 2];
-    int offset = 0;
-    int count  = 0;
+    int  offset = 0;
+    int  count  = 0;
 
     offset += snprintf(msg + offset, sizeof(msg) - offset,
                        "[SERVER] Active users:\n");
@@ -785,7 +777,7 @@ static void cmd_users(Client clients[], int idx, const char *args) {
 static void cmd_OSinfo(Client clients[], int idx, const char *args) {
     (void)args;
     char msg[BUF_SIZE];
-    int offset = 0;
+    int  offset = 0;
 
     struct utsname sys_info;
     if (uname(&sys_info) != 0) {
@@ -805,30 +797,30 @@ static void cmd_OSinfo(Client clients[], int idx, const char *args) {
     offset += snprintf(msg + offset, sizeof(msg) - offset,
                        "[SERVER] === OS Information ===\n");
     offset += snprintf(msg + offset, sizeof(msg) - offset,
-                       "OS: %s\n", sys_info.sysname);
+                       "OS:           %s\n", sys_info.sysname);
     offset += snprintf(msg + offset, sizeof(msg) - offset,
-                       "Hostname: %s\n", sys_info.nodename);
+                       "Hostname:     %s\n", sys_info.nodename);
     offset += snprintf(msg + offset, sizeof(msg) - offset,
-                       "Kernel: %s\n", sys_info.release);
+                       "Kernel:       %s\n", sys_info.release);
     offset += snprintf(msg + offset, sizeof(msg) - offset,
                        "Architecture: %s\n", sys_info.machine);
     offset += snprintf(msg + offset, sizeof(msg) - offset,
                        "\n[SERVER] === System Information ===\n");
     offset += snprintf(msg + offset, sizeof(msg) - offset,
-                       "Uptime: %ld seconds\n", s_info.uptime);
+                       "Uptime:       %ld s\n", s_info.uptime);
     offset += snprintf(msg + offset, sizeof(msg) - offset,
-                       "Total RAM: %lu MB\n", s_info.totalram / 1024 / 1024);
+                       "Total RAM:    %lu MB\n", s_info.totalram / 1024 / 1024);
     offset += snprintf(msg + offset, sizeof(msg) - offset,
-                       "Free RAM: %lu MB\n",  s_info.freeram  / 1024 / 1024);
+                       "Free RAM:     %lu MB\n", s_info.freeram  / 1024 / 1024);
     offset += snprintf(msg + offset, sizeof(msg) - offset,
-                       "1 min load avg: %.2f\n",
+                       "Load avg 1m:  %.2f\n",
                        (float)s_info.loads[0] / 65536.0f);
     if (temp >= 0.0f) {
         offset += snprintf(msg + offset, sizeof(msg) - offset,
-                           "CPU temp: %.1f C\n", temp);
+                           "CPU temp:     %.1f C\n", temp);
     } else {
         offset += snprintf(msg + offset, sizeof(msg) - offset,
-                           "CPU temp: N/A\n");
+                           "CPU temp:     N/A\n");
     }
     offset += snprintf(msg + offset, sizeof(msg) - offset,
                        "Active users: %d\n", count_active_users(clients));
@@ -838,19 +830,26 @@ static void cmd_OSinfo(Client clients[], int idx, const char *args) {
 static void cmd_emoji(Client clients[], int idx, const char *args) {
     (void)args;
     char msg[BUF_SIZE];
-    int offset = 0;
+    int  offset = 0;
 
     offset += snprintf(msg + offset, sizeof(msg) - offset,
                        "[SERVER] Available Emoji Shortcuts\n\n");
-    offset += snprintf(msg + offset, sizeof(msg) - offset, "  :)  or  :smile:  -> smile\n");
-    offset += snprintf(msg + offset, sizeof(msg) - offset, "  :D  or  :laugh:  -> laugh\n");
-    offset += snprintf(msg + offset, sizeof(msg) - offset, "  :(  or  :sad:    -> sad\n");
-    offset += snprintf(msg + offset, sizeof(msg) - offset, "  :love:           -> love\n");
-    offset += snprintf(msg + offset, sizeof(msg) - offset, "  :cool:           -> cool\n");
-    offset += snprintf(msg + offset, sizeof(msg) - offset, "  :heart:          -> heart\n");
-    offset += snprintf(msg + offset, sizeof(msg) - offset, "  :fire:           -> fire\n");
     offset += snprintf(msg + offset, sizeof(msg) - offset,
-                       "\nExample: Hello :) I am happy :love:\n");
+                       "  :)  or :smile: -> smile\n");
+    offset += snprintf(msg + offset, sizeof(msg) - offset,
+                       "  :D  or :laugh: -> laugh\n");
+    offset += snprintf(msg + offset, sizeof(msg) - offset,
+                       "  :(  or :sad:   -> sad\n");
+    offset += snprintf(msg + offset, sizeof(msg) - offset,
+                       "  :love:         -> love\n");
+    offset += snprintf(msg + offset, sizeof(msg) - offset,
+                       "  :cool:         -> cool\n");
+    offset += snprintf(msg + offset, sizeof(msg) - offset,
+                       "  :heart:        -> heart\n");
+    offset += snprintf(msg + offset, sizeof(msg) - offset,
+                       "  :fire:         -> fire\n");
+    offset += snprintf(msg + offset, sizeof(msg) - offset,
+                       "\nExample: Hello :) How are you :heart:\n");
     send(clients[idx].sock, msg, strlen(msg), 0);
 }
 
@@ -858,23 +857,18 @@ static void cmd_emoji(Client clients[], int idx, const char *args) {
 // РЕАЛИЗАЦИЯ: КОМАНДЫ ЛОГОВ
 // ============================================================================
 
-// \log_last — показать 15 последних записей
 static void cmd_log_last(Client clients[], int idx, const char *args) {
     (void)args;
     log_send_last(clients[idx].sock, 15);
 }
 
-// \log_all — показать весь файл лога
 static void cmd_log_all(Client clients[], int idx, const char *args) {
     (void)args;
     log_send_all(clients[idx].sock);
 }
 
-// \log_clear — очистить файл лога
 static void cmd_log_clear(Client clients[], int idx, const char *args) {
     (void)args;
-
-    // Открыть файл в режиме "w" — это его обнуляет
     FILE *f = fopen(LOG_FILE, "w");
     if (f) {
         fclose(f);
