@@ -37,9 +37,19 @@ static void motor_reply(int sock, const char *msg);
 // Настраивает UART порт для общения с Arduino.
 // Параметры: 115200 бод, 8 бит данных, без чётности, 1 стоп-бит (8N1).
 static int uart_open(void) {
+    // Проверяем существование устройства
+    if (access(MOTOR_UART_PORT, F_OK) != 0) {
+        printf("[MOTOR] Device does not exist: %s\n", MOTOR_UART_PORT);
+        printf("[MOTOR] Available serial devices:\n");
+        system("ls -la /dev/ttyAMA* /dev/serial* 2>/dev/null || echo '  none found'");
+        return -1;
+    }
+
     int fd = open(MOTOR_UART_PORT, O_RDWR | O_NOCTTY | O_NDELAY);
     if (fd < 0) {
         perror("[MOTOR] open UART");
+        printf("[MOTOR] Hint: try  sudo chmod 666 %s\n", MOTOR_UART_PORT);
+        printf("[MOTOR] Hint: check  sudo usermod -aG dialout $USER\n");
         return -1;
     }
 
@@ -66,10 +76,16 @@ static int uart_open(void) {
 }
 
 int motor_init(void) {
+    printf("[MOTOR] Opening UART port: %s\n", MOTOR_UART_PORT);
     g_uart_fd = uart_open();
     if (g_uart_fd < 0) {
         printf("[MOTOR] Failed to open UART port: %s\n", MOTOR_UART_PORT);
-        printf("[MOTOR] Check: sudo raspi-config → Interface Options → Serial Port\n");
+        printf("[MOTOR] Check list:\n");
+        printf("[MOTOR]   1. sudo raspi-config -> Interface Options -> Serial Port\n");
+        printf("[MOTOR]      'login shell over serial' = NO\n");
+        printf("[MOTOR]      'serial port hardware'    = YES\n");
+        printf("[MOTOR]   2. sudo usermod -aG dialout $USER  (then relogin)\n");
+        printf("[MOTOR]   3. Check /boot/config.txt has: enable_uart=1\n");
         return -1;
     }
 
@@ -103,7 +119,7 @@ void motor_cleanup(void) {
 // Вызывается из главного цикла сервера.
 // Читает байты из UART не блокируясь, накапливает строку,
 // при получении \n парсит "ENC:left,right" и пишет в motor.log.
-void uart_read_encoders(void) {
+void uart_read_arduino(void) {
     if (g_uart_fd < 0) return;
 
     char byte;
@@ -112,14 +128,27 @@ void uart_read_encoders(void) {
             if (g_rx_idx > 0) {
                 g_rx_buf[g_rx_idx] = '\0';
 
-                if (strncmp(g_rx_buf, "ENC:", 4) == 0) {
-                    long left = 0, right = 0;
-                    if (sscanf(g_rx_buf + 4, "%ld,%ld", &left, &right) == 2) {
+                if (strncmp(g_rx_buf, "CURR:", 5) == 0) {
+                    float left = 0, right = 0;
+                    if (sscanf(g_rx_buf + 5, "%f,%f", &left, &right) == 2) {
                         char entry[128];
                         snprintf(entry, sizeof(entry),
-                                 "ENC left=%ld right=%ld", left, right);
-                        motor_log("ENCODER", entry);
-                        printf("[ENC] left=%ld right=%ld\n", left, right);
+                                "Current: left=%.2fA right=%.2fA", left, right);
+                        motor_log("INFO", entry);
+                        //printf("[CURRENT] left=%.2fA right=%.2fA \n", left, right);
+
+                        if (left > 3.0f) {
+                            snprintf(entry, sizeof(entry),
+                                    "LEFT motor overcurrent: %.2fA", left);
+                            motor_log("WARNING", entry);
+                            //printf("[WARNINIG] LEFT motor overcurrent: %.2fA \n", left);
+                        }
+                        if (right > 3.0f) {
+                            snprintf(entry, sizeof(entry),
+                                    "RIHGT motor overcurrent: %.2fA", right);
+                            motor_log("WARNING", entry);
+                            //printf("[WARNINIG] RIGHT motor overcurrent: %.2fA \n", right);
+                        }
                     }
                 }
                 g_rx_idx = 0;

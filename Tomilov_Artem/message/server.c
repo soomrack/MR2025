@@ -321,7 +321,7 @@ static void server_main_loop(ServerState *state) {
         }
 
         // Читаем энкодеры если есть данные от Arduino
-        uart_read_encoders();
+        uart_read_arduino();
 
         if (activity == 0) continue;
 
@@ -641,15 +641,21 @@ static void log_write_entry(void) {
     }
 
     if (temp >= 0.0f) {
-        fprintf(f, "[%s] CPU: %.1f C | RAM free: %lu MB / %lu MB\n",
+        if (temp >= 30.0f) {
+            fprintf(f, "[%s] [WARNING] CPU TEMP HIGH: %.1f C | RAM free: %lu MB / %lu MB\n",
                 time_str, temp, free_mb, total_mb);
+            printf("[WARNING] CPU temperature critical: %.1f C\n", temp);
+        } else {
+            fprintf(f, "[%s] [INFO] CPU: %.1f C | RAM free: %lu MB / %lu MB\n",
+                time_str, temp, free_mb, total_mb);
+        }
     } else {
         fprintf(f, "[%s] CPU: N/A | RAM free: %lu MB / %lu MB\n",
                 time_str, free_mb, total_mb);
     }
 
     fclose(f);
-    printf("[LOG] Written: CPU %.1f C, RAM free %lu MB\n", temp, free_mb);
+    // printf("[LOG] Written: CPU %.1f C, RAM free %lu MB\n", temp, free_mb);
 }
 
 static void log_send_last(int sock, int n) {

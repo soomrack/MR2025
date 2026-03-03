@@ -14,6 +14,13 @@
 #define MOTOR_RIGHT_INB_PIN 4
 #define MOTOR_RIGHT_EN_PIN  33
 
+#define CS_LEFT_PIN          A0
+#define CS_RIGHT_PIN         A1
+#define CS_VOLTS_PER_AMP     0.37f   // VNH2SP30: 1кОм резистор
+#define CURRENT_SEND_INTERVAL 1000
+
+unsigned long last_current_send = 0;
+
 int  motor_speed = 50;
 char cmd_buf[32];
 int  cmd_idx = 0;
@@ -79,6 +86,19 @@ void do_right() {
 void do_stop() {
     drive(0, 0);
     Serial.println("[OK] STOP");
+}
+
+void send_current() {
+    int raw_l = analogRead(CS_LEFT_PIN);
+    int raw_r = analogRead(CS_RIGHT_PIN);
+    float left  = (raw_l * 5.0f / 1023.0f) / CS_VOLTS_PER_AMP;
+    float right = (raw_r * 5.0f / 1023.0f) / CS_VOLTS_PER_AMP;
+    char sl[10], sr[10];
+    dtostrf(left,  5, 2, sl);
+    dtostrf(right, 5, 2, sr);
+    char buf[64];
+    snprintf(buf, sizeof(buf), "CURR:%s,%s\n", sl, sr);
+    Serial1.print(buf);
 }
 
 // =============================================================
@@ -161,6 +181,9 @@ void setup() {
     pinMode(MOTOR_RIGHT_INB_PIN, OUTPUT);
     pinMode(MOTOR_RIGHT_EN_PIN,  OUTPUT);
 
+    pinMode(CS_LEFT_PIN, INPUT);
+    pinMode(CS_RIGHT_PIN, INPUT);
+
     digitalWrite(MOTOR_LEFT_EN_PIN,  HIGH);
     digitalWrite(MOTOR_RIGHT_EN_PIN, HIGH);
 
@@ -179,4 +202,9 @@ void setup() {
 
 void loop() {
     serial_process();
+    unsigned long now = millis();
+      if (now - last_current_send >= CURRENT_SEND_INTERVAL) {
+        send_current();
+        last_current_send = now;
+      }
 }
