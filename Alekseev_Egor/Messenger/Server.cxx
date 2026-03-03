@@ -1,5 +1,4 @@
 #include <iostream>
-#include <winsock2.h>  
 #include <ws2tcpip.h>   
 #include <string>
 #include <map>
@@ -17,15 +16,7 @@ class CommandHandler {
 public:
     enum class CommandType {
         LOCAL,      // Команда выполняется локально, не требует ответа от сервера
-        SERVER,     // Команда отправляется на сервер и требует ответа
         TERMINATE   // Команда завершает соединение
-    };
-    
-
-    struct CommandResult {
-        bool shouldContinue;  // true - продолжать работу, false - завершить
-        bool waitForResponse; 
-        bool isLocalCommand;  
     };
 
 private:
@@ -63,22 +54,27 @@ public:
         commandTypes[command] = type;
     }
     
-    CommandResult handleCommand(SOCKET socket, const std::string& message) {
+    bool handleCommand(SOCKET socket, const std::string& message, bool& shouldWaitResponse) {
         if (message.empty()) {
-            return {true, false, false};
+            shouldWaitResponse = false;
+            return true; 
         }
         
         auto it = commands.find(message);
         if (it != commands.end()) {
             bool shouldContinue = it->second(socket, message);
             CommandType type = commandTypes[message];
-            bool waitForResponse = (type == CommandType::SERVER) && shouldContinue;
-            bool isLocalCommand = (type == CommandType::LOCAL);
-            return {shouldContinue, waitForResponse, isLocalCommand};
+            
+            // Для LOCAL и TERMINATE не ждем ответа
+            shouldWaitResponse = false;
+            
+            return shouldContinue;
         }
-        
+
+        // Обычные сообщения отправляем на сервер и ждем ответ
         bool sendResult = sendToServer(socket, message);
-        return {sendResult, sendResult, false};
+        shouldWaitResponse = sendResult;  // Ждем ответ только если успешно отправили
+        return sendResult;
     }
     
     bool sendToServer(SOCKET socket, const std::string& message) {
@@ -241,14 +237,16 @@ int main() {
             std::cout << "\n[Server]: ";
             std::getline(std::cin, server_response);
 
-            auto result = cmdHandler.handleCommand(client_socket, server_response);
+            bool shouldWaitResponse = false;
+            bool shouldContinue = cmdHandler.handleCommand(client_socket, server_response, shouldWaitResponse);
             
-            if (!result.shouldContinue) {
+            if (!shouldContinue) {
                 running = false;
                 break;
             }
             
-            if (result.isLocalCommand) {
+            // Для локальных команд не ждем ответа и продолжаем ввод
+            if (!shouldWaitResponse) {
                 std::cout << "\nNow enter your message to client:";
                 continue;
             } else {

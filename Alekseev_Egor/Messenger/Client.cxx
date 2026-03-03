@@ -20,15 +20,9 @@ private:
 public:
     enum class CommandType {
         LOCAL,      // Команда выполняется локально, не требует ответа от сервера
-        SERVER,     // Команда отправляется на сервер и требует ответа
         TERMINATE   // Команда завершает соединение
     };
     
-    struct CommandResult {
-        bool shouldContinue;  
-        bool waitForResponse; 
-    };
-
     CommandHandler() {
         registerCommand("*Quit", "Disconnect", CommandType::TERMINATE,
             [](SOCKET sock, const std::string& cmd) -> bool {
@@ -51,7 +45,6 @@ public:
             });
     }
     
- 
     void registerCommand(const std::string& command, const std::string& description, 
                         CommandType type, std::function<bool(SOCKET, const std::string&)> handler) {
         commands[command] = handler;
@@ -59,27 +52,31 @@ public:
         commandTypes[command] = type;  
     }
 
-    CommandResult handleCommand(SOCKET socket, const std::string& message) {
+    bool handleCommand(SOCKET socket, const std::string& message, bool& shouldWaitResponse) {
         if (message.empty()) {
-            return {true, false}; 
+            shouldWaitResponse = false;
+            return true; 
         }
         
         auto it = commands.find(message);
         if (it != commands.end()) {
             bool shouldContinue = it->second(socket, message);
-
             CommandType type = commandTypes[message];
-            bool waitForResponse = (type == CommandType::SERVER) && shouldContinue;
             
-            return {shouldContinue, waitForResponse};
+            // Для LOCAL и TERMINATE не ждем ответа
+            shouldWaitResponse = false;
+            
+            return shouldContinue;
         }
 
+        // Обычные сообщения отправляем на сервер и ждем ответ
         bool sendResult = sendToServer(socket, message);
-        return {sendResult, sendResult};  
+        shouldWaitResponse = sendResult;  // Ждем ответ только если успешно отправили
+        return sendResult;
     }
 
     bool sendToServer(SOCKET socket, const std::string& message) {
-        int result = send(socket, message.data(), message.length(), 0);
+        int result = send(socket, message.c_str(), message.length(), 0);
         if (result == SOCKET_ERROR) {
             std::cerr << "send failed: " << WSAGetLastError() << std::endl;
             return false;
@@ -89,7 +86,7 @@ public:
 
     std::string getHelpText() const {
         std::ostringstream help;
-        help << "\n Available commads::\n";
+        help << "\n Available commands:\n";
         for (const auto& cmd : commandDescriptions) {
             help << "  " << cmd.first << " - " << cmd.second << "\n";
         }
@@ -153,13 +150,13 @@ bool connect_to_server(SOCKET client_socket, sockaddr_in server){
     }
 }
 
-CommandHandler::CommandResult send_message(SOCKET client_socket, CommandHandler& cmdHandler){
+bool send_message(SOCKET client_socket, CommandHandler& cmdHandler, bool& shouldWaitResponse){
     std::string message;
     std::cout << "\nEnter message:" << std::endl;
     std::cout << "> ";
     std::getline(std::cin, message);
 
-    return cmdHandler.handleCommand(client_socket, message);
+    return cmdHandler.handleCommand(client_socket, message, shouldWaitResponse);
 }
 
 bool receive_message(SOCKET client_socket, bool& running){
@@ -205,7 +202,7 @@ int main() {
     SOCKET server_socket = INVALID_SOCKET;
     SOCKET client_socket = INVALID_SOCKET;
     
-    std::cout << "Enter *Help to show availbale commands\n" << std::endl;
+    std::cout << "Enter *Help to show available commands\n" << std::endl;
 
     if (!WinSock_Init()) return 1;
     
@@ -221,14 +218,15 @@ int main() {
     
     bool running = true;
     while (running){
-        auto result = send_message(client_socket, cmdHandler);
+        bool shouldWaitResponse = false;
+        bool shouldContinue = send_message(client_socket, cmdHandler, shouldWaitResponse);
         
-        if (!result.shouldContinue) {
+        if (!shouldContinue) {
             running = false;
             break;
         }
 
-        if (result.waitForResponse) {
+        if (shouldWaitResponse) {
             if (!receive_message(client_socket, running)) {
                 if (running) { 
                     running = false;
