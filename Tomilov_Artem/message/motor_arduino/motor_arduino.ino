@@ -14,7 +14,7 @@
 
 #define CS_LEFT_PIN          A0
 #define CS_RIGHT_PIN         A1
-#define CS_VOLTS_PER_AMP     0.37f
+#define CS_VOLTS_PER_AMP     0.1f
 #define CURRENT_SEND_INTERVAL 1000
 
 unsigned long last_current_send = 0;
