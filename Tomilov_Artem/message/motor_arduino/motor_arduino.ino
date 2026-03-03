@@ -1,7 +1,6 @@
-// =============================================================
-// Управление моторами с RPi через Serial1 (пины 18/19)
-// + дублирование в Serial Monitor для отладки
-// =============================================================
+// Serial1 (пины 18/19)
+// + дублирование в Serial Monitor
+// Команды: FORWARD, BACK, LEFT, RIGHT, STOP, SPEED:N
 
 #define MOTOR_LEFT_PWM_PIN  6
 #define MOTOR_LEFT_INA_PIN  7
@@ -12,6 +11,13 @@
 #define MOTOR_RIGHT_INA_PIN 32
 #define MOTOR_RIGHT_INB_PIN 4
 #define MOTOR_RIGHT_EN_PIN  33
+
+#define CS_LEFT_PIN          A0
+#define CS_RIGHT_PIN         A1
+#define CS_VOLTS_PER_AMP     0.1f
+#define CURRENT_SEND_INTERVAL 1000
+
+unsigned long last_current_send = 0;
 
 int  motor_speed = 50;
 char cmd_buf[32];
@@ -59,15 +65,38 @@ void do_back() {
     Serial.println(motor_speed);
 }
 
+void do_left() {
+    int spd = map(motor_speed, 0, 100, 0, 255);
+    drive(-spd, spd);
+    Serial.print("[OK] LEFT speed=");
+    Serial.println(motor_speed);
+}
+
+void do_right() {
+    int spd = map(motor_speed, 0, 100, 0, 255);
+    drive(spd, -spd);
+    Serial.print("[OK] RIGHT speed=");
+    Serial.println(motor_speed);
+}
+
 void do_stop() {
     drive(0, 0);
     Serial.println("[OK] STOP");
 }
 
-// =============================================================
-// Парсинг команды
-// \n уже убран в serial_process, сравниваем чистые строки
-// =============================================================
+void send_current() {
+    int raw_l = analogRead(CS_LEFT_PIN);
+    int raw_r = analogRead(CS_RIGHT_PIN);
+    float left  = (raw_l * 5.0f / 1023.0f) / CS_VOLTS_PER_AMP;
+    float right = (raw_r * 5.0f / 1023.0f) / CS_VOLTS_PER_AMP;
+    char sl[10], sr[10];
+    dtostrf(left,  5, 2, sl);
+    dtostrf(right, 5, 2, sr);
+    char buf[64];
+    snprintf(buf, sizeof(buf), "CURR:%s,%s\n", sl, sr);
+    Serial1.print(buf);
+}
+
 
 void parse_command(const char *cmd) {
     Serial.print("[CMD] ");
@@ -77,6 +106,10 @@ void parse_command(const char *cmd) {
         do_forward();
     } else if (strcmp(cmd, "BACK") == 0) {
         do_back();
+    } else if (strcmp(cmd, "LEFT") == 0) {
+        do_left();
+    } else if (strcmp(cmd, "RIGHT") == 0) {
+        do_right();
     } else if (strcmp(cmd, "STOP") == 0) {
         do_stop();
     } else if (strncmp(cmd, "SPEED:", 6) == 0) {
@@ -94,9 +127,6 @@ void parse_command(const char *cmd) {
     }
 }
 
-// =============================================================
-// Чтение Serial1 (от RPi) по одному байту
-// =============================================================
 
 void serial_process() {
     while (Serial1.available()) {
@@ -115,6 +145,7 @@ void serial_process() {
             if (cmd_idx < (int)sizeof(cmd_buf) - 1) {
                 cmd_buf[cmd_idx++] = b;
             } else {
+                // Переполнение буфера — сбрасываем
                 cmd_idx = 0;
             }
         }
@@ -139,6 +170,9 @@ void setup() {
     pinMode(MOTOR_RIGHT_INB_PIN, OUTPUT);
     pinMode(MOTOR_RIGHT_EN_PIN,  OUTPUT);
 
+    pinMode(CS_LEFT_PIN, INPUT);
+    pinMode(CS_RIGHT_PIN, INPUT);
+
     digitalWrite(MOTOR_LEFT_EN_PIN,  HIGH);
     digitalWrite(MOTOR_RIGHT_EN_PIN, HIGH);
 
@@ -146,7 +180,8 @@ void setup() {
 
     Serial.println("========================================");
     Serial.println("  Waiting for commands from RPi...");
-    Serial.println("  Serial1 (pins 18/19) at 115200 baud");
+    Serial.println("  Serial1 (pins 18/19) at 115200");
+    Serial.println("  Commands: FORWARD BACK LEFT RIGHT STOP SPEED:N");
     Serial.println("========================================");
 }
 
@@ -156,4 +191,9 @@ void setup() {
 
 void loop() {
     serial_process();
+    unsigned long now = millis();
+      if (now - last_current_send >= CURRENT_SEND_INTERVAL) {
+        send_current();
+        last_current_send = now;
+      }
 }

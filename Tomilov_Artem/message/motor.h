@@ -4,40 +4,46 @@
 #include "types.h"
 
 // ============================================================================
-// НАСТРОЙКИ
+// НАСТРОЙКИ UART И СКОРОСТИ
 // ============================================================================
 
-#define MOTOR_UART_PORT    "/dev/ttyAMA0"
-#define MOTOR_BAUD_RATE    115200         
-#define MOTOR_LOG_FILE     "motor.log"
-#define MOTOR_SPEED_MIN    0
-#define MOTOR_SPEED_MAX    100
-#define MOTOR_SPEED_DEFAULT 50
+#define MOTOR_UART_PORT      "/dev/ttyAMA0"   // UART порт на Raspberry Pi
+#define MOTOR_BAUD_RATE      115200
+#define MOTOR_LOG_FILE       "motor.log"
+
+#define MOTOR_SPEED_DEFAULT  50
+#define MOTOR_SPEED_MIN      0
+#define MOTOR_SPEED_MAX      100
 
 // ============================================================================
-// ПРОТОТИПЫ: ИНИЦИАЛИЗАЦИЯ И УПРАВЛЕНИЕ
+// ИНИЦИАЛИЗАЦИЯ И ОЧИСТКА
 // ============================================================================
 
-// Открывает UART порт, инициализирует мотор.
 int  motor_init(void);
-
-// Закрывает UART порт.
 void motor_cleanup(void);
 
-// Устанавливает скорость 0-100. Отправляет команду на STM32.
-void motor_set_speed(int speed);
+// ============================================================================
+// УПРАВЛЕНИЕ СКОРОСТЬЮ
+// ============================================================================
 
-// Возвращает текущую установленную скорость.
+void motor_set_speed(int speed);
 int  motor_get_speed(void);
 
 // ============================================================================
-// ПРОТОТИПЫ: ОБРАБОТЧИКИ КОМАНД ЧАТА
-// Такик же как у остальныу команды сервера
+// ЧТЕНИЕ ЭНКОДЕРОВ (вызывать из главного цикла)
 // ============================================================================
 
-void cmd_drive_forward(Client clients[], int idx, const char *args);
-void cmd_drive_back   (Client clients[], int idx, const char *args);
-void cmd_drive_stop   (Client clients[], int idx, const char *args);
-void cmd_drive_speed  (Client clients[], int idx, const char *args);
+void uart_read_arduino(void);
+
+// ============================================================================
+// ОБРАБОТЧИКИ КОМАНД ЧАТА
+// ============================================================================
+
+// \drive              — показывает справку и входит в WASD-режим
+// \drive_key <char>   — отправляет одну клавишу (w/a/s/d/space) на Arduino
+// \drive_speed <N>    — устанавливает скорость 0-100
+void cmd_drive      (Client clients[], int idx, const char *args);
+void cmd_drive_key  (Client clients[], int idx, const char *args);
+void cmd_drive_speed(Client clients[], int idx, const char *args);
 
 #endif // MOTOR_H

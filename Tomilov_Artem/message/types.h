@@ -1,22 +1,32 @@
 #ifndef TYPES_H
 #define TYPES_H
 
-#define NAME_LEN    32
-#define MAX_CLIENTS 10
+// ============================================================================
+// ОБЩИЕ КОНСТАНТЫ
+// ============================================================================
 
-// Структура клиента чата
+#define MAX_CLIENTS  10
+#define NAME_LEN     64
+
+// ============================================================================
+// СТРУКТУРА КЛИЕНТА
+// ============================================================================
+
 typedef struct {
     int  sock;
-    char name[NAME_LEN];
     int  named;
     int  color_index;
+    char name[NAME_LEN];
 } Client;
 
-// Структура команды сервера
+// ============================================================================
+// СТРУКТУРА КОМАНДЫ СЕРВЕРА
+// ============================================================================
+
 typedef struct {
-    const char *name;
-    const char *description;
-    void (*handler)(Client[], int, const char*);
+    const char  *name;
+    const char  *description;
+    void       (*handler)(Client clients[], int idx, const char *args);
 } ServerCommand;
 
 #endif // TYPES_H
