@@ -302,7 +302,7 @@ void cmd_drive_key(Client clients[], int idx, const char *args) {
             motor_log(clients[idx].name, "EXIT DRIVE MODE — motors stopped");
             motor_reply(clients[idx].sock,
                         "[MOTOR] STOP\n"
-                        "[MOTOR] DRIVE_MODE_END\n");  // маркер для клиента
+                        "[MOTOR] DRIVE_MODE_END\n");
             return;
         default:
             motor_reply(clients[idx].sock,

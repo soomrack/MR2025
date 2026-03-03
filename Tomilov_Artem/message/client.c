@@ -428,7 +428,7 @@ static int process_client_command(ClientState *state, const char *input) {
         const char *disconnect_msg = "\\disconnect\n";
         send_to_server(state->sockfd, disconnect_msg);
 
-        sleep(100000);  // 100ms — дать серверу обработать
+        sleep(100000);
 
         state->connected = 0;
         close(state->sockfd);
