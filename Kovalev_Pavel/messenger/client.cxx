@@ -23,19 +23,33 @@ void receive_loop(int sock) {
     state="stop";
 }
 
+void handle_command(std::string line) {
+    if (line=="/disconnect"){
+        state="stop";
+        return;
+    }
+}
+
 void send_loop(int sock) {
     std::string line;
     std::cout << "Введите сообщения (Ctrl+D для выхода):\n";
-    while (std::getline(std::cin, line)) {
+    while (state=="active" && std::getline(std::cin, line)) {
         // добавляем символ конца строки как разделитель сообщений
+        if (size(line)>0 && line.at(0) == '/') {
+            // команда
+            handle_command(line);
+            continue;
+        }
+
         line.push_back('\n');
+
         ssize_t sent = send(sock, line.c_str(), line.size(), 0);
         if (sent < 0) {
             perror("send");
             break;
         }
     }
-    state="stop"; // завершение в случае ошибки
+    state="stop";
 }
 
 int main() {
