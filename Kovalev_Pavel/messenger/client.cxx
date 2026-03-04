@@ -4,6 +4,10 @@
 #include <thread>
 #include <unistd.h>
 
+const char * server_adress = "127.0.0.1";
+
+std::string state;
+
 void receive_loop(int sock) {
     char buffer[1024];
     while (true) {
@@ -16,6 +20,22 @@ void receive_loop(int sock) {
         buffer[bytes] = '\0';
         std::cout << "[сообщение] " << buffer; // сервер уже шлёт с '\n'
     }
+    state="stop";
+}
+
+void send_loop(int sock) {
+    std::string line;
+    std::cout << "Введите сообщения (Ctrl+D для выхода):\n";
+    while (std::getline(std::cin, line)) {
+        // добавляем символ конца строки как разделитель сообщений
+        line.push_back('\n');
+        ssize_t sent = send(sock, line.c_str(), line.size(), 0);
+        if (sent < 0) {
+            perror("send");
+            break;
+        }
+    }
+    state="stop"; // завершение в случае ошибки
 }
 
 int main() {
@@ -29,25 +49,27 @@ int main() {
     server.sin_family = AF_INET;
     server.sin_port = htons(8080);
 
-    inet_pton(AF_INET, "127.0.0.1", &server.sin_addr);
+    inet_pton(AF_INET, server_adress, &server.sin_addr);
 
     if (connect(sock, (sockaddr*)&server, sizeof(server)) < 0) {
         perror("connect");
         return 1;
     }
 
+    state = "active";
+
     // поток, принимающий сообщения от сервера
     std::thread receiver(receive_loop, sock);
     receiver.detach(); // можно не ждать его явно: закроется при завершении процесса
 
-    std::string line;
-    std::cout << "Введите сообщения (Ctrl+D для выхода):\n";
-    while (std::getline(std::cin, line)) {
-        // добавляем символ конца строки как разделитель сообщений
-        line.push_back('\n');
-        ssize_t sent = send(sock, line.c_str(), line.size(), 0);
-        if (sent < 0) {
-            perror("send");
+    // поток, принимающий сообщения, а также обрабатывающий ввод с клавиатуры
+    std::thread sender(send_loop, sock);
+    sender.detach();
+
+    // ожидание изменения состояния
+    state = "active";
+    while (true) {
+        if (state=="stop") {
             break;
         }
     }
