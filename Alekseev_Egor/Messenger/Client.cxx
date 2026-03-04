@@ -8,6 +8,7 @@
 #include <sstream>
 #include <vector>
 #include <algorithm>
+#include <set>
 #pragma comment(lib, "Ws2_32.lib")  
 
 const unsigned short SERVER_PORT = 8080;
@@ -16,11 +17,12 @@ class CommandHandler {
 private:
     std::map<std::string, std::function<bool(SOCKET, const std::string&)>> commands;
     std::map<std::string, std::string> commandDescriptions;
+    std::set<std::string> terminateCommands;  
 
 public:
     enum class CommandType {
-        LOCAL,      // Команда выполняется локально, не требует ответа от сервера
-        TERMINATE   // Команда завершает соединение
+        LOCAL,      
+        TERMINATE   
     };
     
     CommandHandler() {
@@ -43,13 +45,22 @@ public:
                 std::cout << "==========================\n" << std::endl;
                 return true;  
             });
+        
+        registerCommand("*Clear", "Clear last received message", CommandType::LOCAL,
+            [](SOCKET, const std::string&) -> bool {
+                system("cls");
+                std::cout << "Received message was cleared. Enter *Help for commands.\n" << std::endl;
+                return true;
+            });
     }
     
     void registerCommand(const std::string& command, const std::string& description, 
                         CommandType type, std::function<bool(SOCKET, const std::string&)> handler) {
         commands[command] = handler;
         commandDescriptions[command] = description;
-        commandTypes[command] = type;  
+        if (type == CommandType::TERMINATE) {
+            terminateCommands.insert(command);
+        }
     }
 
     bool handleCommand(SOCKET socket, const std::string& message, bool& shouldWaitResponse) {
@@ -61,17 +72,13 @@ public:
         auto it = commands.find(message);
         if (it != commands.end()) {
             bool shouldContinue = it->second(socket, message);
-            CommandType type = commandTypes[message];
-            
-            // Для LOCAL и TERMINATE не ждем ответа
             shouldWaitResponse = false;
             
             return shouldContinue;
         }
 
-        // Обычные сообщения отправляем на сервер и ждем ответ
         bool sendResult = sendToServer(socket, message);
-        shouldWaitResponse = sendResult;  // Ждем ответ только если успешно отправили
+        shouldWaitResponse = sendResult; 
         return sendResult;
     }
 
@@ -93,8 +100,9 @@ public:
         return help.str();
     }
 
-private:
-    std::map<std::string, CommandType> commandTypes;  
+    bool isTerminateCommand(const std::string& message) const {
+        return terminateCommands.find(message) != terminateCommands.end();
+    }
 };
 
 bool WinSock_Init(){
@@ -159,7 +167,7 @@ bool send_message(SOCKET client_socket, CommandHandler& cmdHandler, bool& should
     return cmdHandler.handleCommand(client_socket, message, shouldWaitResponse);
 }
 
-bool receive_message(SOCKET client_socket, bool& running){
+bool receive_message(SOCKET client_socket, bool& running, const CommandHandler& cmdHandler){
     char buffer[1024] = {};
     int received_bytes = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
     
@@ -170,7 +178,7 @@ bool receive_message(SOCKET client_socket, bool& running){
         std::cout << "\n[Server]: " << buffer << std::endl;
         std::cout << "---------------------------------------" << std::endl;
 
-        if (received_message == "*Quit") {
+        if (cmdHandler.isTerminateCommand(received_message)) {
             std::cout << "Client disconnected" << std::endl;
             running = false;
             return false;
@@ -201,8 +209,6 @@ void close_socket(SOCKET server_socket, SOCKET client_socket){
 int main() {
     SOCKET server_socket = INVALID_SOCKET;
     SOCKET client_socket = INVALID_SOCKET;
-    
-    std::cout << "Enter *Help to show available commands\n" << std::endl;
 
     if (!WinSock_Init()) return 1;
     
@@ -227,7 +233,7 @@ int main() {
         }
 
         if (shouldWaitResponse) {
-            if (!receive_message(client_socket, running)) {
+            if (!receive_message(client_socket, running, cmdHandler)) {
                 if (running) { 
                     running = false;
                 }

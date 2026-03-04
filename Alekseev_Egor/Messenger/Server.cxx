@@ -7,22 +7,22 @@
 #include <sstream>
 #include <vector>
 #include <algorithm>
+#include <set>
 #pragma comment(lib, "Ws2_32.lib")  
 
 const unsigned short SERVER_PORT = 8080;
 
-
 class CommandHandler {
 public:
     enum class CommandType {
-        LOCAL,      // Команда выполняется локально, не требует ответа от сервера
-        TERMINATE   // Команда завершает соединение
+        LOCAL,      
+        TERMINATE   
     };
 
 private:
     std::map<std::string, std::function<bool(SOCKET, const std::string&)>> commands;
     std::map<std::string, std::string> commandDescriptions;
-    std::map<std::string, CommandType> commandTypes;  
+    std::set<std::string> terminateCommands; 
 
 public:
     CommandHandler() {
@@ -45,13 +45,23 @@ public:
                 std::cout << "==========================\n" << std::endl;
                 return true;
             });
+
+        registerCommand("*Clear", "Clear last received message", CommandType::LOCAL,
+            [](SOCKET, const std::string&) -> bool {
+                system("cls"); 
+                std::cout << "Received message was cleared. Enter *Help for commands.\n" << std::endl;
+                return true;
+            });
     }
     
     void registerCommand(const std::string& command, const std::string& description, 
                         CommandType type, std::function<bool(SOCKET, const std::string&)> handler) {
         commands[command] = handler;
         commandDescriptions[command] = description;
-        commandTypes[command] = type;
+
+        if (type == CommandType::TERMINATE) {
+            terminateCommands.insert(command);
+        }
     }
     
     bool handleCommand(SOCKET socket, const std::string& message, bool& shouldWaitResponse) {
@@ -63,21 +73,18 @@ public:
         auto it = commands.find(message);
         if (it != commands.end()) {
             bool shouldContinue = it->second(socket, message);
-            CommandType type = commandTypes[message];
-            
-            // Для LOCAL и TERMINATE не ждем ответа
+
             shouldWaitResponse = false;
             
             return shouldContinue;
         }
 
-        // Обычные сообщения отправляем на сервер и ждем ответ
-        bool sendResult = sendToServer(socket, message);
-        shouldWaitResponse = sendResult;  // Ждем ответ только если успешно отправили
+        bool sendResult = sendToClient(socket, message);
+        shouldWaitResponse = sendResult;  
         return sendResult;
     }
     
-    bool sendToServer(SOCKET socket, const std::string& message) {
+    bool sendToClient(SOCKET socket, const std::string& message) {
         int result = send(socket, message.c_str(), message.length(), 0);
         if (result == SOCKET_ERROR) {
             std::cerr << "send failed: " << WSAGetLastError() << std::endl;
@@ -93,6 +100,10 @@ public:
             help << "  " << cmd.first << " - " << cmd.second << "\n";
         }
         return help.str();
+    }
+
+    bool isTerminateCommand(const std::string& message) const {
+        return terminateCommands.find(message) != terminateCommands.end();
     }
 };
 
@@ -149,13 +160,20 @@ SOCKET accept_connection(SOCKET server_socket){
     return client_socket;
 }
 
-bool receive_message(SOCKET client_socket, std::string& out_message){
+bool receive_message(SOCKET client_socket, std::string& out_message, bool& running, const CommandHandler& cmdHandler){
     char buffer[1024] = {};
     int received_bytes = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
     
     if (received_bytes > 0) {
         buffer[received_bytes] = '\0';
         out_message = buffer;
+        
+        if (cmdHandler.isTerminateCommand(out_message)) {
+            std::cout << "Client requested termination" << std::endl;
+            running = false;
+            return false;
+        }
+        
         return true;
     } 
     else if (received_bytes == 0) {
@@ -218,14 +236,10 @@ int main() {
     std::cout << "\nWaiting for client message..." << std::endl;
 
     while (running) {
-        if (!receive_message(client_socket, received_message)) {
-            running = false;
-            break;
-        }
-
-        if (received_message == "*Quit") {
-            std::cout << "Client disconnected" << std::endl;
-            running = false;
+        if (!receive_message(client_socket, received_message, running, cmdHandler)) {
+            if (running) {
+                running = false;
+            }
             break;
         }
 
@@ -245,7 +259,6 @@ int main() {
                 break;
             }
             
-            // Для локальных команд не ждем ответа и продолжаем ввод
             if (!shouldWaitResponse) {
                 std::cout << "\nNow enter your message to client:";
                 continue;
