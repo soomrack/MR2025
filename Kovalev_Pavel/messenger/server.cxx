@@ -5,6 +5,18 @@
 #include <vector>
 #include <sys/select.h>
 
+void handle_chat_message(std::string msg, const int client_index, const int MAX_CLIENTS, const int client_fd[]) {
+        std::cout << "Client " << client_index << ": " << msg << std::endl;
+
+    // рассылаем сообщение всем клиентам
+    std::string toSend = "Client " + std::to_string(client_index) + ": " + msg + "\n";
+    for (int k = 0; k < MAX_CLIENTS; ++k) {
+        if (client_fd[k] >= 0) {
+            send(client_fd[k], toSend.c_str(), toSend.size(), 0);
+        }
+    }
+}
+
 int main() {
     const int MAX_CLIENTS = 10;
 
@@ -127,15 +139,7 @@ int main() {
                         std::string msg = clientBuffer[i];
                         clientBuffer[i].clear();
 
-                        std::cout << "Client " << i << ": " << msg << std::endl;
-
-                        // рассылаем сообщение всем клиентам
-                        std::string toSend = "Client " + std::to_string(i) + ": " + msg + "\n";
-                        for (int k = 0; k < MAX_CLIENTS; ++k) {
-                            if (client_fd[k] >= 0) {
-                                send(client_fd[k], toSend.c_str(), toSend.size(), 0);
-                            }
-                        }
+                        handle_chat_message(msg, i, MAX_CLIENTS, client_fd);
                     } else {
                         clientBuffer[i].push_back(c);
                     }
