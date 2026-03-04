@@ -23,15 +23,23 @@ void receive_loop(int sock) {
     state="stop";
 }
 
-void handle_command(std::string line) {
+bool handle_command(std::string line) {
     if (line == "/help") {
-        std::cout << "Список доступных команд:\n" <<
-            "/disconnect — отключиться\n";
+        std::cout << 
+            "Список доступных команд:\n" <<
+            "/disconnect — отключиться\n" << 
+            "/users — количество пользователей\n" <<
+            ""
+            ;
     }
     else if (line == "/disconnect") {
         state="stop";
-        return;
+        return 0;
     }
+    else if (line == "/users") {
+        return 1; // send command to server
+    }
+    return 0; // do not send command to server
 }
 
 void send_loop(int sock) {
@@ -41,8 +49,7 @@ void send_loop(int sock) {
         // добавляем символ конца строки как разделитель сообщений
         if (size(line)>0 && line.at(0) == '/') {
             // команда
-            handle_command(line);
-            continue;
+            if ( !handle_command(line) ) continue; // skip sending only if returned 0
         }
 
         line.push_back('\n');

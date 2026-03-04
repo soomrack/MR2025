@@ -5,21 +5,50 @@
 #include <vector>
 #include <sys/select.h>
 
-void handle_chat_message(std::string msg, const int client_index, const int MAX_CLIENTS, const int client_fd[]) {
-        std::cout << "Client " << client_index << ": " << msg << std::endl;
+const int MAX_CLIENTS = 10;
+
+static int client_fd[MAX_CLIENTS];
+
+void send_to_client(std::string line, int this_client_fd) {
+    if (this_client_fd >= 0) {
+        send(this_client_fd, line.c_str(), line.size(), 0);
+    }
+}
+
+bool handle_client_command(std::string msg, int this_client_fd) {
+    if (msg == "/users") {
+        int count = 0;
+        for (int i=0; i<MAX_CLIENTS; i++) {
+            if (client_fd[i]>=0) count++;
+        }
+
+        std::string toSend = "Всего клиентов: " + std::to_string(count) + "\n";
+        send_to_client(toSend, this_client_fd);
+    }
+    return 0;
+}
+
+void handle_chat_message(std::string msg, const int client_index) {
+    std::string msg_cropped=msg;
+    while (msg_cropped.back() == '/') {
+        msg_cropped.pop_back();
+    } 
+
+    if (size(msg_cropped)>0 && msg_cropped.at(0) == '/') {
+        // команда с клиента
+        if ( !handle_client_command(msg_cropped, client_fd[client_index]) ) return; // skip sending only if returned 0
+    }
+
+    std::cout << "Client " << client_index << ": " << msg << std::endl;
 
     // рассылаем сообщение всем клиентам
     std::string toSend = "Client " + std::to_string(client_index) + ": " + msg + "\n";
     for (int k = 0; k < MAX_CLIENTS; ++k) {
-        if (client_fd[k] >= 0) {
-            send(client_fd[k], toSend.c_str(), toSend.size(), 0);
-        }
+        send_to_client(toSend, client_fd[k]);
     }
 }
 
 int main() {
-    const int MAX_CLIENTS = 10;
-
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) {
         perror("socket");
@@ -48,7 +77,6 @@ int main() {
     std::cout << "Server is listening on port 8080...\n";
 
     // массив клиентов и буфер текущего сообщения для каждого
-    int client_fd[MAX_CLIENTS];
     std::string clientBuffer[MAX_CLIENTS];
     for (int i = 0; i < MAX_CLIENTS; ++i) {
         client_fd[i] = -1;
@@ -139,7 +167,7 @@ int main() {
                         std::string msg = clientBuffer[i];
                         clientBuffer[i].clear();
 
-                        handle_chat_message(msg, i, MAX_CLIENTS, client_fd);
+                        handle_chat_message(msg, i);
                     } else {
                         clientBuffer[i].push_back(c);
                     }
