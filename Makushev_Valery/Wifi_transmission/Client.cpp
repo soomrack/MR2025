@@ -7,7 +7,7 @@
 
 #pragma warning(disable: 4996)
 
-// Поток отправки сообщений
+// Поток отправки сообщений (аналогично серверу)
 void SendThread(SOCKET sock) {
     std::string message;
     while (true) {
@@ -23,7 +23,7 @@ void SendThread(SOCKET sock) {
         }
     }
     closesocket(sock);
-    exit(0); // Завершаем процесс при выходе
+    exit(0);
 }
 
 // Поток приёма сообщений
@@ -34,7 +34,7 @@ void ReceiveThread(SOCKET sock) {
         if (bytesReceived > 0) {
             buffer[bytesReceived] = '\0';
             std::cout << "\nOther: " << buffer << std::endl;
-            std::cout << "You: " << std::flush; // Восстанавливаем приглашение
+            std::cout << "You: " << std::flush;
         }
         else if (bytesReceived == 0) {
             std::cout << "Connection closed by other side." << std::endl;
@@ -50,60 +50,43 @@ void ReceiveThread(SOCKET sock) {
 }
 
 int main() {
-    // Инициализация Winsock
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
         std::cerr << "WSAStartup failed" << std::endl;
         return 1;
     }
 
-    // Создание сокета
-    SOCKET listenSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (listenSocket == INVALID_SOCKET) {
+    SOCKET clientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (clientSocket == INVALID_SOCKET) {
         std::cerr << "socket failed" << std::endl;
         WSACleanup();
         return 1;
     }
 
-    // Привязка к порту 8888
+    // Адрес сервера (измените на реальный IP в локальной сети)
     sockaddr_in serverAddr;
     serverAddr.sin_family = AF_INET;
-    serverAddr.sin_addr.s_addr = INADDR_ANY;
     serverAddr.sin_port = htons(8888);
+    const char* serverIP = "127.0.0.1"; // Замените на IP сервера, например "192.168.1.100"
 
-    if (bind(listenSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
-        std::cerr << "bind failed" << std::endl;
-        closesocket(listenSocket);
+    if (inet_pton(AF_INET, serverIP, &serverAddr.sin_addr) <= 0) {
+        std::cerr << "Invalid address" << std::endl;
+        closesocket(clientSocket);
         WSACleanup();
         return 1;
     }
 
-    // Прослушивание
-    if (listen(listenSocket, SOMAXCONN) == SOCKET_ERROR) {
-        std::cerr << "listen failed" << std::endl;
-        closesocket(listenSocket);
+    // Подключение к серверу
+    if (connect(clientSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
+        std::cerr << "connect failed: " << WSAGetLastError() << std::endl;
+        closesocket(clientSocket);
         WSACleanup();
         return 1;
     }
 
-    std::cout << "Server listening on port 8888. Waiting for client..." << std::endl;
+    std::cout << "Connected to server. Start chatting. Type 'exit' to quit." << std::endl;
 
-    // Принимаем клиента
-    sockaddr_in clientAddr;
-    int clientAddrSize = sizeof(clientAddr);
-    SOCKET clientSocket = accept(listenSocket, (sockaddr*)&clientAddr, &clientAddrSize);
-    if (clientSocket == INVALID_SOCKET) {
-        std::cerr << "accept failed" << std::endl;
-        closesocket(listenSocket);
-        WSACleanup();
-        return 1;
-    }
-
-    closesocket(listenSocket); // Больше не нужен
-
-    std::cout << "Client connected. You can start chatting. Type 'exit' to quit." << std::endl;
-
-    // Запуск потоков отправки и приёма
+    // Запуск потоков
     std::thread sender(SendThread, clientSocket);
     std::thread receiver(ReceiveThread, clientSocket);
 
