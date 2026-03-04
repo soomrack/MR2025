@@ -154,7 +154,7 @@ static int connect_to_server(void) {
     server_addr.sin_port   = htons(PORT);
 
     // Замените на IP сервера если нужно
-    if (inet_pton(AF_INET, "192.168.0.117", &server_addr.sin_addr) <= 0) {
+    if (inet_pton(AF_INET, "172.20.10.13", &server_addr.sin_addr) <= 0) {
         perror("inet_pton");
         close(sockfd);
         return -1;
