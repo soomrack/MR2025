@@ -14,6 +14,7 @@
 #include <sstream>
 #include <fstream>
 #include <limits>
+#include <iomanip>
 
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -29,11 +30,13 @@
 enum class MessageType : uint32_t {
     Text = 1,
     Connect = 2,
-    Disconnect = 3
+    Disconnect = 3,
+    LogRequest = 4,
+    LogResponse = 5
 };
 
 struct MessageHeader {
-    MessageType type;
+    uint32_t type;
     uint32_t size;
 };
 
@@ -69,12 +72,15 @@ int serverSock = -1;
 // ===== LOGGING =====
 std::mutex logMutex;
 std::ofstream logFile;
+std::vector<std::string> logBuffer;
+std::vector<std::string> warningBuffer;
+std::mutex logBufferMutex;
 
 
 // ===== MONITORING SETTINGS =====
 constexpr int MONITOR_INTERVAL_SEC = 10;      // опрос раз в 10 секунд
 constexpr double CPU_TEMP_LIMIT = 70.0;      // порог температуры
-constexpr int RAM_LIMIT_PERCENT = 80;        // порог RAM
+constexpr int RAM_LIMIT_PERCENT = 20;       // порог RAM
 // ============================================================
 // TIME UTILS
 // ============================================================
@@ -93,11 +99,21 @@ std::string getSystemTimeFull() {
 
 void logEvent(const std::string& text) {
     std::lock_guard<std::mutex> lock(logMutex);
-    if (logFile.is_open())
-        logFile << "[" << getSystemTimeFull() << "] "
-                << text << std::endl;
-}
 
+    std::string full =
+        "[" + getSystemTimeFull() + "] " + text;
+
+    if (logFile.is_open())
+        logFile << full << std::endl;
+
+    {
+        std::lock_guard<std::mutex> bufLock(logBufferMutex);
+        logBuffer.push_back(full);
+
+        if (text.find("[WARNING]") != std::string::npos)
+            warningBuffer.push_back(full);
+    }
+}
 std::string getCurrentTime() {
     time_t now = time(nullptr);
     struct tm timeinfo{};
@@ -129,10 +145,10 @@ void recvAll(int sock, char* data, int size) {
     }
 }
 
-std::string getClientId(int clientSocket) {
+std::string getId(int Socket) {
     sockaddr_in addr{};
     socklen_t len = sizeof(addr);
-    if (getpeername(clientSocket, (sockaddr*)&addr, &len) == 0) {
+    if (getpeername(Socket, (sockaddr*)&addr, &len) == 0) {
         return std::string(inet_ntoa(addr.sin_addr)) + ":" +
                std::to_string(ntohs(addr.sin_port));
     }
@@ -143,9 +159,9 @@ std::string getClientId(int clientSocket) {
 // COLOR MANAGEMENT
 // ============================================================
 
-int assignColorIndex(const std::string& clientId) {
-    if (usedColors.count(clientId))
-        return usedColors[clientId];
+int assignColorIndex(const std::string& Id) {
+    if (usedColors.count(Id))
+        return usedColors[Id];
 
     std::vector<bool> used(colorPool.size(), false);
     for (auto& p : usedColors)
@@ -154,15 +170,15 @@ int assignColorIndex(const std::string& clientId) {
 
     for (int i = 0; i < (int)colorPool.size(); i++)
         if (!used[i]) {
-            usedColors[clientId] = i;
+            usedColors[Id] = i;
             return i;
         }
 
     return -1;
 }
 
-void releaseColorIndex(const std::string& clientId) {
-    usedColors.erase(clientId);
+void releaseColorIndex(const std::string& Id) {
+    usedColors.erase(Id);
 }
 
 // ============================================================
@@ -174,7 +190,6 @@ void broadcast(const MessageHeader& header,
                int sender) {
 
     std::lock_guard<std::mutex> lock(clientsMutex);
-
     for (auto& c : clients) {
         if (c.socket == sender) continue;
         try {
@@ -185,12 +200,12 @@ void broadcast(const MessageHeader& header,
 }
 
 // ============================================================
-// CLIENT THREAD
+//  THREAD
 // ============================================================
 
 void handleClient(int clientSocket) {
 
-    std::string clientId = getClientId(clientSocket);
+    std::string clientId = getId(clientSocket);
     std::string username = "Unknown";
     std::string clientColor;
 
@@ -198,7 +213,7 @@ void handleClient(int clientSocket) {
         MessageHeader header{};
         recvAll(clientSocket, (char*)&header, sizeof(header));
 
-        if (header.type != MessageType::Connect || header.size > 256) {
+        if (header.type != static_cast<uint32_t>(MessageType::Connect) || header.size > 256) {
             close(clientSocket);
             return;
         }
@@ -225,6 +240,7 @@ void handleClient(int clientSocket) {
         logEvent("Client " + clientId +
                  " joined as '" + username + "'");
 
+        // ===== Основной цикл обработки сообщений =====
         while (serverRunning) {
 
             recvAll(clientSocket, (char*)&header, sizeof(header));
@@ -233,7 +249,7 @@ void handleClient(int clientSocket) {
             std::vector<char> msgData(header.size);
             recvAll(clientSocket, msgData.data(), header.size);
 
-            if (header.type == MessageType::Text) {
+            if (header.type == static_cast<uint32_t>(MessageType::Text)) {
 
                 std::string message(msgData.begin(), msgData.end());
 
@@ -248,7 +264,7 @@ void handleClient(int clientSocket) {
                     clientColor + message + RESET;
 
                 MessageHeader outHeader{
-                    MessageType::Text,
+                    static_cast<uint32_t>(MessageType::Text),
                     (uint32_t)coloredMessage.size()
                 };
 
@@ -258,27 +274,78 @@ void handleClient(int clientSocket) {
 
                 broadcast(outHeader, outData, clientSocket);
             }
-            else if (header.type == MessageType::Disconnect) {
+
+            else if (header.type == static_cast<uint32_t>(MessageType::LogRequest)) {
+
+                std::string request(msgData.begin(), msgData.end());
+
+                std::vector<std::string> result;
+
+                {
+                    std::lock_guard<std::mutex> lock(logBufferMutex);
+
+                    if (request == "ALL") {
+                        result = logBuffer;
+                    }
+                    else if (request == "WARNINGS") {
+                        result = warningBuffer;
+                    }
+                    else if (request.rfind("LAST ", 0) == 0) {
+
+                        int minutes = std::stoi(request.substr(5));
+                        time_t now = time(nullptr);
+
+                        for (auto& line : logBuffer) {
+
+                            std::tm tm{};
+                            std::istringstream ss(line.substr(1, 19));
+                            ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
+
+                            time_t logTime = mktime(&tm);
+
+                            if (difftime(now, logTime) <= minutes * 60)
+                                result.push_back(line);
+                        }
+                    }
+                }
+
+                std::ostringstream joined;
+                for (auto& l : result)
+                    joined << l << "\n";
+
+                std::string output = joined.str();
+
+                MessageHeader outHeader{
+                   static_cast<uint32_t>(MessageType::LogResponse),
+                   (uint32_t)output.size()
+               };
+
+                sendAll(clientSocket, (char*)&outHeader, sizeof(outHeader));
+                sendAll(clientSocket, output.data(), output.size());
+            }
+
+            else if (header.type == static_cast<uint32_t>(MessageType::Disconnect)) {
                 break;
             }
-        }
+        } // <- конец while(serverRunning)
+
+    } catch (const std::exception& e) {
+        std::cerr << "Client " << clientId << " disconnected (error: "
+                  << e.what() << ")\n";
+        logEvent("Client " + clientId + " disconnected (error: " + e.what() + ")");
     }
-    catch (...) {}
 
-    logEvent("Client " + clientId +
-             " ('" + username + "') disconnected");
-
-    close(clientSocket);
-
+    // ===== Очистка после отключения =====
     {
         std::lock_guard<std::mutex> lock(clientsMutex);
-        clients.erase(std::remove_if(clients.begin(), clients.end(),
-            [clientSocket](Client& c){ return c.socket == clientSocket; }),
-            clients.end());
-        releaseColorIndex(clientId);
+        auto it = std::remove_if(clients.begin(), clients.end(),
+                                 [clientSocket](const Client& c){ return c.socket == clientSocket; });
+        clients.erase(it, clients.end());
     }
-}
 
+    releaseColorIndex(clientId);
+    close(clientSocket);
+}
 // ============================================================
 // COMMAND THREAD
 // ============================================================
@@ -484,8 +551,8 @@ void monitoringLoop() {
 
             // отправка всем клиентам
             MessageHeader header{
-                MessageType::Text,
-                (uint32_t)fullMsg.size()
+               static_cast<uint32_t>(MessageType::Text),
+               (uint32_t)fullMsg.size()
             };
 
             std::vector<char> data(fullMsg.begin(), fullMsg.end());
@@ -517,7 +584,7 @@ void runAcceptLoop() {
             break;
         }
 
-        std::string id = getClientId(client);
+        std::string id = getId(client);
 
         Client newClient;
         newClient.socket = client;
