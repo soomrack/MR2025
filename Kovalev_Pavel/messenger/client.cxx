@@ -24,7 +24,11 @@ void receive_loop(int sock) {
 }
 
 void handle_command(std::string line) {
-    if (line=="/disconnect"){
+    if (line == "/help") {
+        std::cout << "Список доступных команд:\n" <<
+            "/disconnect — отключиться\n";
+    }
+    else if (line == "/disconnect") {
         state="stop";
         return;
     }
