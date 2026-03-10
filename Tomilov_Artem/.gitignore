@@ -1,10 +1,47 @@
 program
-*.exe
-/.idea
-/.vscode
+
 
 chat_server
 
 chat_client
 
 /.log
+
+# Compiled files
+build/
+*.o
+*.out
+*.exe
+imu_reader
+pixhawk_imu_reader
+
+# Logs and data
+*.csv
+*.log
+*.txt
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+*.bak
+
+# MAVLink library (clone separately)
+c_library_v2/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!CMakeLists.txt
+
+# Debugging
+*.dSYM/

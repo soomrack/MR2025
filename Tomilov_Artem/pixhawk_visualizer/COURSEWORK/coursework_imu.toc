@@ -1,0 +1,39 @@
+\babel@toc {english}{}\relax 
+\contentsline {section}{Введение}{3}{Doc-Start}%
+\contentsline {section}{\numberline {1}Чтение сырых данных с Pixhawk}{5}{section.1}%
+\contentsline {subsection}{\numberline {1.1}Протокол MAVLink и сообщение RAW\_IMU}{5}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.2}Реализация модуля чтения}{5}{subsection.1.2}%
+\contentsline {subsection}{\numberline {1.3}Запись данных в CSV}{7}{subsection.1.3}%
+\contentsline {subsection}{\numberline {1.4}Результаты первичного чтения}{7}{subsection.1.4}%
+\contentsline {section}{\numberline {2}Архитектура системы визуализации}{8}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Обзор проекта}{8}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Структура файлов проекта}{8}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2.3}Межпоточное взаимодействие}{9}{subsection.2.3}%
+\contentsline {section}{\numberline {3}Зависимости и система сборки}{10}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Используемые библиотеки}{10}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Конфигурация CMake}{10}{subsection.3.2}%
+\contentsline {section}{\numberline {4}Математика инерциальной навигации}{11}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Калибровка датчиков}{11}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Представление ориентации кватернионами}{11}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}Интегрирование кватерниона}{11}{subsection.4.3}%
+\contentsline {subsection}{\numberline {4.4}Матрица поворота из кватерниона}{12}{subsection.4.4}%
+\contentsline {subsection}{\numberline {4.5}Углы Эйлера (конвенция ZYX)}{12}{subsection.4.5}%
+\contentsline {subsection}{\numberline {4.6}Двойное интегрирование (скорость и позиция)}{13}{subsection.4.6}%
+\contentsline {subsection}{\numberline {4.7}Метод ZUPT}{13}{subsection.4.7}%
+\contentsline {section}{\numberline {5}Реализация}{14}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Алгоритм интегрирования}{14}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Структуры данных}{14}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}Визуализация}{15}{subsection.5.3}%
+\contentsline {section}{\numberline {6}Инструкция по установке и запуску}{16}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Установка зависимостей}{16}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}Сборка проекта}{16}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6.3}Настройка прав доступа к порту}{16}{subsection.6.3}%
+\contentsline {subsection}{\numberline {6.4}Запуск}{16}{subsection.6.4}%
+\contentsline {subsection}{\numberline {6.5}Управление в окне визуализации}{17}{subsection.6.5}%
+\contentsline {section}{\numberline {7}Результаты и анализ}{18}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Результаты измерения ориентации}{18}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}Результаты оценки позиции}{18}{subsection.7.2}%
+\contentsline {subsection}{\numberline {7.3}Анализ причин дрейфа}{19}{subsection.7.3}%
+\contentsline {subsection}{\numberline {7.4}Методы устранения дрейфа}{19}{subsection.7.4}%
+\contentsline {section}{Заключение}{21}{Item.11}%
+\contentsline {section}{Список использованных источников}{22}{Item.11}%
