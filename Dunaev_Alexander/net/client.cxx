@@ -41,7 +41,7 @@ private:
 // ============================================================================
 
 int main(int argc, char* argv[]) {
-    std::string server_ip = "2a03:d000:105:7010:92de:80ff:febe:590b"; // localhost для IPv6
+    std::string server_ip = "127.0.0.1"; // localhost для IPv6
     int port = 8080;
     
     if (argc > 1) {
@@ -70,7 +70,7 @@ Client::~Client() {
 
 int Client::initialize_socket() {
     // Создаем сокет для IPv6
-    client_socket = socket(AF_INET6, SOCK_STREAM, 0);
+    client_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (client_socket < 0) {
         std::cerr << "Ошибка создания сокета" << std::endl;
         return 1;
@@ -82,13 +82,13 @@ int Client::initialize_socket() {
 void Client::initialize_address() {
     // Настраиваем адрес
     memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin6_family = AF_INET6;
+    server_addr.sin6_family = AF_INET;
     server_addr.sin6_port = htons(port);
 }
 
 
 int Client::validate_server_address() {
-    if (inet_pton(AF_INET6, server_ip.c_str(), &server_addr.sin6_addr) <= 0) {
+    if (inet_pton(AF_INET, server_ip.c_str(), &server_addr.sin6_addr) <= 0) {
         std::cerr << "Неверный адрес сервера" << std::endl;
         close(client_socket);
         return 1;
