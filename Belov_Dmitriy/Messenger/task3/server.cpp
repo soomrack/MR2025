@@ -15,6 +15,8 @@
 #include <fstream>
 #include <limits>
 #include <iomanip>
+#include <termios.h>
+#include <sys/select.h>
 
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -665,15 +667,6 @@ void monitoringLoop() {
     }
 }
 
-int openSerial(const std::string& device) {
-
-    int fd = open(device.c_str(), O_RDWR | O_NOCTTY);
-
-    if (fd < 0)
-        throw std::runtime_error("Cannot open serial");
-
-    return fd;
-}
 
 // ============================================================
 // SENSOR THREAD
@@ -726,82 +719,168 @@ void parseSensorLine(const std::string& line)
             continue;
 
         std::string name = token.substr(0, pos);
-        double value = std::stod(token.substr(pos + 1));
 
-        processSensorValue(name, value);
+        try {
+            double value = std::stod(token.substr(pos + 1));
+            processSensorValue(name, value);
+        } catch (...) {
+            continue;
+        }
+    }
+}
+
+// ================= UART SETUP =================
+void setupSerial(int fd) {
+    struct termios tty{};
+
+    if (tcgetattr(fd, &tty) != 0)
+        return;
+
+    cfmakeraw(&tty); // ВАЖНО
+
+    cfsetispeed(&tty, B9600);
+    cfsetospeed(&tty, B9600);
+
+    tty.c_cflag |= (CLOCAL | CREAD);
+    tty.c_cflag |= CS8;
+
+    tcsetattr(fd, TCSANOW, &tty);
+}
+
+
+// ================= SAFE READ LINE =================
+bool readLineSafe(int fd, std::string& out) {
+    out.clear();
+    char c;
+
+    fd_set set;
+    struct timeval timeout;
+
+    while (true) {
+        FD_ZERO(&set);
+        FD_SET(fd, &set);
+
+        timeout.tv_sec = 2;
+        timeout.tv_usec = 0;
+
+        int rv = select(fd + 1, &set, nullptr, nullptr, &timeout);
+
+        if (rv == -1) {
+            return false; // ошибка
+        }
+        else if (rv == 0) {
+            return false; // таймаут
+        }
+
+        int res = read(fd, &c, 1);
+
+        if (res <= 0) {
+            if (errno == EIO || errno == ENODEV) {
+                std::cerr << "Arduino disconnected\n";
+                return false;
+            }
+            continue;
+        }
+
+        if (c == '\n')
+            return true;
+
+        out += c;
     }
 }
 
 
+// ================= SENSOR LOOP =================
 void sensorLoop() {
 
     int serial = -1;
 
-    // ===== SENSOR SIMULATION (for testing without Arduino) =====
-    bool simulateSensors = true;// поменять на true для включения тестового режима
+    bool simulateSensors = false; // ВАЖНО: выключи симуляцию
 
+    // ===== SIMULATION =====
     if (simulateSensors) {
-
         while (serverRunning) {
 
             std::ostringstream fake;
-            int temp = 20 + rand() % 10;        // температура 20-29°C
-            int humidity = 40 + rand() % 20;    // влажность 40-59%
-            int light = 300 + rand() % 900;   // 300–1200
+            int temp = 20 + rand() % 10;
+            int humidity = 40 + rand() % 20;
+            int light = 300 + rand() % 900;
 
             fake << "TEMP:" << temp
-                    << " HUM:" << humidity
-                    << " LIGHT:" << light;
+                 << " HUM:" << humidity
+                 << " LIGHT:" << light;
 
             std::string full =
                 "[" + getSystemTimeFull() + "] SENSOR | " + fake.str();
 
             logEvent(full);
-
             parseSensorLine(fake.str());
 
             if (sensorLog.is_open())
                 sensorLog << full << std::endl;
 
-            std::this_thread::sleep_for(std::chrono::seconds(MONITOR_INTERVAL_SEC));
+            std::this_thread::sleep_for(
+                std::chrono::seconds(MONITOR_INTERVAL_SEC));
         }
-
         return;
     }
 
-    // Ждём подключение Arduino
-    while (serial < 0 && serverRunning) {
-
-        serial = open("/dev/ttyUSB0", O_RDWR | O_NOCTTY);
-
-        if (serial < 0) {
-            std::cerr << "Waiting for Arduino on /dev/ttyUSB0...\n";
-            std::this_thread::sleep_for(std::chrono::seconds(MONITOR_INTERVAL_SEC));
-        }
-    }
-
-    if (serial < 0)
-        return;
-
-    std::cout << "Arduino connected\n";
-
+    // ===== REAL ARDUINO MODE =====
     while (serverRunning) {
 
-        std::string line = readLine(serial);
+        // ===== Подключение =====
+        if (serial < 0) {
+
+            serial = open("/dev/ttyUSB0", O_RDWR | O_NOCTTY | O_NONBLOCK);
+
+            if (serial < 0) {
+                std::cerr << "Waiting for Arduino...\n";
+                std::this_thread::sleep_for(std::chrono::seconds(2));
+                continue;
+            }
+
+            setupSerial(serial);
+            std::this_thread::sleep_for(std::chrono::seconds(2)); //  важно
+            std::cout << "Arduino connected\n";
+            logEvent("Arduino connected");
+        }
+
+        // ===== Чтение =====
+        std::string line;
+
+        bool ok = readLineSafe(serial, line);
+
+        if (!ok) {
+            close(serial);
+            serial = -1;
+            std::cerr << "Reconnecting Arduino...\n";
+            logEvent("Arduino disconnected, retrying...");
+            std::this_thread::sleep_for(std::chrono::seconds(2));
+            continue;
+        }
 
         if (line.empty())
             continue;
 
+        // ===== Лог =====
         std::string full =
             "[" + getSystemTimeFull() + "] SENSOR | " + line;
 
         logEvent(full);
 
-        // Парсинг данных от Arduino
-       parseSensorLine(line);
-}
+        if (sensorLog.is_open())
+            sensorLog << full << std::endl;
 
-    close(serial);
+        // ===== Парсинг =====
+        try {
+            parseSensorLine(line);
+        } catch (...) {
+            std::cerr << "Parse error: " << line << "\n";
+        }
+    }
+
+    if (serial >= 0)
+        close(serial);
 }
 // ============================================================
 // ACCEPT LOOP
