@@ -1,47 +1,41 @@
-#include <DHT.h>
+#include "DHT.h"
 
-#define DHTPIN 2
-#define DHTTYPE DHT11
+#define TEMP_HUMID_PIN 12
+#define SOIL_MOISTURE_PIN A1
+#define LIGHT_PIN A2
 
-#define LIGHT_PIN A0
+DHT dht(TEMP_HUMID_PIN, DHT11);
 
-DHT dht(DHTPIN, DHTTYPE);
+float temperature;
+float humidity;
+int soil_moisture;
+int light;
 
-const int SEND_INTERVAL = 5000;
-
-void setup()
-{
-    Serial.begin(9600);
-    dht.begin();
-
-    delay(2000);
+void setup() {
+  Serial.begin(9600);
+  dht.begin();
 }
 
-void loop()
-{
-    float temperature = dht.readTemperature();
-    float humidity = dht.readHumidity();
+void readSensors(){
+  temperature = dht.readTemperature();
+  humidity = dht.readHumidity();
 
-    int lightRaw = analogRead(LIGHT_PIN);
+  soil_moisture = analogRead(SOIL_MOISTURE_PIN);
+  light = analogRead(LIGHT_PIN);
+}
 
-    // переводим в условные люксы (0-1500 примерно)
-    int light = map(lightRaw, 0, 1023, 0, 1500);
+void send_readings(){
+  String data = "TEMP:" + String(temperature) +
+                " HUM:" + String(humidity) +
+                " LIGHT:" + String(light);
 
-    if (isnan(temperature) || isnan(humidity))
-    {
-        Serial.println("ERROR");
-        delay(SEND_INTERVAL);
-        return;
-    }
+  Serial.println(data);
+}
 
-    Serial.print("TEMP:");
-    Serial.print(temperature,1);
+void loop() {
 
-    Serial.print(" HUM:");
-    Serial.print(humidity,1);
+  readSensors();        // <-- ВАЖНО
+  send_readings();      // <-- сразу шлём
 
-    Serial.print(" LIGHT:");
-    Serial.println(light);
-
-    delay(SEND_INTERVAL);
+  delay(2000);          // DHT11 требует паузу
 }
