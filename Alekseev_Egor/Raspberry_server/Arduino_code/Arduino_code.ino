@@ -24,12 +24,16 @@ void readSensors(){
   light = analogRead(LIGHT_PIN);
 }
 
-void send_readings(){
-  String data = "Temperature: " + String(temperature) + "," +
-                "Humidity: " + String(humidity) + "," +
-                "Light" + String(light) + "," +
-                "Soil moisture: " + String(soil_moisture);
+void convert_lightness(){
+  light = map(light, 0, 1023, 10, 600);
+}
 
+void convert_soil_moisture(){
+  soil_moisture = map(soil_moisture, 0, 1023, 0, 100);
+}
+
+void send_readings(){
+  String data = String(temperature) + String(humidity) + String(light) + String(soil_moisture);
   Serial.println(data);
 }
 
@@ -37,6 +41,9 @@ void loop() {
   if (Serial.available() > 0) { 
         incomingByte = Serial.read();
         if (incomingByte == "1"){
+          readSensors();
+          convert_lightness();
+          convert_soil_moisture();
           send_readings();
         }
     }
