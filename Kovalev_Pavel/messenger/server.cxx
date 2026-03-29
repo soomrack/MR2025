@@ -271,15 +271,12 @@ int main() {
         }
     }
 
-    // закрываем сокеты
+    // закрываем всё
     for (int i = 0; i < MAX_CLIENTS; ++i) {
         if (client_fd[i] >= 0) close(client_fd[i]);
     }
     close(server_fd);
-
-    // закрываем ветки
     serverRunning = false;
-    monitorThread.join();  // дожидаемся завершения потока
 
     return 0;
 }
