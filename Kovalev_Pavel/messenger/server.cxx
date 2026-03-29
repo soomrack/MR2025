@@ -68,14 +68,14 @@ bool handle_client_command(std::string msg, int client_index) {
 
 void handle_chat_message(std::string msg, const int client_index) {
     std::string msg_cropped=msg;
-    while (msg_cropped.back() == '/') {
+    while (msg_cropped.back() == '\n') {
         msg_cropped.pop_back();
-    } 
+    }
     while (!msg_cropped.empty() && msg_cropped.back() == ' ') {  // убираем пробелы по краям
         msg_cropped.pop_back();
     }
     
-    if (size(msg_cropped)>0 && msg_cropped.at(0) == '/') {
+    if (!msg_cropped.empty() && msg_cropped.at(0) == '/') {
         // команда с клиента
         if ( !handle_client_command(msg_cropped, client_index) ) return; // skip sending to other clients only if returned 0
     }
