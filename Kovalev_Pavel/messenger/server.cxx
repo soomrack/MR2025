@@ -52,7 +52,7 @@ void logEvent(LogLevel level, const std::string& msg) {
     
     // рассылаем только клиентам с включённым мониторингом
     for (int k = 0; k < MAX_CLIENTS; ++k) {
-        if (client_fd[k] >= 0 && level >= clientLogLevel[k]) {
+        if (client_fd[k] >= 0 && clientLogLevel[k] != OFF && level >= clientLogLevel[k]) {
             std::string toSend = fullMsg + "\n";
             send_to_client(toSend, client_fd[k]);
         }
