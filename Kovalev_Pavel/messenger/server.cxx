@@ -11,6 +11,7 @@
 #include <thread>
 #include <atomic>
 #include <chrono>
+#include <algorithm>
 
 const int MAX_CLIENTS = 10;
 static int client_fd[MAX_CLIENTS];
@@ -66,6 +67,10 @@ LogLevel parseLogHistoryLevelFromString(const std::string& logLine) {
     if (end == std::string::npos) return OFF;
     
     std::string levelStr = logLine.substr(start + 1, end - start - 1);
+    std::transform(levelStr.begin(), levelStr.end(), levelStr.begin(), 
+                  [](unsigned char c){ return std::tolower(c); }
+                  ); // convert to lowercase
+
     return parseLogLevel(levelStr);
 }
 
