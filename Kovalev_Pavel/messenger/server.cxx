@@ -18,13 +18,44 @@ std::atomic<bool> serverRunning{true};
 
 // Логирование
 std::vector<std::string> logEvents;
-std::vector<bool> clientMonitoring(MAX_CLIENTS, false);  // статус мониторинга для каждого клиента
-enum LogLevel { INFO, WARN };
-std::string logLevelNames[2] = {"INFO", "WARN"};
+enum LogLevel { OFF, INFO, WARN };
+std::string logLevelNames[] = {"OFF", "INFO", "WARN"};
+std::vector<int> clientLogLevel(MAX_CLIENTS, OFF);  // статус мониторинга для каждого клиента
+
+LogLevel parseLogLevel(const std::string& levelStr) {
+    if (levelStr == "off") return OFF;
+    if (levelStr == "info") return INFO;
+    if (levelStr == "warn") return WARN;
+    return OFF;  // по умолчанию
+}
 
 void send_to_client(std::string line, int this_client_fd) {
     if (this_client_fd >= 0) {
         send(this_client_fd, line.c_str(), line.size(), 0);
+    }
+}
+
+std::string getSystemTimeFull() {
+    time_t now = time(nullptr);
+    struct tm timeinfo{};
+    localtime_r(&now, &timeinfo);
+    char buffer[100];
+    strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &timeinfo);
+    return std::string(buffer);
+}
+
+void logEvent(LogLevel level, const std::string& msg) {
+    std::string fullMsg = "[" + std::string(logLevelNames[level]) + "] " + getSystemTimeFull() + " " + msg;
+    logEvents.push_back(fullMsg);
+    std::cout << fullMsg << std::endl;
+    
+    // рассылаем только клиентам с включённым мониторингом
+    for (int k = 0; k < MAX_CLIENTS; ++k) {
+        // std::cout << "k" << k << " clientLogLevel " << clientLogLevel[k] << " level " << level << std::endl; //dbg
+        if (client_fd[k] >= 0 && level >= clientLogLevel[k]) {
+            std::string toSend = fullMsg + "\n";
+            send_to_client(toSend, client_fd[k]);
+        }
     }
 }
 
@@ -40,25 +71,37 @@ bool handle_client_command(std::string msg, int client_index) {
         std::string toSend = "Всего клиентов: " + std::to_string(count) + "\n";
         send_to_client(toSend, this_client_fd);
     }
-    else if (msg == "/logs on") {
-        // enable logging for client
-        clientMonitoring[client_index] = true;
-        std::string toSend = "Логи включены\n";
+    else if (msg.substr(0, 5) == "/logs") {
+        // выбор уровня логирования для клиента
+
+        LogLevel newLevel = INFO; // default level
+        if (msg.substr(0, 6) == "/logs ") {
+            std::string levelStr = msg.substr(6);
+            newLevel = parseLogLevel(levelStr);
+        }
+
+        clientLogLevel[client_index] = newLevel;
+        std::string levelName = logLevelNames[newLevel];
+        std::string toSend = "Отображение логов: " + levelName + "\n";
         send_to_client(toSend, this_client_fd);
     }
-    else if (msg == "/logs off") {
-        // disable logging for client
-        clientMonitoring[client_index] = false;
-        std::string toSend = "Логи выключены\n";
-        send_to_client(toSend, this_client_fd);
-    }
-    else if (msg == "/logshistory") {
-        // send history to client
-        std::string history = "=== LOG HISTORY ===\n";
+    else if (msg.substr(0, 12) == "/logshistory") {
+        // отображение истории
+
+        LogLevel filterLevel = INFO;
+        if (msg.size() > 12 && msg[12] == ' ') {
+            filterLevel = parseLogLevel(msg.substr(13));
+        }
+        std::string history = "=== LOG HISTORY (level >= " + logLevelNames[filterLevel] + ") ===\n";
         for (const auto& log : logEvents) {
+            // TODO: парсинг уровня из строки лога
+            // для простоты пока все показываем
             history += log + "\n";
         }
         send_to_client(history, this_client_fd);
+    }
+    else if (msg == "/p") {
+        logEvent(WARN, "Пышки закончились.");
     }
     else {
         send_to_client("Unknown command\n", this_client_fd);
@@ -86,29 +129,6 @@ void handle_chat_message(std::string msg, const int client_index) {
     std::string toSend = "Client " + std::to_string(client_index) + ": " + msg + "\n";
     for (int k = 0; k < MAX_CLIENTS; ++k) {
         send_to_client(toSend, client_fd[k]);
-    }
-}
-
-std::string getSystemTimeFull() {
-    time_t now = time(nullptr);
-    struct tm timeinfo{};
-    localtime_r(&now, &timeinfo);
-    char buffer[100];
-    strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &timeinfo);
-    return std::string(buffer);
-}
-
-void logEvent(LogLevel level, const std::string& msg) {
-    std::string fullMsg = "[" + std::string(logLevelNames[level]) + "] " + getSystemTimeFull() + " " + msg;
-    logEvents.push_back(fullMsg);
-    std::cout << fullMsg << std::endl;
-    
-    // рассылаем только клиентам с включённым мониторингом
-    for (int k = 0; k < MAX_CLIENTS; ++k) {
-        if (client_fd[k] >= 0 && clientMonitoring[k]) {
-            std::string toSend = fullMsg + "\n";
-            send_to_client(toSend, client_fd[k]);
-        }
     }
 }
 

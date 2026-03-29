@@ -40,7 +40,7 @@ bool handle_command(std::string line) {
     else if (line == "/users") {
         return 1; // send command to server
     }
-    return 1; 
+    return 1; // send unknown commands
 }
 
 void send_loop(int sock) {
