@@ -56,6 +56,9 @@ bool handle_client_command(std::string msg, int client_index) {
         }
         send_to_client(history, this_client_fd);
     }
+    else {
+        send_to_client("Unknown command\n", this_client_fd);
+    }
     return 0;
 }
 
@@ -157,6 +160,7 @@ int main() {
     fd_set readfds;
 
     while (true) {
+        // логирование. TODO: вынести в отдельную ветку.
         static int monitorCounter = 0;
         monitorCounter++;
         if (monitorCounter >= 10) {  // каждые 10 итераций. TODO: 10 секунд.
