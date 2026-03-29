@@ -51,7 +51,6 @@ void logEvent(LogLevel level, const std::string& msg) {
     
     // рассылаем только клиентам с включённым мониторингом
     for (int k = 0; k < MAX_CLIENTS; ++k) {
-        // std::cout << "k" << k << " clientLogLevel " << clientLogLevel[k] << " level " << level << std::endl; //dbg
         if (client_fd[k] >= 0 && level >= clientLogLevel[k]) {
             std::string toSend = fullMsg + "\n";
             send_to_client(toSend, client_fd[k]);
@@ -71,11 +70,11 @@ bool handle_client_command(std::string msg, int client_index) {
         std::string toSend = "Всего клиентов: " + std::to_string(count) + "\n";
         send_to_client(toSend, this_client_fd);
     }
-    else if (msg.substr(0, 5) == "/logs") {
+    else if (msg.substr(0, 6) == "/logs ") {
         // выбор уровня логирования для клиента
 
         LogLevel newLevel = INFO; // default level
-        if (msg.substr(0, 6) == "/logs ") {
+        if (msg.size() > 7) {
             std::string levelStr = msg.substr(6);
             newLevel = parseLogLevel(levelStr);
         }
