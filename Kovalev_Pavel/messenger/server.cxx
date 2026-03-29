@@ -8,9 +8,13 @@
 #include <iomanip>
 #include <ctime>
 #include <limits>
+#include <thread>
+#include <atomic>
+#include <chrono>
 
 const int MAX_CLIENTS = 10;
 static int client_fd[MAX_CLIENTS];
+std::atomic<bool> serverRunning{true};
 
 // Логирование
 std::vector<std::string> logEvents;
@@ -121,6 +125,15 @@ int getRAMUsagePercent() {
     return (used * 100) / total;
 }
 
+void monitoring_loop() {
+    while (serverRunning) {
+        int ram = getRAMUsagePercent();
+        logEvent(INFO, "Monitor: RAM " + std::to_string(ram) + "% CPU N/A");
+        
+        std::this_thread::sleep_for(std::chrono::seconds(10));
+    }
+}
+
 int main() {
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) {
@@ -150,6 +163,10 @@ int main() {
     std::cout << "Server is listening on port 8080...\n";
     logEvent(INFO, "Server started");
 
+    // ветка мониторинга и логирования
+    std::thread monitorThread(monitoring_loop);
+    monitorThread.detach();
+
     // массив клиентов и буфер текущего сообщения для каждого
     std::string clientBuffer[MAX_CLIENTS];
     for (int i = 0; i < MAX_CLIENTS; ++i) {
@@ -160,15 +177,6 @@ int main() {
     fd_set readfds;
 
     while (true) {
-        // логирование. TODO: вынести в отдельную ветку.
-        static int monitorCounter = 0;
-        monitorCounter++;
-        if (monitorCounter >= 10) {  // каждые 10 итераций. TODO: 10 секунд.
-            int ram = getRAMUsagePercent();
-            logEvent(INFO, "Monitor: RAM " + std::to_string(ram) + "% CPU N/A");
-            monitorCounter = 0;
-        }
-
         FD_ZERO(&readfds);
         FD_SET(server_fd, &readfds);
         FD_SET(STDIN_FILENO, &readfds);
@@ -187,6 +195,7 @@ int main() {
         int activity = select(max_fd + 1, &readfds, nullptr, nullptr, nullptr);
         if (activity < 0) {
             perror("select");
+            serverRunning = false;
             break;
         }
         
@@ -196,10 +205,12 @@ int main() {
             if (read(STDIN_FILENO, &c, 1) > 0) {
                 // if (c == 'q') {  // 'q' + Enter
                 //     std::cout << "Сервер завершается...\n";
+                //     serverRunning = false;
                 //     break;
                 // }
             } else {
                 std::cout << "Сервер завершается (Ctrl+D)...\n";
+                serverRunning = false;
                 break;
             }
         }
@@ -260,10 +271,15 @@ int main() {
         }
     }
 
-    // закрываем всё
+    // закрываем сокеты
     for (int i = 0; i < MAX_CLIENTS; ++i) {
         if (client_fd[i] >= 0) close(client_fd[i]);
     }
     close(server_fd);
+
+    // закрываем ветки
+    serverRunning = false;
+    monitorThread.join();  // дожидаемся завершения потока
+
     return 0;
 }
