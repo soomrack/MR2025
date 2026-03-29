@@ -12,6 +12,7 @@
 #include <atomic>
 #include <chrono>
 #include <algorithm>
+#include <cmath>
 
 const int MAX_CLIENTS = 10;
 static int client_fd[MAX_CLIENTS];
@@ -162,10 +163,24 @@ int getRAMUsagePercent() {
     return (used * 100) / total;
 }
 
+float getCPUTemp() {
+    std::ifstream file("/sys/class/thermal/thermal_zone0/temp");
+    if (!file.is_open()) return 0; // Not available
+
+    long temp;
+    file >> temp;
+    float celsius = temp / 1000.0;
+
+    // std::ostringstream oss;
+    // oss << celsius << " C";
+    return celsius;
+}
+
 void monitoring_loop() {
     while (serverRunning) {
         int ram = getRAMUsagePercent();
-        logEvent(INFO, "Monitor: RAM " + std::to_string(ram) + "% CPU N/A");
+        int cpu = std::round(getCPUTemp());
+        logEvent(INFO, "Monitor: RAM " + std::to_string(ram) + "% CPU temp " + std::to_string(cpu) + " °C");
         
         std::this_thread::sleep_for(std::chrono::seconds(10));
     }
