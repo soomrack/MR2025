@@ -58,6 +58,17 @@ void logEvent(LogLevel level, const std::string& msg) {
     }
 }
 
+LogLevel parseLogHistoryLevelFromString(const std::string& logLine) {
+    size_t start = logLine.find('[');
+    if (start == std::string::npos) return OFF;
+    
+    size_t end = logLine.find(']', start + 1);
+    if (end == std::string::npos) return OFF;
+    
+    std::string levelStr = logLine.substr(start + 1, end - start - 1);
+    return parseLogLevel(levelStr);
+}
+
 bool handle_client_command(std::string msg, int client_index) {
     int this_client_fd = client_fd[client_index];
 
@@ -91,16 +102,18 @@ bool handle_client_command(std::string msg, int client_index) {
         if (msg.size() > 12 && msg[12] == ' ') {
             filterLevel = parseLogLevel(msg.substr(13));
         }
+        
         std::string history = "=== LOG HISTORY (level >= " + logLevelNames[filterLevel] + ") ===\n";
         for (const auto& log : logEvents) {
-            // TODO: парсинг уровня из строки лога
-            // для простоты пока все показываем
-            history += log + "\n";
+            LogLevel logLevel = parseLogHistoryLevelFromString(log);
+            if (logLevel >= filterLevel) {
+                history += log + "\n";
+            }
         }
         send_to_client(history, this_client_fd);
     }
     else if (msg == "/p") {
-        logEvent(WARN, "Пышки закончились.");
+        logEvent(WARN, "Пышки закончились");
     }
     else {
         send_to_client("Unknown command\n", this_client_fd);
