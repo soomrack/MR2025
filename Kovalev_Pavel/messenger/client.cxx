@@ -31,15 +31,16 @@ bool handle_command(std::string line) {
             "/users — количество пользователей\n" <<
             ""
             ;
+        return 0;
     }
     else if (line == "/disconnect") {
         state="stop";
-        return 0;
+        return 0; // do not send command to server
     }
     else if (line == "/users") {
         return 1; // send command to server
     }
-    return 0; // do not send command to server
+    return 1; 
 }
 
 void send_loop(int sock) {

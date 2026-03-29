@@ -6,8 +6,13 @@
 #include <sys/select.h>
 
 const int MAX_CLIENTS = 10;
-
 static int client_fd[MAX_CLIENTS];
+
+// Логирование
+std::vector<std::string> logEvents;
+std::vector<bool> clientMonitoring(MAX_CLIENTS, false);  // статус мониторинга для каждого клиента
+enum LogLevel { INFO, WARN };
+std::string logLevelNames[2] = {"INFO", "WARN"};
 
 void send_to_client(std::string line, int this_client_fd) {
     if (this_client_fd >= 0) {
@@ -24,6 +29,18 @@ bool handle_client_command(std::string msg, int this_client_fd) {
 
         std::string toSend = "Всего клиентов: " + std::to_string(count) + "\n";
         send_to_client(toSend, this_client_fd);
+    }
+    else if (msg == "/logs on") {
+        // enable logging for client
+        // TODO 
+    }
+    else if (msg == "/logs off") {
+        // disable logging for client
+        // TODO 
+    }
+    else if (msg == "/logshistory") {
+        // send history to client
+        // TODO 
     }
     return 0;
 }
@@ -46,6 +63,45 @@ void handle_chat_message(std::string msg, const int client_index) {
     for (int k = 0; k < MAX_CLIENTS; ++k) {
         send_to_client(toSend, client_fd[k]);
     }
+}
+
+void logEvent(LogLevel level, const std::string& msg) {
+    std::string fullMsg = "[" + std::string(logLevelNames[level]) + "] " + getSystemTimeFull() + " " + msg;
+    logEvents.push_back(fullMsg);  // сохраняем в вектор
+    
+    std::cout << fullMsg << std::endl;
+    
+    // рассылаем, если мониторинг включён
+    if (monitoringEnabled) {
+        std::string toSend = fullMsg + "\n";
+        for (int k = 0; k < MAX_CLIENTS; ++k) {
+            if (client_fd[k] >= 0) {
+                send(client_fd[k], toSend.c_str(), toSend.size(), 0);
+            }
+        }
+    }
+}
+
+std::string getSystemTimeFull() {
+    time_t now = time(nullptr);
+    struct tm timeinfo{};
+    localtime_r(&now, &timeinfo);
+    char buffer[100];
+    strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &timeinfo);
+    return std::string(buffer);
+}
+
+int getRAMUsagePercent() {
+    std::ifstream file("/proc/meminfo");
+    std::string key;
+    long total = 0, available = 0;
+    while (file >> key) {
+        if (key == "MemTotal:") file >> total;
+        else if (key == "MemAvailable:") { file >> available; break; }
+        file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+    long used = total - available;
+    return (used * 100) / total;
 }
 
 int main() {
@@ -75,6 +131,7 @@ int main() {
     }
 
     std::cout << "Server is listening on port 8080...\n";
+    logEvent(INFO, "Server started");
 
     // массив клиентов и буфер текущего сообщения для каждого
     std::string clientBuffer[MAX_CLIENTS];
@@ -85,6 +142,14 @@ int main() {
     fd_set readfds;
 
     while (true) {
+        static int monitorCounter = 0;
+        monitorCounter++;
+        if (monitorCounter >= 10) {  // каждые 10 итераций. TODO: 10 секунд.
+            int ram = getRAMUsagePercent();
+            logEvent(INFO, "Monitor: RAM " + std::to_string(ram) + "% CPU N/A");
+            monitorCounter = 0;
+        }
+
         FD_ZERO(&readfds);
         FD_SET(server_fd, &readfds);
         FD_SET(STDIN_FILENO, &readfds);
