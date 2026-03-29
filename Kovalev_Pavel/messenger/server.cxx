@@ -4,6 +4,10 @@
 #include <unistd.h>
 #include <vector>
 #include <sys/select.h>
+#include <fstream>
+#include <iomanip>
+#include <ctime>
+#include <limits>
 
 const int MAX_CLIENTS = 10;
 static int client_fd[MAX_CLIENTS];
@@ -20,7 +24,9 @@ void send_to_client(std::string line, int this_client_fd) {
     }
 }
 
-bool handle_client_command(std::string msg, int this_client_fd) {
+bool handle_client_command(std::string msg, int client_index) {
+    int this_client_fd = client_fd[client_index];
+
     if (msg == "/users") {
         int count = 0;
         for (int i=0; i<MAX_CLIENTS; i++) {
@@ -32,15 +38,23 @@ bool handle_client_command(std::string msg, int this_client_fd) {
     }
     else if (msg == "/logs on") {
         // enable logging for client
-        // TODO 
+        clientMonitoring[this_client_fd] = true;
+        std::string toSend = "Логи включены\n";
+        send_to_client(toSend, this_client_fd);
     }
     else if (msg == "/logs off") {
         // disable logging for client
-        // TODO 
+        clientMonitoring[this_client_fd] = false;
+        std::string toSend = "Логи выключены\n";
+        send_to_client(toSend, this_client_fd);
     }
     else if (msg == "/logshistory") {
         // send history to client
-        // TODO 
+        std::string history = "=== LOG HISTORY ===\n";
+        for (const auto& log : logEvents) {
+            history += log + "\n";
+        }
+        send_to_client(history, this_client_fd);
     }
     return 0;
 }
@@ -50,10 +64,13 @@ void handle_chat_message(std::string msg, const int client_index) {
     while (msg_cropped.back() == '/') {
         msg_cropped.pop_back();
     } 
-
+    while (!msg_cropped.empty() && msg_cropped.back() == ' ') {  // убираем пробелы по краям
+        msg_cropped.pop_back();
+    }
+    
     if (size(msg_cropped)>0 && msg_cropped.at(0) == '/') {
         // команда с клиента
-        if ( !handle_client_command(msg_cropped, client_fd[client_index]) ) return; // skip sending only if returned 0
+        if ( !handle_client_command(msg_cropped, client_index) ) return; // skip sending to other clients only if returned 0
     }
 
     std::cout << "Client " << client_index << ": " << msg << std::endl;
@@ -65,23 +82,6 @@ void handle_chat_message(std::string msg, const int client_index) {
     }
 }
 
-void logEvent(LogLevel level, const std::string& msg) {
-    std::string fullMsg = "[" + std::string(logLevelNames[level]) + "] " + getSystemTimeFull() + " " + msg;
-    logEvents.push_back(fullMsg);  // сохраняем в вектор
-    
-    std::cout << fullMsg << std::endl;
-    
-    // рассылаем, если мониторинг включён
-    if (monitoringEnabled) {
-        std::string toSend = fullMsg + "\n";
-        for (int k = 0; k < MAX_CLIENTS; ++k) {
-            if (client_fd[k] >= 0) {
-                send(client_fd[k], toSend.c_str(), toSend.size(), 0);
-            }
-        }
-    }
-}
-
 std::string getSystemTimeFull() {
     time_t now = time(nullptr);
     struct tm timeinfo{};
@@ -89,6 +89,20 @@ std::string getSystemTimeFull() {
     char buffer[100];
     strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &timeinfo);
     return std::string(buffer);
+}
+
+void logEvent(LogLevel level, const std::string& msg) {
+    std::string fullMsg = "[" + std::string(logLevelNames[level]) + "] " + getSystemTimeFull() + " " + msg;
+    logEvents.push_back(fullMsg);
+    std::cout << fullMsg << std::endl;
+    
+    // рассылаем только клиентам с включённым мониторингом
+    for (int k = 0; k < MAX_CLIENTS; ++k) {
+        if (client_fd[k] >= 0 && clientMonitoring[k]) {
+            std::string toSend = fullMsg + "\n";
+            send_to_client(toSend, client_fd[k]);
+        }
+    }
 }
 
 int getRAMUsagePercent() {
@@ -137,6 +151,7 @@ int main() {
     std::string clientBuffer[MAX_CLIENTS];
     for (int i = 0; i < MAX_CLIENTS; ++i) {
         client_fd[i] = -1;
+        clientBuffer[i].clear();
     }
 
     fd_set readfds;
