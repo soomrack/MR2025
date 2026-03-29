@@ -38,13 +38,13 @@ bool handle_client_command(std::string msg, int client_index) {
     }
     else if (msg == "/logs on") {
         // enable logging for client
-        clientMonitoring[this_client_fd] = true;
+        clientMonitoring[client_index] = true;
         std::string toSend = "Логи включены\n";
         send_to_client(toSend, this_client_fd);
     }
     else if (msg == "/logs off") {
         // disable logging for client
-        clientMonitoring[this_client_fd] = false;
+        clientMonitoring[client_index] = false;
         std::string toSend = "Логи выключены\n";
         send_to_client(toSend, this_client_fd);
     }
