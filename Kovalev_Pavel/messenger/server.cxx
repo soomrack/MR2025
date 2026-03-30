@@ -13,6 +13,12 @@
 #include <chrono>
 #include <algorithm>
 #include <cmath>
+#include <termios.h>  // для настройки serial
+#include <fcntl.h>    // для serial open
+
+// Глобальные переменные для Arduino
+int arduino_fd = -1;
+std::atomic<bool> arduino_connected{false};
 
 const int MAX_CLIENTS = 10;
 static int client_fd[MAX_CLIENTS];
@@ -73,6 +79,92 @@ LogLevel parseLogHistoryLevelFromString(const std::string& logLine) {
                   ); // convert to lowercase
 
     return parseLogLevel(levelStr);
+}
+
+void setupSerial(int fd) {
+    struct termios tty{};
+    if (tcgetattr(fd, &tty) != 0) return;
+    
+    cfmakeraw(&tty);
+    cfsetispeed(&tty, B9600);  // скорость Arduino
+    cfsetospeed(&tty, B9600);
+    
+    tty.c_cflag |= (CLOCAL | CREAD);
+    tty.c_cflag |= CS8;
+    
+    tcsetattr(fd, TCSANOW, &tty);
+}
+
+bool readLineArduino(int fd, std::string& line) {
+    line.clear();
+    char c;
+    
+    fd_set set;
+    struct timeval timeout{1, 0};  // 1 сек таймаут
+    
+    while (true) {
+        FD_ZERO(&set);
+        FD_SET(fd, &set);
+        
+        int rv = select(fd + 1, &set, nullptr, nullptr, &timeout);
+        if (rv == -1) return false;  // ошибка
+        if (rv == 0) return false;   // таймаут
+        
+        ssize_t res = read(fd, &c, 1);
+        if (res <= 0) {
+            if (errno == EIO || errno == ENODEV) {
+                return false;  // отключено
+            }
+            continue;
+        }
+        
+        if (c == '\n') return true;
+        line += c;
+    }
+}
+
+void arduino_loop() {
+    while (serverRunning) {
+        // Подключение
+        if (arduino_fd < 0) {
+            arduino_fd = open("/dev/ttyACM0", O_RDWR | O_NOCTTY | O_NONBLOCK);
+            if (arduino_fd < 0) {
+                // ожидаем подключения
+                std::this_thread::sleep_for(std::chrono::seconds(2));
+                continue;
+            }
+            
+            setupSerial(arduino_fd);
+            std::this_thread::sleep_for(std::chrono::seconds(2));  // стабилизация
+            arduino_connected = true;
+            logEvent(INFO, "Arduino подключён (/dev/ttyACM0)");
+            std::cout << "Arduino подключён\n";
+        }
+        
+        // Чтение строки
+        std::string arduino_data;
+        if (readLineArduino(arduino_fd, arduino_data)) {
+            if (!arduino_data.empty()) {
+                // Логируем данные от Arduino
+                std::string log_msg = "Arduino: " + arduino_data;
+                logEvent(INFO, log_msg);
+                std::cout << "[Arduino] " << arduino_data << std::endl;
+            }
+        } else {
+            // Отключено — переподключение
+            close(arduino_fd);
+            arduino_fd = -1;
+            arduino_connected = false;
+            logEvent(WARN, "Arduino отключён, переподключение...");
+            std::cout << "Arduino отключён\n";
+            std::this_thread::sleep_for(std::chrono::seconds(2));
+        }
+    }
+    
+    if (arduino_fd >= 0) {
+        close(arduino_fd);
+        arduino_fd = -1;
+    }
 }
 
 bool handle_client_command(std::string msg, int client_index) {
@@ -218,6 +310,10 @@ int main() {
     // ветка мониторинга и логирования
     std::thread monitorThread(monitoring_loop);
     monitorThread.detach();
+
+    // Arduino thread
+    std::thread arduinoThread(arduino_loop);
+    arduinoThread.detach();
 
     // массив клиентов и буфер текущего сообщения для каждого
     std::string clientBuffer[MAX_CLIENTS];
