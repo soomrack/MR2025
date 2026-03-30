@@ -101,10 +101,10 @@ bool readLineArduino(int fd, std::string& line) {
     line.clear();
     char c;
     
-    fd_set set;
-    struct timeval timeout{1, 0};  // 1 сек таймаут
-    
     while (true) {
+        fd_set set;
+        struct timeval timeout{0, 100000};  // таймаут 100мс
+        
         FD_ZERO(&set);
         FD_SET(fd, &set);
         
@@ -113,12 +113,7 @@ bool readLineArduino(int fd, std::string& line) {
         if (rv == 0) return false;   // таймаут
         
         ssize_t res = read(fd, &c, 1);
-        if (res <= 0) {
-            if (errno == EIO || errno == ENODEV) {
-                return false;  // отключено
-            }
-            continue;
-        }
+        if (res <= 0) return false;
         
         if (c == '\n') return true;
         line += c;
@@ -149,7 +144,7 @@ void arduino_loop() {
     constexpr int SILENCE_TIMEOUT_SEC = 5;
 
     while (serverRunning) {
-        std::cout << "here\n"; // dbg
+        // std::cout << "here\n"; // dbg
 
         // Подключение
         if (arduino_fd < 0) {
@@ -173,13 +168,25 @@ void arduino_loop() {
             logEvent(INFO, "Arduino подключён ("+ port +")");
             // std::cout << "Arduino подключён\n";
         }
+        // else {
+        //     // если подключено, проверка статуса
+        //     struct stat st;
+        //     if (fstat(arduino_fd, &st) != 0) {
+        //         close(arduino_fd);
+        //         arduino_fd = -1;
+        //         arduino_connected = false;
+        //         logEvent(WARN, "Недействительный Arduino FD");
+        //         std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        //         continue;
+        //     }
+        // }
         
         // Чтение строки
         std::string arduino_data;
         bool data_received = readLineArduino(arduino_fd, arduino_data);
         auto now = std::chrono::steady_clock::now();
         auto silence_duration = std::chrono::duration_cast<std::chrono::seconds>(now - last_data_time).count();
-        if (readLineArduino(arduino_fd, arduino_data)) {
+        if (data_received) {
             // Данные получены (даже если пустые)
             last_data_time = now; // обновляем время
             if (!arduino_data.empty()) {
