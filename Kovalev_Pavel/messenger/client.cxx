@@ -27,10 +27,13 @@ bool handle_command(std::string line) {
     if (line == "/help") {
         std::cout << 
             "Список доступных команд:\n" <<
+            "/help — отобразить справку\n" << 
             "/disconnect — отключиться\n" << 
             "/users — количество пользователей\n" <<
-            ""
-            ;
+            "/logs (off/info/warn) — отображение логов в режиме реального времени\n" <<
+            "/logshistory [info/warn] — отобразить логи\n" <<
+            "/p — сообщить, что пышки закончились\n" <<
+            "";
         return 0;
     }
     else if (line == "/disconnect") {
@@ -40,7 +43,7 @@ bool handle_command(std::string line) {
     else if (line == "/users") {
         return 1; // send command to server
     }
-    return 1; // send unknown commands
+    return 1; // send other commands
 }
 
 void send_loop(int sock) {
