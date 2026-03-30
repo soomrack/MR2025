@@ -15,6 +15,8 @@
 #include <cmath>
 #include <termios.h>  // для настройки serial
 #include <fcntl.h>    // для serial open
+#include <sys/stat.h>
+#include <sys/types.h>
 
 // Глобальные переменные для Arduino
 int arduino_fd = -1;
@@ -123,14 +125,39 @@ bool readLineArduino(int fd, std::string& line) {
     }
 }
 
+std::string findArduinoPort() {
+    // Возможные пути Arduino (по убыванию приоритета)
+    std::vector<std::string> candidates = {
+        "/dev/serial/by-id/usb-Arduino_*",
+        "/dev/ttyACM0",
+        "/dev/ttyACM1", 
+        "/dev/ttyUSB0",
+        "/dev/ttyUSB1"
+    };
+    
+    for (const auto& path : candidates) {
+        struct stat st;
+        if (stat(path.c_str(), &st) == 0) {
+            return path;
+        }
+    }
+    return "";  // не найдено
+}
+
 void arduino_loop() {
     while (serverRunning) {
         // Подключение
         if (arduino_fd < 0) {
-            arduino_fd = open("/dev/ttyACM0", O_RDWR | O_NOCTTY | O_NONBLOCK);
-            if (arduino_fd < 0) {
+            std::string port = findArduinoPort();
+            if (port.empty()) {
                 // ожидаем подключения
-                std::this_thread::sleep_for(std::chrono::seconds(2));
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+                continue;
+            }
+            arduino_fd = open(port.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK);
+            if (arduino_fd < 0) {
+                // не удалось подключиться
+                std::this_thread::sleep_for(std::chrono::seconds(1));
                 continue;
             }
             
