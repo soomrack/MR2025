@@ -144,8 +144,6 @@ void arduino_loop() {
     constexpr int SILENCE_TIMEOUT_SEC = 5;
 
     while (serverRunning) {
-        // std::cout << "here\n"; // dbg
-
         // Подключение
         if (arduino_fd < 0) {
             
@@ -168,18 +166,6 @@ void arduino_loop() {
             logEvent(INFO, "Arduino подключён ("+ port +")");
             // std::cout << "Arduino подключён\n";
         }
-        // else {
-        //     // если подключено, проверка статуса
-        //     struct stat st;
-        //     if (fstat(arduino_fd, &st) != 0) {
-        //         close(arduino_fd);
-        //         arduino_fd = -1;
-        //         arduino_connected = false;
-        //         logEvent(WARN, "Недействительный Arduino FD");
-        //         std::this_thread::sleep_for(std::chrono::milliseconds(200));
-        //         continue;
-        //     }
-        // }
         
         // Чтение строки
         std::string arduino_data;
@@ -204,7 +190,6 @@ void arduino_loop() {
             std::cout << "Arduino отключён, переподключение...\n";
             std::this_thread::sleep_for(std::chrono::seconds(2));
         }
-        // std::cout << silence_duration << std::endl; // dbg
     }
     
     if (arduino_fd >= 0) {
