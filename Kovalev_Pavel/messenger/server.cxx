@@ -145,9 +145,15 @@ std::string findArduinoPort() {
 }
 
 void arduino_loop() {
+    auto last_data_time = std::chrono::steady_clock::now(); // время последнего получения данных
+    constexpr int SILENCE_TIMEOUT_SEC = 5;
+
     while (serverRunning) {
+        std::cout << "here\n"; // dbg
+
         // Подключение
         if (arduino_fd < 0) {
+            
             std::string port = findArduinoPort();
             if (port.empty()) {
                 // ожидаем подключения
@@ -164,28 +170,34 @@ void arduino_loop() {
             setupSerial(arduino_fd);
             std::this_thread::sleep_for(std::chrono::seconds(2));  // стабилизация
             arduino_connected = true;
-            logEvent(INFO, "Arduino подключён (/dev/ttyACM0)");
-            std::cout << "Arduino подключён\n";
+            logEvent(INFO, "Arduino подключён ("+ port +")");
+            // std::cout << "Arduino подключён\n";
         }
         
         // Чтение строки
         std::string arduino_data;
+        bool data_received = readLineArduino(arduino_fd, arduino_data);
+        auto now = std::chrono::steady_clock::now();
+        auto silence_duration = std::chrono::duration_cast<std::chrono::seconds>(now - last_data_time).count();
         if (readLineArduino(arduino_fd, arduino_data)) {
+            // Данные получены (даже если пустые)
+            last_data_time = now; // обновляем время
             if (!arduino_data.empty()) {
                 // Логируем данные от Arduino
                 std::string log_msg = "Arduino: " + arduino_data;
                 logEvent(INFO, log_msg);
                 std::cout << "[Arduino] " << arduino_data << std::endl;
             }
-        } else {
-            // Отключено — переподключение
+        } else if (silence_duration >= SILENCE_TIMEOUT_SEC) {
+            // Отключено (таймаут) — переподключение
             close(arduino_fd);
             arduino_fd = -1;
             arduino_connected = false;
             logEvent(WARN, "Arduino отключён, переподключение...");
-            std::cout << "Arduino отключён\n";
+            std::cout << "Arduino отключён, переподключение...\n";
             std::this_thread::sleep_for(std::chrono::seconds(2));
         }
+        // std::cout << silence_duration << std::endl; // dbg
     }
     
     if (arduino_fd >= 0) {
