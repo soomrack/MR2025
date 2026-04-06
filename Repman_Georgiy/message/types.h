@@ -1,0 +1,20 @@
+#ifndef TYPES_H
+#define TYPES_H
+
+#define MAX_CLIENTS  10
+#define NAME_LEN     64
+
+typedef struct {
+    int  sock;
+    int  named;
+    int  color_index;
+    char name[NAME_LEN];
+} Client;
+
+typedef struct {
+    const char  *name;
+    const char  *description;
+    void       (*handler)(Client clients[], int idx, const char *args);
+} ServerCommand;
+
+#endif
