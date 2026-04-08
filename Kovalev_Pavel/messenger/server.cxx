@@ -26,6 +26,11 @@ const int MAX_CLIENTS = 10;
 static int client_fd[MAX_CLIENTS];
 std::atomic<bool> serverRunning{true};
 
+// индексы в Serial
+// const int ITERATION_INDEX = 0;
+const int SENSOR_0_INDEX = 0;
+const int SENSOR_1_INDEX = 1;
+
 // Логирование
 std::vector<std::string> logEvents;
 enum LogLevel { OFF, INFO, WARN };
@@ -53,6 +58,22 @@ std::string getSystemTimeFull() {
     strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &timeinfo);
     return std::string(buffer);
 }
+
+std::vector<std::string> split(std::string s, const std::string& delimiter) {
+    // https://stackoverflow.com/a/14266139
+    std::vector<std::string> tokens;
+    size_t pos = 0;
+    std::string token;
+    while ((pos = s.find(delimiter)) != std::string::npos) {
+        token = s.substr(0, pos);
+        tokens.push_back(token);
+        s.erase(0, pos + delimiter.length());
+    }
+    tokens.push_back(s);
+
+    return tokens;
+}
+
 
 void logEvent(LogLevel level, const std::string& msg) {
     std::string fullMsg = "[" + std::string(logLevelNames[level]) + "] " + getSystemTimeFull() + " " + msg;
@@ -139,6 +160,32 @@ std::string findArduinoPort() {
     return "";  // не найдено
 }
 
+void handle_arduino_data(std::string arduino_data) {
+    // Логируем данные от Arduino
+    std::string log_msg = "Arduino: " + arduino_data;
+    logEvent(INFO, log_msg);
+    std::cout << "[Arduino] " << arduino_data << std::endl;
+
+    // парсим
+    while (arduino_data.back() == '\n') {
+        arduino_data.pop_back();
+    }
+    while (!arduino_data.empty() && arduino_data.back() == ' ') {  // убираем пробелы по краям
+        arduino_data.pop_back();
+    }
+    
+    if (!arduino_data.empty() && arduino_data.at(0) == ' ') {
+        arduino_data.erase(0, 1);
+    }
+    std::vector arduino_data_pieces = split(arduino_data, ", ");
+
+    int sensor_0 = std::stoi(arduino_data_pieces[SENSOR_0_INDEX]);
+    int sensor_1 = std::stoi(arduino_data_pieces[SENSOR_1_INDEX]);
+    if (sensor_0 < 700 || sensor_1 < 700) {
+        logEvent(WARN, "Слишком близко!");
+    } 
+}
+
 void arduino_loop() {
     auto last_data_time = std::chrono::steady_clock::now(); // время последнего получения данных
     constexpr int SILENCE_TIMEOUT_SEC = 5;
@@ -176,10 +223,7 @@ void arduino_loop() {
             // Данные получены (даже если пустые)
             last_data_time = now; // обновляем время
             if (!arduino_data.empty()) {
-                // Логируем данные от Arduino
-                std::string log_msg = "Arduino: " + arduino_data;
-                logEvent(INFO, log_msg);
-                std::cout << "[Arduino] " << arduino_data << std::endl;
+                handle_arduino_data(arduino_data);
             }
         } else if (silence_duration >= SILENCE_TIMEOUT_SEC) {
             // Отключено (таймаут) — переподключение
