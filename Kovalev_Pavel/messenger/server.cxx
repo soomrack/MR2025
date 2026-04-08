@@ -13,10 +13,23 @@
 #include <chrono>
 #include <algorithm>
 #include <cmath>
+#include <termios.h>  // для настройки serial
+#include <fcntl.h>    // для serial open
+#include <sys/stat.h>
+#include <sys/types.h>
+
+// Глобальные переменные для Arduino
+int arduino_fd = -1;
+std::atomic<bool> arduino_connected{false};
 
 const int MAX_CLIENTS = 10;
 static int client_fd[MAX_CLIENTS];
 std::atomic<bool> serverRunning{true};
+
+// индексы в Serial
+// const int ITERATION_INDEX = 0;
+const int SENSOR_0_INDEX = 0;
+const int SENSOR_1_INDEX = 1;
 
 // Логирование
 std::vector<std::string> logEvents;
@@ -46,6 +59,22 @@ std::string getSystemTimeFull() {
     return std::string(buffer);
 }
 
+std::vector<std::string> split(std::string s, const std::string& delimiter) {
+    // https://stackoverflow.com/a/14266139
+    std::vector<std::string> tokens;
+    size_t pos = 0;
+    std::string token;
+    while ((pos = s.find(delimiter)) != std::string::npos) {
+        token = s.substr(0, pos);
+        tokens.push_back(token);
+        s.erase(0, pos + delimiter.length());
+    }
+    tokens.push_back(s);
+
+    return tokens;
+}
+
+
 void logEvent(LogLevel level, const std::string& msg) {
     std::string fullMsg = "[" + std::string(logLevelNames[level]) + "] " + getSystemTimeFull() + " " + msg;
     logEvents.push_back(fullMsg);
@@ -73,6 +102,144 @@ LogLevel parseLogHistoryLevelFromString(const std::string& logLine) {
                   ); // convert to lowercase
 
     return parseLogLevel(levelStr);
+}
+
+void setupSerial(int fd) {
+    struct termios tty{};
+    if (tcgetattr(fd, &tty) != 0) return;
+    
+    cfmakeraw(&tty);
+    cfsetispeed(&tty, B9600);  // скорость Arduino
+    cfsetospeed(&tty, B9600);
+    
+    tty.c_cflag |= (CLOCAL | CREAD);
+    tty.c_cflag |= CS8;
+    
+    tcsetattr(fd, TCSANOW, &tty);
+}
+
+bool readLineArduino(int fd, std::string& line) {
+    line.clear();
+    char c;
+    
+    while (true) {
+        fd_set set;
+        struct timeval timeout{0, 100000};  // таймаут 100мс
+        
+        FD_ZERO(&set);
+        FD_SET(fd, &set);
+        
+        int rv = select(fd + 1, &set, nullptr, nullptr, &timeout);
+        if (rv == -1) return false;  // ошибка
+        if (rv == 0) return false;   // таймаут
+        
+        ssize_t res = read(fd, &c, 1);
+        if (res <= 0) return false;
+        
+        if (c == '\n') return true;
+        line += c;
+    }
+}
+
+std::string findArduinoPort() {
+    // Возможные пути Arduino (по убыванию приоритета)
+    std::vector<std::string> candidates = {
+        "/dev/serial/by-id/usb-Arduino_*",
+        "/dev/ttyACM0",
+        "/dev/ttyACM1", 
+        "/dev/ttyUSB0",
+        "/dev/ttyUSB1"
+    };
+    
+    for (const auto& path : candidates) {
+        struct stat st;
+        if (stat(path.c_str(), &st) == 0) {
+            return path;
+        }
+    }
+    return "";  // не найдено
+}
+
+void handle_arduino_data(std::string arduino_data) {
+    // Логируем данные от Arduino
+    std::string log_msg = "Arduino: " + arduino_data;
+    logEvent(INFO, log_msg);
+    std::cout << "[Arduino] " << arduino_data << std::endl;
+
+    // парсим
+    while (arduino_data.back() == '\n') {
+        arduino_data.pop_back();
+    }
+    while (!arduino_data.empty() && arduino_data.back() == ' ') {  // убираем пробелы по краям
+        arduino_data.pop_back();
+    }
+    
+    if (!arduino_data.empty() && arduino_data.at(0) == ' ') {
+        arduino_data.erase(0, 1);
+    }
+    std::vector arduino_data_pieces = split(arduino_data, ", ");
+
+    int sensor_0 = std::stoi(arduino_data_pieces[SENSOR_0_INDEX]);
+    int sensor_1 = std::stoi(arduino_data_pieces[SENSOR_1_INDEX]);
+    if (sensor_0 < 700 || sensor_1 < 700) {
+        logEvent(WARN, "Слишком близко!");
+    } 
+}
+
+void arduino_loop() {
+    auto last_data_time = std::chrono::steady_clock::now(); // время последнего получения данных
+    constexpr int SILENCE_TIMEOUT_SEC = 5;
+
+    while (serverRunning) {
+        // Подключение
+        if (arduino_fd < 0) {
+            
+            std::string port = findArduinoPort();
+            if (port.empty()) {
+                // ожидаем подключения
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+                continue;
+            }
+            arduino_fd = open(port.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK);
+            if (arduino_fd < 0) {
+                // не удалось подключиться
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+                continue;
+            }
+            
+            setupSerial(arduino_fd);
+            std::this_thread::sleep_for(std::chrono::seconds(2));  // стабилизация
+            arduino_connected = true;
+            logEvent(INFO, "Arduino подключён ("+ port +")");
+            // std::cout << "Arduino подключён\n";
+        }
+        
+        // Чтение строки
+        std::string arduino_data;
+        bool data_received = readLineArduino(arduino_fd, arduino_data);
+        auto now = std::chrono::steady_clock::now();
+        auto silence_duration = std::chrono::duration_cast<std::chrono::seconds>(now - last_data_time).count();
+        if (data_received) {
+            // Данные получены (даже если пустые)
+            last_data_time = now; // обновляем время
+            if (!arduino_data.empty()) {
+                handle_arduino_data(arduino_data);
+            }
+        } else if (silence_duration >= SILENCE_TIMEOUT_SEC) {
+            // Отключено (таймаут) — переподключение
+            close(arduino_fd);
+            arduino_fd = -1;
+            arduino_connected = false;
+            logEvent(WARN, "Arduino отключён, переподключение...");
+            std::cout << "Arduino отключён, переподключение...\n";
+            std::this_thread::sleep_for(std::chrono::seconds(2));
+        }
+    }
+    
+    if (arduino_fd >= 0) {
+        close(arduino_fd);
+        arduino_fd = -1;
+    }
 }
 
 bool handle_client_command(std::string msg, int client_index) {
@@ -218,6 +385,10 @@ int main() {
     // ветка мониторинга и логирования
     std::thread monitorThread(monitoring_loop);
     monitorThread.detach();
+
+    // Arduino thread
+    std::thread arduinoThread(arduino_loop);
+    arduinoThread.detach();
 
     // массив клиентов и буфер текущего сообщения для каждого
     std::string clientBuffer[MAX_CLIENTS];

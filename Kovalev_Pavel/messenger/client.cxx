@@ -4,7 +4,8 @@
 #include <thread>
 #include <unistd.h>
 
-const char * server_adress = "127.0.0.1";
+// const char * server_adress = "127.0.0.1";
+const char * server_adress = "192.168.105.115";
 
 std::string state;
 
