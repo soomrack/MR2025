@@ -1,0 +1,50 @@
+#include "DHT.h"
+#define TEMP_HUMID_PIN 2
+#define SOIL_MOISTURE_PIN 3
+#define LIGHT_PIN 4
+
+DHT dht(TEMP_HUMID_PIN, DHT11);
+
+int temperature;
+int humidity;
+int soil_moisture;
+int light;
+
+int incomingByte = 0;
+
+void setup() {
+  Serial.begin(9600);
+  dht.begin();
+}
+
+void readSensors(){
+  temperature = dht.readTemperature();
+  humidity = dht.readHumidity();
+  soil_moisture = analogRead(SOIL_MOISTURE_PIN);
+  light = analogRead(LIGHT_PIN);
+}
+
+void convertData(){
+  soil_moisture = map(soil_moisture, 0, 1023, 0, 100);
+  light = map(light, 0, 1023, 0, 800);
+}
+
+void send_readings(){
+  if (isnan(temperature) || isnan(humidity)) {
+    Serial.println("Sensor read error!"); 
+    return; 
+  }
+  String data = String(temperature) +" "+ String(humidity) +" "+ String(light) +" "+ String(soil_moisture);
+  Serial.println(data);
+}
+
+void loop() {
+  if (Serial.available() > 0) { 
+        incomingByte = Serial.read();
+        if (incomingByte == '1'){
+          readSensors();
+          convertData();
+          send_readings();
+        }
+    }
+}
