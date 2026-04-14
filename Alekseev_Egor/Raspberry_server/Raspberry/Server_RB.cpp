@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <random>
+#include <mutex>
 
 const unsigned short SERVER_PORT = 8080;
 const std::string LOG_FILE = "sensor_data.log";
@@ -62,8 +63,8 @@ struct SensorData {
            << temperature << " " << humidity << " " 
            << soil_moisture << " " << light;
         return ss.str();
-    }
-    
+    }    
+
     std::string toFormattedString() const {
         std::stringstream ss;
         ss << "Temperature: " << std::fixed << std::setprecision(1) 
@@ -96,11 +97,11 @@ struct SensorData {
     
     std::string toDangerCsvString() const {
         std::stringstream ss;
-        auto time_t = std::chrono::system_clock::to_time_t(timestamp);
-        ss << std::put_time(std::localtime(&time_t), "%Y-%m-%d %H:%M:%S");
+        auto time_t_value = std::chrono::system_clock::to_time_t(timestamp);
+        ss << std::put_time(std::localtime(&time_t_value), "%Y-%m-%d %H:%M:%S");
         ss << "," << std::fixed << std::setprecision(1)
-           << temperature << "," << humidity << "," 
-           << soil_moisture << "," << light << ",";
+        << temperature << "," << humidity << "," 
+        << soil_moisture << "," << light << ",";
         
         for (size_t i = 0; i < danger_reasons.size(); ++i) {
             if (i > 0) ss << "; ";
@@ -183,46 +184,38 @@ private:
     std::deque<std::string> log_cache;
     std::deque<std::string> danger_log_cache;
     NormalRanges normal_ranges;
+    mutable std::mutex log_mutex;
     
     void logData() {
         while (logging_active) {
             std::this_thread::sleep_for(logging_interval);
             
             if (!logging_active) break;
-
+            
             SensorData data = dataProvider();
-
             data.checkDangerous(normal_ranges);
-
+            
+            std::lock_guard<std::mutex> guard(log_mutex);
+            
             if (logFile.is_open()) {
                 std::string log_entry = data.toCsvString();
                 logFile << log_entry << std::endl;
                 logFile.flush();
- 
+                
                 log_cache.push_back(log_entry);
                 if (log_cache.size() > MAX_LOG_ENTRIES) {
                     log_cache.pop_front();
                 }
-                
-                std::cout << "[Logger]: Data logged at " 
-                          << std::put_time(std::localtime(&std::chrono::system_clock::to_time_t(data.timestamp)), 
-                                         "%Y-%m-%d %H:%M:%S")
-                          << " - " << data.toFormattedString() << std::endl;
             }
-
+            
             if (data.is_dangerous && dangerLogFile.is_open()) {
                 std::string danger_entry = data.toDangerCsvString();
                 dangerLogFile << danger_entry << std::endl;
                 dangerLogFile.flush();
-
+                
                 danger_log_cache.push_back(danger_entry);
                 if (danger_log_cache.size() > MAX_LOG_ENTRIES) {
                     danger_log_cache.pop_front();
-                }
-                
-                std::cout << "[Logger]: DANGER! Hazardous conditions detected!" << std::endl;
-                for (const auto& reason : data.danger_reasons) {
-                    std::cout << "  - " << reason << std::endl;
                 }
             }
         }
@@ -231,7 +224,7 @@ private:
 public:
     DataLogger(std::function<SensorData()> provider, std::chrono::seconds interval = std::chrono::seconds(5))
         : dataProvider(provider), logging_interval(interval) {
-
+        
         logFile.open(LOG_FILE, std::ios::out | std::ios::app);
         if (!logFile.is_open()) {
             std::cerr << "[Logger]: Failed to open log file: " << LOG_FILE << std::endl;
@@ -242,25 +235,19 @@ public:
             }
             std::cout << "[Logger]: Log file opened: " << LOG_FILE << std::endl;
         }
-
+        
         dangerLogFile.open(DANGER_LOG_FILE, std::ios::out | std::ios::app);
         if (!dangerLogFile.is_open()) {
             std::cerr << "[Logger]: Failed to open danger log file: " << DANGER_LOG_FILE << std::endl;
         } else {
             dangerLogFile.seekp(0, std::ios::end);
             if (dangerLogFile.tellp() == 0) {
-                dangerLogFile << "Timestamp,Temperature,Humidity,Soil_Moisture,Light,Danger_Reasons" << std::endl;
+                dangerLogFile << "Timestamp,Temperature,Humidity,Soil_Moisture,Light" << std::endl;
             }
             std::cout << "[Logger]: Danger log file opened: " << DANGER_LOG_FILE << std::endl;
         }
- 
+
         loadLastEntries();
-        
-        std::cout << "[Logger]: Normal ranges configured:" << std::endl;
-        std::cout << "  Temperature: " << normal_ranges.temp_min << "°C - " << normal_ranges.temp_max << "°C" << std::endl;
-        std::cout << "  Humidity: " << normal_ranges.humidity_min << "% - " << normal_ranges.humidity_max << "%" << std::endl;
-        std::cout << "  Soil Moisture: " << normal_ranges.soil_moisture_min << "% - " << normal_ranges.soil_moisture_max << "%" << std::endl;
-        std::cout << "  Light: " << normal_ranges.light_min << " lux - " << normal_ranges.light_max << " lux" << std::endl;
 
         logging_thread = std::thread(&DataLogger::logData, this);
     }
@@ -303,7 +290,6 @@ public:
                 log_cache.push_back(all_lines[i]);
             }
             
-            std::cout << "[Logger]: Loaded " << log_cache.size() << " entries from log file" << std::endl;
         }
 
         std::ifstream dangerFile(DANGER_LOG_FILE);
@@ -323,8 +309,6 @@ public:
             for (size_t i = start; i < all_lines.size(); ++i) {
                 danger_log_cache.push_back(all_lines[i]);
             }
-            
-            std::cout << "[Logger]: Loaded " << danger_log_cache.size() << " entries from danger log file" << std::endl;
         }
     }
     
@@ -384,40 +368,33 @@ public:
         size_t start = danger_log_cache.size() - num_entries;
         
         ss << "Last " << num_entries << " dangerous events:\n";
-        ss << "--------------------------------------------------------------------------------------------------------\n";
+        ss << "----------------------------------------------------------------------------------------------------\n";
         ss << std::left << std::setw(20) << "Timestamp" 
            << std::setw(12) << "Temp(°C)" 
            << std::setw(12) << "Hum(%)" 
            << std::setw(15) << "Soil(%)" 
-           << std::setw(10) << "Light(lux)"
-           << std::setw(40) << "Danger Reasons" << "\n";
-        ss << "--------------------------------------------------------------------------------------------------------\n";
+           << std::setw(10) << "Light(lux)" << "\n";
+        ss << "----------------------------------------------------------------------------------------------------\n";
         
         for (size_t i = start; i < danger_log_cache.size(); ++i) {
             std::string entry = danger_log_cache[i];
             std::stringstream entry_ss(entry);
-            std::string timestamp, temp, hum, soil, light, reasons;
+            std::string timestamp, temp, hum, soil, light;
             
             std::getline(entry_ss, timestamp, ',');
             std::getline(entry_ss, temp, ',');
             std::getline(entry_ss, hum, ',');
             std::getline(entry_ss, soil, ',');
             std::getline(entry_ss, light, ',');
-            std::getline(entry_ss, reasons);
-            
-            if (reasons.length() > 38) {
-                reasons = reasons.substr(0, 35) + "...";
-            }
             
             ss << std::left << std::setw(20) << timestamp
                << std::setw(12) << temp
                << std::setw(12) << hum
                << std::setw(15) << soil
-               << std::setw(10) << light
-               << std::setw(40) << reasons << "\n";
+               << std::setw(10) << light << "\n";
         }
         
-        ss << "--------------------------------------------------------------------------------------------------------\n";
+        ss << "----------------------------------------------------------------------------------------------------\n";
         ss << "Total dangerous events: " << danger_log_cache.size() << "\n";
         
         return ss.str();
@@ -534,27 +511,14 @@ private:
 
 public:
     CommandHandler(MockSensorData* sensor, DataLogger* dataLogger) : mockSensor(sensor), logger(dataLogger) {        
-        registerCommand("GET_DATA", "Get sensor data ", CommandType::SERVER,
+        registerCommand("GET_DATA", "Get sensor data (formatted)", CommandType::SERVER,
             [this](int sock, const std::string& cmd) -> bool {
                 SensorData sensorData = mockSensor->getSensorData();
                 sensorData.checkDangerous(logger->getNormalRanges());
-                std::string response = sensorData.toString();
-                if (sensorData.is_dangerous) {
-                    response += " [DANGER]";
-                }
+                std::string response = sensorData.toFormattedString();  // Изменено с toString() на toFormattedString()
                 sendResponse(sock, response);
                 std::cout << "[Command]: GET_DATA - Sent new sensor data to client: " 
-                          << sensorData.toFormattedString() << std::endl;
-                return true;
-            });
-        
-        registerCommand("GET_FORMATTED_DATA", "Get formatted sensor data (generates new random data)", CommandType::SERVER,
-            [this](int sock, const std::string& cmd) -> bool {
-                SensorData sensorData = mockSensor->getSensorData();
-                sensorData.checkDangerous(logger->getNormalRanges());
-                std::string response = sensorData.toFormattedString();
-                sendResponse(sock, response);
-                std::cout << "[Command]: GET_FORMATTED_DATA - Sent formatted data to client" << std::endl;
+                        << sensorData.toFormattedString() << std::endl;
                 return true;
             });
         
@@ -621,6 +585,14 @@ public:
                 std::cout << "[Command]: QUIT - Client disconnected" << std::endl;
                 return false;
             });
+
+        registerCommand("SHUTDOWN", "Shutdown the server gracefully", CommandType::SERVER,
+            [this](int sock, const std::string& cmd) -> bool {
+                sendResponse(sock, "OK: Server is shutting down...");
+                std::cout << "[Command]: SHUTDOWN - Server shutdown requested by admin" << std::endl;
+                server_running = false;  
+                return false;  
+            });
     }
     
     void registerCommand(const std::string& command, const std::string& description, 
@@ -674,7 +646,7 @@ private:
     }
     
     std::string receiveFromClient() {
-        char buffer[4096];
+        char buffer[8192];
         memset(buffer, 0, sizeof(buffer));
         
         ssize_t received_bytes = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
@@ -806,18 +778,12 @@ void close_socket(int server_socket, int client_socket) {
 int main() {
     signal(SIGINT, signal_handler);
     
-    std::cout << "Starting server with mock sensor data and automatic logging...\n" << std::endl;
+    std::cout << "Starting server...\n" << std::endl;
     
     MockSensorData mockSensor;
     
-    DataLogger logger([&mockSensor]() { return mockSensor.getCurrentSensorData(); }, 
-                      std::chrono::seconds(5));
-    
-    SensorData initialData = mockSensor.getCurrentSensorData();
-    initialData.checkDangerous(logger.getNormalRanges());
-    std::cout << "[System]: Initial sensor data: " << initialData.toFormattedString() << std::endl;
-    std::cout << "[System]: Automatic logging started...\n" << std::endl;
-
+    DataLogger logger([&mockSensor]() { return mockSensor.getSensorData(); }, 
+                    std::chrono::seconds(5));
     CommandHandler cmdHandler(&mockSensor, &logger);
     
     int server_socket = create_socket();
@@ -837,9 +803,30 @@ int main() {
     }
     
     std::cout << "[System]: Server listening on port " << SERVER_PORT << std::endl;
-    std::cout << "[System]: Waiting for client connections...\n" << std::endl;
+    std::cout << "\n[System]: Waiting for client connections...\n" << std::endl;
     
     while (server_running) {
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(server_socket, &readfds);
+        
+        struct timeval timeout;
+        timeout.tv_sec = 1;
+        timeout.tv_usec = 0;
+        
+        int activity = select(server_socket + 1, &readfds, NULL, NULL, &timeout);
+        
+        if (activity < 0) {
+            if (errno != EINTR) {
+                std::cerr << "[Error]: Select failed" << std::endl;
+            }
+            continue;
+        }
+        
+        if (activity == 0) {
+            continue;
+        }
+        
         int client_socket = accept_connection(server_socket);
         
         if (client_socket == -1) {
@@ -864,9 +851,10 @@ int main() {
         }
     }
     
+    std::cout << "\n[System]: Initiating graceful shutdown..." << std::endl;
     logger.stop();
     close_socket(server_socket, -1);
-    std::cout << "\n[System]: Server stopped" << std::endl;
+    std::cout << "[System]: Server stopped" << std::endl;
     
     return 0;
 }

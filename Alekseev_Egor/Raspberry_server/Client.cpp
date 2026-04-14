@@ -16,7 +16,7 @@
 #pragma comment(lib, "Ws2_32.lib")  
 
 const unsigned short SERVER_PORT = 8080;
-const std::string SERVER_ADDRESS = "192.168.0.1";
+const std::string SERVER_ADDRESS = "192.168.1.56";
 
 class CommandHandler {
 private:
@@ -24,6 +24,8 @@ private:
     std::map<std::string, std::string> commandDescriptions;
     std::set<std::string> terminateCommands;  
     mutable std::mutex cout_mutex;
+    std::string current_input;
+    bool streaming_mode = false;
 
 public:
     enum class CommandType {
@@ -42,6 +44,16 @@ public:
                 send(sock, cmd.c_str(), cmd.length(), 0);
                 return false;
             });
+
+        registerCommand("SHUTDOWN", "Exit and stop server", CommandType::TERMINATE,
+            [this](SOCKET sock, const std::string& cmd) -> bool {
+                {
+                    std::lock_guard<std::mutex> lock(this->cout_mutex);
+                    std::cout << "\nExiting and stopping server..." << std::endl;
+                }
+                send(sock, cmd.c_str(), cmd.length(), 0);
+                return false;
+            });
         
         registerCommand("HELP", "Show available commands", CommandType::LOCAL,
             [this](SOCKET, const std::string&) -> bool {
@@ -50,50 +62,76 @@ public:
                 for (const auto& cmd : commandDescriptions) {
                     std::cout << "  " << cmd.first << " - " << cmd.second << std::endl;
                 }
-                std::cout << "==========================\n" << std::endl;
+                std::cout << "==========================" << std::endl;
                 return true;  
-            });
-        
-        registerCommand("CLEAR", "Clear screen", CommandType::LOCAL,
-            [this](SOCKET, const std::string&) -> bool {
-                system("cls");
-                {
-                    std::lock_guard<std::mutex> lock(this->cout_mutex);
-                    std::cout << "Screen cleared. Enter HELP for commands.\n" << std::endl;
-                }
-                return true;
             });
         
         registerCommand("GET_DATA", "Get sensor's data", CommandType::SERVER,
             [this](SOCKET sock, const std::string& cmd) -> bool {
-
                 send(sock, cmd.c_str(), cmd.length(), 0);
                 {
                     std::lock_guard<std::mutex> lock(this->cout_mutex);
-                    std::cout << "[System]: Requesting sensor data..." << std::endl;
+                    std::cout << "\n[System]: Requesting sensor data..." << std::endl;
                 }
                 return true;
             });
-
-        registerCommand("GET_DATA_PERIODICALLY", "Get sensor's data every 10 seconds", CommandType::SERVER,
-            [this](SOCKET sock, const std::string& cmd) -> bool {
+        
+        registerCommand("START_STREAM", "Start streaming sensor data every 2 seconds", CommandType::SERVER,
+            [this](int sock, const std::string& cmd) -> bool {
                 send(sock, cmd.c_str(), cmd.length(), 0);
                 {
                     std::lock_guard<std::mutex> lock(this->cout_mutex);
-                    std::cout << "[System]: Starting periodic data sending (every 10 seconds)..." << std::endl;
+                    streaming_mode = true;
+                    std::cout << "\n[System]: Starting streaming data..." << std::endl;
                 }
                 return true;
             });
-
-        registerCommand("STOP_SENDING_PERIODICALLY", "Stop sending data every 10 seconds", CommandType::SERVER,
-            [this](SOCKET sock, const std::string& cmd) -> bool {
+        
+        registerCommand("STOP_STREAM", "Stop streaming sensor data", CommandType::SERVER,
+            [this](int sock, const std::string& cmd) -> bool {
                 send(sock, cmd.c_str(), cmd.length(), 0);
                 {
                     std::lock_guard<std::mutex> lock(this->cout_mutex);
-                    std::cout << "[System]: Stopping periodic data sending..." << std::endl;
+                    streaming_mode = false;
+                    std::cout << "\n[System]: Stopping streaming data..." << std::endl;
                 }
                 return true;
             });
+        
+        registerCommand("GET_LOG", "Get last 120 log entries from sensor data history", CommandType::SERVER,
+            [this](int sock, const std::string& cmd) -> bool {
+                send(sock, cmd.c_str(), cmd.length(), 0);
+                {
+                    std::lock_guard<std::mutex> lock(this->cout_mutex);
+                    std::cout << "\n[System]: Getting log data..." << std::endl;
+                }
+                return true;
+            });
+        
+        registerCommand("GET_DANGER_LOG", "Get last 120 dangerous events from sensor data history", CommandType::SERVER,
+            [this](int sock, const std::string& cmd) -> bool {
+                send(sock, cmd.c_str(), cmd.length(), 0);
+                {
+                    std::lock_guard<std::mutex> lock(this->cout_mutex);
+                    std::cout << "\n[System]: Getting danger log data..." << std::endl;
+                }
+                return true;
+            });
+    }
+    
+    void setCurrentInput(const std::string& input) {
+        std::lock_guard<std::mutex> lock(cout_mutex);
+        current_input = input;
+    }
+    
+    std::string getCurrentInput() const {
+        std::lock_guard<std::mutex> lock(cout_mutex);
+        return current_input;
+    }
+    
+    bool isStreamingMode() const {
+        std::lock_guard<std::mutex> lock(cout_mutex);
+        return streaming_mode;
     }
     
     void registerCommand(const std::string& command, const std::string& description, 
@@ -125,7 +163,6 @@ public:
         {
             std::lock_guard<std::mutex> lock(cout_mutex);
             std::cout << "\n[System]: Command not found. Enter HELP to see available commands." << std::endl;
-            std::cout << "> ";
         }
         return false;
     }
@@ -147,10 +184,18 @@ public:
 
     void safePrint(const std::string& message, bool newline = true) {
         std::lock_guard<std::mutex> lock(cout_mutex);
+
+        std::cout << "\r\033[K";
+
         if (newline)
             std::cout << message << std::endl;
         else
-            std::cout << message << std::flush;
+            std::cout << message;
+    }
+    
+    void showPrompt() {
+        std::lock_guard<std::mutex> lock(cout_mutex);
+        std::cout << "> " << current_input << std::flush;
     }
 };
 
@@ -207,7 +252,7 @@ bool connect_to_server(SOCKET client_socket, sockaddr_in server){
 
 void receive_messages(SOCKET client_socket, std::atomic<bool>& running, 
                      CommandHandler& cmdHandler) {
-    char buffer[4096];
+    char buffer[65536];
     
     while (running) {
         memset(buffer, 0, sizeof(buffer));
@@ -217,20 +262,25 @@ void receive_messages(SOCKET client_socket, std::atomic<bool>& running,
             buffer[received_bytes] = '\0';
             std::string message(buffer);
             
+            while (!message.empty() && (message.back() == '\n' || message.back() == '\r')) {
+                message.pop_back();
+            }
+            
             if (cmdHandler.isTerminateCommand(message)) {
                 cmdHandler.safePrint("\n[Server]: " + message);
                 cmdHandler.safePrint("\nServer disconnected. Press any key to exit...");
                 running = false;
                 break;
             }
-
-            cmdHandler.safePrint("\r\033[K", false);
-            cmdHandler.safePrint("[Server]: " + message);
-            cmdHandler.safePrint("> ", false);
+            
+            cmdHandler.safePrint(message, true);
+            
+            if (running) {
+                cmdHandler.showPrompt();
+            }
         } 
         else if (received_bytes == 0) {
             cmdHandler.safePrint("\n[System]: Server disconnected");
-            cmdHandler.safePrint("\nPress any key to exit...");
             running = false;
             break;
         }
@@ -250,17 +300,16 @@ void send_messages(SOCKET client_socket, std::atomic<bool>& running,
     std::string message;
     bool shouldExit = false;
     
-    cmdHandler.safePrint("\n=== Chat started ===");
+    cmdHandler.safePrint("=== Chat started ===");
     cmdHandler.safePrint("Enter HELP for available commands");
-    cmdHandler.safePrint("> ", false);
+    cmdHandler.showPrompt();
     
     while (running && !shouldExit) {
         if (_kbhit()) {
             char ch = _getch();
-            
-            // Обработка Enter
-            if (ch == '\r') {
-                std::cout << std::endl;  // Переход на новую строку
+
+            if (ch == '\r') { // Enter
+                std::cout << std::endl;  
                 
                 if (!message.empty()) {
                     bool commandHandled = cmdHandler.handleCommand(client_socket, message, shouldExit);
@@ -279,28 +328,30 @@ void send_messages(SOCKET client_socket, std::atomic<bool>& running,
                     }
                     
                     message.clear();
+                    cmdHandler.setCurrentInput("");
                 }
                 
                 if (running) {
-                    cmdHandler.safePrint("> ", false);
+                    cmdHandler.showPrompt();
                 }
             }
-            else if (ch == '\b') {
+            else if (ch == '\b') { // Backspace
                 if (!message.empty()) {
                     message.pop_back();
-                    std::cout << "\b \b"; 
+                    std::cout << "\b \b";
+                    cmdHandler.setCurrentInput(message);
                 }
             }
-            else if (ch == 27) { // ESC 
+            else if (ch == 27) { // ESC key
                 std::cout << std::endl;
                 cmdHandler.handleCommand(client_socket, "QUIT", shouldExit);
                 running = false;
                 break;
             }
-
-            else {
+            else if (ch >= 32 && ch <= 126) { 
                 message += ch;
                 std::cout << ch;
+                cmdHandler.setCurrentInput(message);
             }
         }
         else {
