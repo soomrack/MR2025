@@ -17,6 +17,7 @@
 #include <fcntl.h>    // для serial open
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <mutex>
 
 // Глобальные переменные для Arduino
 int arduino_fd = -1;
@@ -32,7 +33,8 @@ const int SENSOR_0_INDEX = 0;
 const int SENSOR_1_INDEX = 1;
 
 // Логирование
-std::vector<std::string> logEvents;
+std::mutex logMutex;
+const std::string LOG_FILE = "server.log";
 enum LogLevel { OFF, INFO, WARN };
 std::string logLevelNames[] = {"OFF", "INFO", "WARN"};
 std::vector<int> clientLogLevel(MAX_CLIENTS, OFF);  // статус мониторинга для каждого клиента
@@ -76,8 +78,17 @@ std::vector<std::string> split(std::string s, const std::string& delimiter) {
 
 
 void logEvent(LogLevel level, const std::string& msg) {
+    std::lock_guard<std::mutex> lock(logMutex);
+
     std::string fullMsg = "[" + std::string(logLevelNames[level]) + "] " + getSystemTimeFull() + " " + msg;
-    logEvents.push_back(fullMsg);
+    
+    // запись в файл
+    std::ofstream file(LOG_FILE, std::ios::app);
+    if (file.is_open()) {
+        file << fullMsg << std::endl;
+    }
+
+    // вывод в консоль
     std::cout << fullMsg << std::endl;
     
     // рассылаем только клиентам с включённым мониторингом
@@ -277,12 +288,23 @@ bool handle_client_command(std::string msg, int client_index) {
         }
         
         std::string history = "=== LOG HISTORY (level >= " + logLevelNames[filterLevel] + ") ===\n";
-        for (const auto& log : logEvents) {
-            LogLevel logLevel = parseLogHistoryLevelFromString(log);
-            if (logLevel >= filterLevel) {
-                history += log + "\n";
+
+        // Чтение из файла
+        std::ifstream file(LOG_FILE);
+        if (file.is_open()) {
+            std::string line;
+            while (std::getline(file, line)) {
+                if (!line.empty()) {
+                    LogLevel logLevel = parseLogHistoryLevelFromString(line);
+                    if (logLevel >= filterLevel) {
+                        history += line + "\n";
+                    }
+                }
             }
+        } else {
+            history += "Файл логов не найден\n";
         }
+        
         send_to_client(history, this_client_fd);
     }
     else if (msg == "/p") {
