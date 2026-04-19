@@ -68,11 +68,11 @@ void send_loop(int sock) {
     state="stop";
 }
 
-int main() {
+int connect_and_get_socket() {
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
         perror("socket");
-        return 1;
+        return -1;
     }
 
     sockaddr_in server{};
@@ -83,8 +83,15 @@ int main() {
 
     if (connect(sock, (sockaddr*)&server, sizeof(server)) < 0) {
         perror("connect");
-        return 1;
+        return -1;
     }
+
+    return sock;
+}
+
+int main() {
+    int sock = connect_and_get_socket();
+    if (sock < 0) return 1;
 
     state = "active";
 
