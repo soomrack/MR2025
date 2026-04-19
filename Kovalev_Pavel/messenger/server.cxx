@@ -197,6 +197,28 @@ void handle_arduino_data(std::string arduino_data) {
     } 
 }
 
+bool connect_to_arduino() {
+    std::string port = findArduinoPort();
+    if (port.empty()) {
+        // ожидаем подключения
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        return 1;
+    }
+    arduino_fd = open(port.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK);
+    if (arduino_fd < 0) {
+        // не удалось подключиться
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        return 1;
+    }
+
+    setupSerial(arduino_fd);
+    std::this_thread::sleep_for(std::chrono::seconds(2));  // стабилизация
+    arduino_connected = true;
+    logEvent(INFO, "Arduino подключён ("+ port +")");
+    // std::cout << "Arduino подключён\n";
+    return 0;
+}
+
 void arduino_loop() {
     auto last_data_time = std::chrono::steady_clock::now(); // время последнего получения данных
     constexpr int SILENCE_TIMEOUT_SEC = 5;
@@ -204,25 +226,7 @@ void arduino_loop() {
     while (serverRunning) {
         // Подключение
         if (arduino_fd < 0) {
-            
-            std::string port = findArduinoPort();
-            if (port.empty()) {
-                // ожидаем подключения
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-                continue;
-            }
-            arduino_fd = open(port.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK);
-            if (arduino_fd < 0) {
-                // не удалось подключиться
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-                continue;
-            }
-            
-            setupSerial(arduino_fd);
-            std::this_thread::sleep_for(std::chrono::seconds(2));  // стабилизация
-            arduino_connected = true;
-            logEvent(INFO, "Arduino подключён ("+ port +")");
-            // std::cout << "Arduino подключён\n";
+            if (connect_to_arduino()) continue;
         }
         
         // Чтение строки
