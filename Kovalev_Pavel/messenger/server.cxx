@@ -444,6 +444,77 @@ bool set_fds(fd_set* p_readfds, int server_fd) {
     return 0;
 }
 
+bool close_server_on_input(fd_set* p_readfds) {
+    // Завершение работы по Ctrl+D
+    if (FD_ISSET(STDIN_FILENO, p_readfds)) {
+        char c;
+        if (read(STDIN_FILENO, &c, 1) > 0) {
+            // if (c == 'q') {  // 'q' + Enter
+            //     std::cout << "Сервер завершается...\n";
+            //     serverRunning = false;
+            //     break;
+            // }
+        } else {
+            std::cout << "Сервер завершается (Ctrl+D)...\n";
+            serverRunning = false;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+void connect_new_client(fd_set* p_readfds, int server_fd, std::string clientBuffer[MAX_CLIENTS]) {
+    // новое подключение
+    if (FD_ISSET(server_fd, p_readfds)) {
+        int new_fd = accept(server_fd, nullptr, nullptr);
+        if (new_fd < 0) {
+            perror("accept");
+        } else {
+            bool added = false;
+            for (int i = 0; i < MAX_CLIENTS; ++i) {
+                if (client_fd[i] < 0) {
+                    client_fd[i] = new_fd;
+                    clientBuffer[i].clear();
+                    std::cout << "New client connected, slot " << i << ", fd=" << new_fd << "\n";
+                    added = true;
+                    break;
+                }
+            }
+            if (!added) {
+                std::cout << "Too many clients, rejecting connection\n";
+                close(new_fd);
+            }
+        }
+    }
+}
+
+void fetch_client_data(const int client_index, int* fd, std::string clientBuffer[MAX_CLIENTS]) {
+    const int i = client_index;
+    char buffer[1024];
+    ssize_t bytes = recv(*fd, buffer, sizeof(buffer), 0);
+    if (bytes <= 0) {
+        if (bytes < 0) perror("recv");
+        std::cout << "Client " << i << " disconnected\n";
+        close(*fd);
+        client_fd[i] = -1;
+        clientBuffer[i].clear();
+        return;
+    }
+
+    // накапливаем и разбиваем по '\n'
+    for (ssize_t j = 0; j < bytes; ++j) {
+        char c = buffer[j];
+        if (c == '\n') {
+            std::string msg = clientBuffer[i];
+            clientBuffer[i].clear();
+
+            handle_chat_message(msg, i);
+        } else {
+            clientBuffer[i].push_back(c);
+        }
+    }
+}
+
 int main() {
     int server_fd = bind_socket();
     if (server_fd < 0) return 1;
@@ -462,75 +533,17 @@ int main() {
     while (true) {
         if (set_fds(&readfds, server_fd)) break;
         
-        // Завершение работы по Ctrl+D
-        if (FD_ISSET(STDIN_FILENO, &readfds)) {
-            char c;
-            if (read(STDIN_FILENO, &c, 1) > 0) {
-                // if (c == 'q') {  // 'q' + Enter
-                //     std::cout << "Сервер завершается...\n";
-                //     serverRunning = false;
-                //     break;
-                // }
-            } else {
-                std::cout << "Сервер завершается (Ctrl+D)...\n";
-                serverRunning = false;
-                break;
-            }
-        }
+        if (close_server_on_input(&readfds)) break;
 
-        // новое подключение
-        if (FD_ISSET(server_fd, &readfds)) {
-            int new_fd = accept(server_fd, nullptr, nullptr);
-            if (new_fd < 0) {
-                perror("accept");
-            } else {
-                bool added = false;
-                for (int i = 0; i < MAX_CLIENTS; ++i) {
-                    if (client_fd[i] < 0) {
-                        client_fd[i] = new_fd;
-                        clientBuffer[i].clear();
-                        std::cout << "New client connected, slot " << i << ", fd=" << new_fd << "\n";
-                        added = true;
-                        break;
-                    }
-                }
-                if (!added) {
-                    std::cout << "Too many clients, rejecting connection\n";
-                    close(new_fd);
-                }
-            }
-        }
+        connect_new_client(&readfds, server_fd, clientBuffer);
 
         // данные от клиентов
         for (int i = 0; i < MAX_CLIENTS; ++i) {
             int fd = client_fd[i];
             if (fd < 0) continue;
-
-            if (FD_ISSET(fd, &readfds)) {
-                char buffer[1024];
-                ssize_t bytes = recv(fd, buffer, sizeof(buffer), 0);
-                if (bytes <= 0) {
-                    if (bytes < 0) perror("recv");
-                    std::cout << "Client " << i << " disconnected\n";
-                    close(fd);
-                    client_fd[i] = -1;
-                    clientBuffer[i].clear();
-                    continue;
-                }
-
-                // накапливаем и разбиваем по '\n'
-                for (ssize_t j = 0; j < bytes; ++j) {
-                    char c = buffer[j];
-                    if (c == '\n') {
-                        std::string msg = clientBuffer[i];
-                        clientBuffer[i].clear();
-
-                        handle_chat_message(msg, i);
-                    } else {
-                        clientBuffer[i].push_back(c);
-                    }
-                }
-            }
+            if (!FD_ISSET(fd, &readfds)) continue;
+            
+            fetch_client_data(i, &fd, clientBuffer);
         }
     }
 
