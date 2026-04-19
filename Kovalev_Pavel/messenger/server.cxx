@@ -197,6 +197,28 @@ void handle_arduino_data(std::string arduino_data) {
     } 
 }
 
+bool connect_to_arduino() {
+    std::string port = findArduinoPort();
+    if (port.empty()) {
+        // ожидаем подключения
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        return 1;
+    }
+    arduino_fd = open(port.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK);
+    if (arduino_fd < 0) {
+        // не удалось подключиться
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        return 1;
+    }
+
+    setupSerial(arduino_fd);
+    std::this_thread::sleep_for(std::chrono::seconds(2));  // стабилизация
+    arduino_connected = true;
+    logEvent(INFO, "Arduino подключён ("+ port +")");
+    // std::cout << "Arduino подключён\n";
+    return 0;
+}
+
 void arduino_loop() {
     auto last_data_time = std::chrono::steady_clock::now(); // время последнего получения данных
     constexpr int SILENCE_TIMEOUT_SEC = 5;
@@ -204,25 +226,7 @@ void arduino_loop() {
     while (serverRunning) {
         // Подключение
         if (arduino_fd < 0) {
-            
-            std::string port = findArduinoPort();
-            if (port.empty()) {
-                // ожидаем подключения
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-                continue;
-            }
-            arduino_fd = open(port.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK);
-            if (arduino_fd < 0) {
-                // не удалось подключиться
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-                continue;
-            }
-            
-            setupSerial(arduino_fd);
-            std::this_thread::sleep_for(std::chrono::seconds(2));  // стабилизация
-            arduino_connected = true;
-            logEvent(INFO, "Arduino подключён ("+ port +")");
-            // std::cout << "Arduino подключён\n";
+            if (connect_to_arduino()) continue;
         }
         
         // Чтение строки
@@ -253,59 +257,71 @@ void arduino_loop() {
     }
 }
 
-bool handle_client_command(std::string msg, int client_index) {
-    int this_client_fd = client_fd[client_index];
-
-    if (msg == "/users") {
-        int count = 0;
-        for (int i=0; i<MAX_CLIENTS; i++) {
-            if (client_fd[i]>=0) count++;
-        }
-
-        std::string toSend = "Всего клиентов: " + std::to_string(count) + "\n";
-        send_to_client(toSend, this_client_fd);
+void command_users(const int this_client_fd) {
+    int count = 0;
+    for (int i=0; i<MAX_CLIENTS; i++) {
+        if (client_fd[i]>=0) count++;
     }
-    else if (msg.substr(0, 6) == "/logs ") {
-        // выбор уровня логирования для клиента
 
-        LogLevel newLevel = INFO; // default level
-        if (msg.size() > 7) {
-            std::string levelStr = msg.substr(6);
-            newLevel = parseLogLevel(levelStr);
-        }
+    std::string toSend = "Всего клиентов: " + std::to_string(count) + "\n";
+    send_to_client(toSend, this_client_fd);
+}
 
-        clientLogLevel[client_index] = newLevel;
-        std::string levelName = logLevelNames[newLevel];
-        std::string toSend = "Отображение логов: " + levelName + "\n";
-        send_to_client(toSend, this_client_fd);
+void command_logs(const std::string msg, const int client_index, const int this_client_fd) {
+    // выбор уровня логирования для клиента
+
+    LogLevel newLevel = INFO; // default level
+    if (msg.size() > 7) {
+        std::string levelStr = msg.substr(6);
+        newLevel = parseLogLevel(levelStr);
     }
-    else if (msg.substr(0, 12) == "/logshistory") {
-        // отображение истории
 
-        LogLevel filterLevel = INFO;
-        if (msg.size() > 12 && msg[12] == ' ') {
-            filterLevel = parseLogLevel(msg.substr(13));
-        }
-        
-        std::string history = "=== LOG HISTORY (level >= " + logLevelNames[filterLevel] + ") ===\n";
+    clientLogLevel[client_index] = newLevel;
+    std::string levelName = logLevelNames[newLevel];
+    std::string toSend = "Отображение логов: " + levelName + "\n";
+    send_to_client(toSend, this_client_fd);
+}
 
-        // Чтение из файла
-        std::ifstream file(LOG_FILE);
-        if (file.is_open()) {
-            std::string line;
-            while (std::getline(file, line)) {
-                if (!line.empty()) {
-                    LogLevel logLevel = parseLogHistoryLevelFromString(line);
-                    if (logLevel >= filterLevel) {
-                        history += line + "\n";
-                    }
+void command_logshistory(const std::string msg, const int this_client_fd) {
+    // отображение истории
+
+    LogLevel filterLevel = INFO;
+    if (msg.size() > 12 && msg[12] == ' ') {
+        filterLevel = parseLogLevel(msg.substr(13));
+    }
+    
+    std::string history = "=== LOG HISTORY (level >= " + logLevelNames[filterLevel] + ") ===\n";
+
+    // Чтение из файла
+    std::ifstream file(LOG_FILE);
+    if (file.is_open()) {
+        std::string line;
+        while (std::getline(file, line)) {
+            if (!line.empty()) {
+                LogLevel logLevel = parseLogHistoryLevelFromString(line);
+                if (logLevel >= filterLevel) {
+                    history += line + "\n";
                 }
             }
-        } else {
-            history += "Файл логов не найден\n";
         }
-        
-        send_to_client(history, this_client_fd);
+    } else {
+        history += "Файл логов не найден\n";
+    }
+    
+    send_to_client(history, this_client_fd);
+}
+
+bool handle_client_command(const std::string msg, const int client_index) {
+    const int this_client_fd = client_fd[client_index];
+
+    if (msg == "/users") {
+        command_users(this_client_fd);
+    }
+    else if (msg.substr(0, 6) == "/logs ") {
+        command_logs(msg, client_index, this_client_fd);
+    }
+    else if (msg.substr(0, 12) == "/logshistory") {
+        command_logshistory(msg, this_client_fd);
     }
     else if (msg == "/p") {
         logEvent(WARN, "Пышки закончились");
@@ -375,11 +391,11 @@ void monitoring_loop() {
     }
 }
 
-int main() {
+int bind_socket() {
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) {
         perror("socket");
-        return 1;
+        return -1;
     }
 
     // чтобы быстро перезапускать сервер
@@ -393,17 +409,21 @@ int main() {
 
     if (bind(server_fd, (sockaddr*)&address, sizeof(address)) < 0) {
         perror("bind");
-        return 1;
+        return -1;
     }
 
     if (listen(server_fd, MAX_CLIENTS) < 0) {
         perror("listen");
-        return 1;
+        return -1;
     }
 
     std::cout << "Server is listening on port 8080...\n";
     logEvent(INFO, "Server started");
+    
+    return server_fd;
+}
 
+void create_threads() {
     // ветка мониторинга и логирования
     std::thread monitorThread(monitoring_loop);
     monitorThread.detach();
@@ -411,7 +431,112 @@ int main() {
     // Arduino thread
     std::thread arduinoThread(arduino_loop);
     arduinoThread.detach();
+}
 
+bool set_fds(fd_set* p_readfds, int server_fd) {
+    // p_ stands for pointer
+    // returns 1 for error
+    FD_ZERO(p_readfds);
+    FD_SET(server_fd, p_readfds);
+    FD_SET(STDIN_FILENO, p_readfds);
+    int max_fd = server_fd;
+    if (STDIN_FILENO > max_fd) max_fd = STDIN_FILENO;
+
+    // добавить клиентов в набор
+    for (int i = 0; i < MAX_CLIENTS; ++i) {
+        int fd = client_fd[i];
+        if (fd >= 0) {
+            FD_SET(fd, p_readfds);
+            if (fd > max_fd) max_fd = fd;
+        }
+    }
+
+    int activity = select(max_fd + 1, p_readfds, nullptr, nullptr, nullptr);
+    if (activity < 0) {
+        perror("select");
+        serverRunning = false;
+        return 1;
+    }
+    return 0;
+}
+
+bool close_server_on_input(fd_set* p_readfds) {
+    // Завершение работы по Ctrl+D
+    if (FD_ISSET(STDIN_FILENO, p_readfds)) {
+        char c;
+        if (read(STDIN_FILENO, &c, 1) > 0) {
+            // if (c == 'q') {  // 'q' + Enter
+            //     std::cout << "Сервер завершается...\n";
+            //     serverRunning = false;
+            //     break;
+            // }
+        } else {
+            std::cout << "Сервер завершается (Ctrl+D)...\n";
+            serverRunning = false;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+void connect_new_client(fd_set* p_readfds, int server_fd, std::string clientBuffer[MAX_CLIENTS]) {
+    // новое подключение
+    if (FD_ISSET(server_fd, p_readfds)) {
+        int new_fd = accept(server_fd, nullptr, nullptr);
+        if (new_fd < 0) {
+            perror("accept");
+        } else {
+            bool added = false;
+            for (int i = 0; i < MAX_CLIENTS; ++i) {
+                if (client_fd[i] < 0) {
+                    client_fd[i] = new_fd;
+                    clientBuffer[i].clear();
+                    std::cout << "New client connected, slot " << i << ", fd=" << new_fd << "\n";
+                    added = true;
+                    break;
+                }
+            }
+            if (!added) {
+                std::cout << "Too many clients, rejecting connection\n";
+                close(new_fd);
+            }
+        }
+    }
+}
+
+void fetch_client_data(const int client_index, int* fd, std::string clientBuffer[MAX_CLIENTS]) {
+    const int i = client_index;
+    char buffer[1024];
+    ssize_t bytes = recv(*fd, buffer, sizeof(buffer), 0);
+    if (bytes <= 0) {
+        if (bytes < 0) perror("recv");
+        std::cout << "Client " << i << " disconnected\n";
+        close(*fd);
+        client_fd[i] = -1;
+        clientBuffer[i].clear();
+        return;
+    }
+
+    // накапливаем и разбиваем по '\n'
+    for (ssize_t j = 0; j < bytes; ++j) {
+        char c = buffer[j];
+        if (c == '\n') {
+            std::string msg = clientBuffer[i];
+            clientBuffer[i].clear();
+
+            handle_chat_message(msg, i);
+        } else {
+            clientBuffer[i].push_back(c);
+        }
+    }
+}
+
+int main() {
+    int server_fd = bind_socket();
+    if (server_fd < 0) return 1;
+
+    create_threads();
+    
     // массив клиентов и буфер текущего сообщения для каждого
     std::string clientBuffer[MAX_CLIENTS];
     for (int i = 0; i < MAX_CLIENTS; ++i) {
@@ -422,97 +547,19 @@ int main() {
     fd_set readfds;
 
     while (true) {
-        FD_ZERO(&readfds);
-        FD_SET(server_fd, &readfds);
-        FD_SET(STDIN_FILENO, &readfds);
-        int max_fd = server_fd;
-        if (STDIN_FILENO > max_fd) max_fd = STDIN_FILENO;
-
-        // добавить клиентов в набор
-        for (int i = 0; i < MAX_CLIENTS; ++i) {
-            int fd = client_fd[i];
-            if (fd >= 0) {
-                FD_SET(fd, &readfds);
-                if (fd > max_fd) max_fd = fd;
-            }
-        }
-
-        int activity = select(max_fd + 1, &readfds, nullptr, nullptr, nullptr);
-        if (activity < 0) {
-            perror("select");
-            serverRunning = false;
-            break;
-        }
+        if (set_fds(&readfds, server_fd)) break;
         
-        // Завершение работы по Ctrl+D
-        if (FD_ISSET(STDIN_FILENO, &readfds)) {
-            char c;
-            if (read(STDIN_FILENO, &c, 1) > 0) {
-                // if (c == 'q') {  // 'q' + Enter
-                //     std::cout << "Сервер завершается...\n";
-                //     serverRunning = false;
-                //     break;
-                // }
-            } else {
-                std::cout << "Сервер завершается (Ctrl+D)...\n";
-                serverRunning = false;
-                break;
-            }
-        }
+        if (close_server_on_input(&readfds)) break;
 
-        // новое подключение
-        if (FD_ISSET(server_fd, &readfds)) {
-            int new_fd = accept(server_fd, nullptr, nullptr);
-            if (new_fd < 0) {
-                perror("accept");
-            } else {
-                bool added = false;
-                for (int i = 0; i < MAX_CLIENTS; ++i) {
-                    if (client_fd[i] < 0) {
-                        client_fd[i] = new_fd;
-                        clientBuffer[i].clear();
-                        std::cout << "New client connected, slot " << i << ", fd=" << new_fd << "\n";
-                        added = true;
-                        break;
-                    }
-                }
-                if (!added) {
-                    std::cout << "Too many clients, rejecting connection\n";
-                    close(new_fd);
-                }
-            }
-        }
+        connect_new_client(&readfds, server_fd, clientBuffer);
 
         // данные от клиентов
         for (int i = 0; i < MAX_CLIENTS; ++i) {
             int fd = client_fd[i];
             if (fd < 0) continue;
-
-            if (FD_ISSET(fd, &readfds)) {
-                char buffer[1024];
-                ssize_t bytes = recv(fd, buffer, sizeof(buffer), 0);
-                if (bytes <= 0) {
-                    if (bytes < 0) perror("recv");
-                    std::cout << "Client " << i << " disconnected\n";
-                    close(fd);
-                    client_fd[i] = -1;
-                    clientBuffer[i].clear();
-                    continue;
-                }
-
-                // накапливаем и разбиваем по '\n'
-                for (ssize_t j = 0; j < bytes; ++j) {
-                    char c = buffer[j];
-                    if (c == '\n') {
-                        std::string msg = clientBuffer[i];
-                        clientBuffer[i].clear();
-
-                        handle_chat_message(msg, i);
-                    } else {
-                        clientBuffer[i].push_back(c);
-                    }
-                }
-            }
+            if (!FD_ISSET(fd, &readfds)) continue;
+            
+            fetch_client_data(i, &fd, clientBuffer);
         }
     }
 
