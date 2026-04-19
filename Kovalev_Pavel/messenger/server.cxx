@@ -253,59 +253,71 @@ void arduino_loop() {
     }
 }
 
-bool handle_client_command(std::string msg, int client_index) {
-    int this_client_fd = client_fd[client_index];
-
-    if (msg == "/users") {
-        int count = 0;
-        for (int i=0; i<MAX_CLIENTS; i++) {
-            if (client_fd[i]>=0) count++;
-        }
-
-        std::string toSend = "Всего клиентов: " + std::to_string(count) + "\n";
-        send_to_client(toSend, this_client_fd);
+void command_users(const int this_client_fd) {
+    int count = 0;
+    for (int i=0; i<MAX_CLIENTS; i++) {
+        if (client_fd[i]>=0) count++;
     }
-    else if (msg.substr(0, 6) == "/logs ") {
-        // выбор уровня логирования для клиента
 
-        LogLevel newLevel = INFO; // default level
-        if (msg.size() > 7) {
-            std::string levelStr = msg.substr(6);
-            newLevel = parseLogLevel(levelStr);
-        }
+    std::string toSend = "Всего клиентов: " + std::to_string(count) + "\n";
+    send_to_client(toSend, this_client_fd);
+}
 
-        clientLogLevel[client_index] = newLevel;
-        std::string levelName = logLevelNames[newLevel];
-        std::string toSend = "Отображение логов: " + levelName + "\n";
-        send_to_client(toSend, this_client_fd);
+void command_logs(const std::string msg, const int client_index, const int this_client_fd) {
+    // выбор уровня логирования для клиента
+
+    LogLevel newLevel = INFO; // default level
+    if (msg.size() > 7) {
+        std::string levelStr = msg.substr(6);
+        newLevel = parseLogLevel(levelStr);
     }
-    else if (msg.substr(0, 12) == "/logshistory") {
-        // отображение истории
 
-        LogLevel filterLevel = INFO;
-        if (msg.size() > 12 && msg[12] == ' ') {
-            filterLevel = parseLogLevel(msg.substr(13));
-        }
-        
-        std::string history = "=== LOG HISTORY (level >= " + logLevelNames[filterLevel] + ") ===\n";
+    clientLogLevel[client_index] = newLevel;
+    std::string levelName = logLevelNames[newLevel];
+    std::string toSend = "Отображение логов: " + levelName + "\n";
+    send_to_client(toSend, this_client_fd);
+}
 
-        // Чтение из файла
-        std::ifstream file(LOG_FILE);
-        if (file.is_open()) {
-            std::string line;
-            while (std::getline(file, line)) {
-                if (!line.empty()) {
-                    LogLevel logLevel = parseLogHistoryLevelFromString(line);
-                    if (logLevel >= filterLevel) {
-                        history += line + "\n";
-                    }
+void command_logshistory(const std::string msg, const int this_client_fd) {
+    // отображение истории
+
+    LogLevel filterLevel = INFO;
+    if (msg.size() > 12 && msg[12] == ' ') {
+        filterLevel = parseLogLevel(msg.substr(13));
+    }
+    
+    std::string history = "=== LOG HISTORY (level >= " + logLevelNames[filterLevel] + ") ===\n";
+
+    // Чтение из файла
+    std::ifstream file(LOG_FILE);
+    if (file.is_open()) {
+        std::string line;
+        while (std::getline(file, line)) {
+            if (!line.empty()) {
+                LogLevel logLevel = parseLogHistoryLevelFromString(line);
+                if (logLevel >= filterLevel) {
+                    history += line + "\n";
                 }
             }
-        } else {
-            history += "Файл логов не найден\n";
         }
-        
-        send_to_client(history, this_client_fd);
+    } else {
+        history += "Файл логов не найден\n";
+    }
+    
+    send_to_client(history, this_client_fd);
+}
+
+bool handle_client_command(const std::string msg, const int client_index) {
+    const int this_client_fd = client_fd[client_index];
+
+    if (msg == "/users") {
+        command_users(this_client_fd);
+    }
+    else if (msg.substr(0, 6) == "/logs ") {
+        command_logs(msg, client_index, this_client_fd);
+    }
+    else if (msg.substr(0, 12) == "/logshistory") {
+        command_logshistory(msg, this_client_fd);
     }
     else if (msg == "/p") {
         logEvent(WARN, "Пышки закончились");
