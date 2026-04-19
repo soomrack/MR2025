@@ -375,11 +375,11 @@ void monitoring_loop() {
     }
 }
 
-int main() {
+int bind_socket() {
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) {
         perror("socket");
-        return 1;
+        return -1;
     }
 
     // чтобы быстро перезапускать сервер
@@ -393,17 +393,21 @@ int main() {
 
     if (bind(server_fd, (sockaddr*)&address, sizeof(address)) < 0) {
         perror("bind");
-        return 1;
+        return -1;
     }
 
     if (listen(server_fd, MAX_CLIENTS) < 0) {
         perror("listen");
-        return 1;
+        return -1;
     }
 
     std::cout << "Server is listening on port 8080...\n";
     logEvent(INFO, "Server started");
+    
+    return server_fd;
+}
 
+void create_threads() {
     // ветка мониторинга и логирования
     std::thread monitorThread(monitoring_loop);
     monitorThread.detach();
@@ -411,7 +415,41 @@ int main() {
     // Arduino thread
     std::thread arduinoThread(arduino_loop);
     arduinoThread.detach();
+}
 
+bool set_fds(fd_set* p_readfds, int server_fd) {
+    // p_ stands for pointer
+    // returns 1 for error
+    FD_ZERO(p_readfds);
+    FD_SET(server_fd, p_readfds);
+    FD_SET(STDIN_FILENO, p_readfds);
+    int max_fd = server_fd;
+    if (STDIN_FILENO > max_fd) max_fd = STDIN_FILENO;
+
+    // добавить клиентов в набор
+    for (int i = 0; i < MAX_CLIENTS; ++i) {
+        int fd = client_fd[i];
+        if (fd >= 0) {
+            FD_SET(fd, p_readfds);
+            if (fd > max_fd) max_fd = fd;
+        }
+    }
+
+    int activity = select(max_fd + 1, p_readfds, nullptr, nullptr, nullptr);
+    if (activity < 0) {
+        perror("select");
+        serverRunning = false;
+        return 1;
+    }
+    return 0;
+}
+
+int main() {
+    int server_fd = bind_socket();
+    if (server_fd < 0) return 1;
+
+    create_threads();
+    
     // массив клиентов и буфер текущего сообщения для каждого
     std::string clientBuffer[MAX_CLIENTS];
     for (int i = 0; i < MAX_CLIENTS; ++i) {
@@ -422,27 +460,7 @@ int main() {
     fd_set readfds;
 
     while (true) {
-        FD_ZERO(&readfds);
-        FD_SET(server_fd, &readfds);
-        FD_SET(STDIN_FILENO, &readfds);
-        int max_fd = server_fd;
-        if (STDIN_FILENO > max_fd) max_fd = STDIN_FILENO;
-
-        // добавить клиентов в набор
-        for (int i = 0; i < MAX_CLIENTS; ++i) {
-            int fd = client_fd[i];
-            if (fd >= 0) {
-                FD_SET(fd, &readfds);
-                if (fd > max_fd) max_fd = fd;
-            }
-        }
-
-        int activity = select(max_fd + 1, &readfds, nullptr, nullptr, nullptr);
-        if (activity < 0) {
-            perror("select");
-            serverRunning = false;
-            break;
-        }
+        if (set_fds(&readfds, server_fd)) break;
         
         // Завершение работы по Ctrl+D
         if (FD_ISSET(STDIN_FILENO, &readfds)) {
