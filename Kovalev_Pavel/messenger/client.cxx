@@ -89,12 +89,7 @@ int connect_and_get_socket() {
     return sock;
 }
 
-int main() {
-    int sock = connect_and_get_socket();
-    if (sock < 0) return 1;
-
-    state = "active";
-
+void create_threads(int sock) {
     // поток, принимающий сообщения от сервера
     std::thread receiver(receive_loop, sock);
     receiver.detach(); // можно не ждать его явно: закроется при завершении процесса
@@ -102,6 +97,15 @@ int main() {
     // поток, принимающий сообщения, а также обрабатывающий ввод с клавиатуры
     std::thread sender(send_loop, sock);
     sender.detach();
+}
+
+int main() {
+    int sock = connect_and_get_socket();
+    if (sock < 0) return 1;
+
+    state = "active";
+
+    create_threads(sock);
 
     // ожидание изменения состояния
     state = "active";
