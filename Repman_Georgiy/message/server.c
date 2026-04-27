@@ -84,7 +84,7 @@ static time_t       g_last_log_time  = 0;
 
 #ifdef _WIN32
     static float read_cpu_temp(void) {
-        return -1.0f; // на Windows нет доступа к температуре CPU через простой API
+        return -1.0f;
     }
     static void log_write_entry(void) {
         MEMORYSTATUSEX mem;
@@ -254,9 +254,8 @@ static void show_startup_message(void) {
     printf("Port: %d\n", PORT);
     printf("Max clients: %d\n", MAX_CLIENTS);
     printf("Available commands:\n");
-    // команды описаны в таблице (определена позже)
     printf("  \\help, \\users, \\OSinfo, \\log_last, \\log_all, \\log_clear\n");
-    printf("  \\drive, \\drive_key, \\drive_speed\n");
+    printf("  \\drive, \\drive_key, \\drive_speed, \\emoji\n");
     printf("========================================\n");
     printf("Press Ctrl+C to stop the server\n");
 }
@@ -273,7 +272,6 @@ static void accept_new_client(int server_fd, Client clients[]) {
         if (clients[i].sock == 0) {
             clients[i].sock = fd;
             clients[i].named = 0;
-            // цвет назначается позже при имени
             const char *welcome = "Welcome to the chat!\nEnter your name: ";
             send(fd, welcome, (int)strlen(welcome), 0);
             printf("[CONNECTION] New client from %s:%d (slot %d)\n",
@@ -392,6 +390,7 @@ static void cmd_help(Client clients[], int idx, const char *args) {
     off += snprintf(help+off, sizeof(help)-off, "  \\log_clear    - clear log\n");
     off += snprintf(help+off, sizeof(help)-off, "  \\drive        - enter robot control\n");
     off += snprintf(help+off, sizeof(help)-off, "  \\drive_speed N- set speed 0-100\n");
+    off += snprintf(help+off, sizeof(help)-off, "  \\emoji        - show emoji shortcuts\n");
     off += snprintf(help+off, sizeof(help)-off, "  \\disconnect   - leave chat\n");
     send(clients[idx].sock, help, off, 0);
 }
@@ -414,6 +413,21 @@ static void cmd_users(Client clients[], int idx, const char *args) {
         snprintf(msg, sizeof(msg), "[SERVER] No users online\n");
     else
         snprintf(msg+off, sizeof(msg)-off, "Total: %d user%s\n", cnt, cnt>1?"s":"");
+    send(clients[idx].sock, msg, (int)strlen(msg), 0);
+}
+
+static void cmd_emoji(Client clients[], int idx, const char *args) {
+    (void)args;
+    const char *msg = 
+        "[SERVER] Available emoji shortcuts:\n"
+        "  :)  or :smile: -> 😊\n"
+        "  :D  or :laugh: -> 😂\n"
+        "  :(  or :sad:   -> 😢\n"
+        "  :love:         -> 😍\n"
+        "  :cool:         -> 😎\n"
+        "  :heart:        -> ❤️\n"
+        "  :fire:         -> 🔥\n"
+        "Type them in your messages to see emojis.\n";
     send(clients[idx].sock, msg, (int)strlen(msg), 0);
 }
 
@@ -499,24 +513,13 @@ static const ServerCommand commands[] = {
     {"drive",        "Drive mode",   cmd_drive},
     {"drive_key",    "Drive key",    cmd_drive_key},
     {"drive_speed",  "Set speed",    cmd_drive_speed},
+    {"emoji",        "Show emojis",  cmd_emoji},
     {NULL, NULL, NULL}
 };
 
 // ============================================================================
 // ОБРАБОТКА СООБЩЕНИЙ КЛИЕНТОВ
 // ============================================================================
-
-static void process_name_setup(Client *client, const char *name) {
-    strncpy(client->name, name, NAME_LEN-1);
-    client->name[NAME_LEN-1] = '\0';
-    client->named = 1;
-    assign_color_to_client(NULL, -1); // dummy, но на самом деле нужно передать массив
-    // Цвет назначается при первом сообщении, но мы уже имеем client->color_index = -1
-    // Назначим сейчас:
-    // в реальном коде нужно передать массив clients, но для упрощения сделаем отдельно
-    // правильнее: вызывать assign_color_to_client с массивом clients и индексом.
-    // Здесь я пропущу деталь, но в полном коде она есть.
-}
 
 static int is_command(const char *msg) { return msg[0] == '\\'; }
 

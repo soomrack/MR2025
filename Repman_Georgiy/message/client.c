@@ -55,9 +55,8 @@ static void show_welcome_message(void);
 static void drive_mode_enter(void);
 static void drive_mode_exit(void);
 static int  chat_loop(ClientState *state);
-static void fdset_prepare(int sockfd, fd_set *readfds, int *max_sd);
 static int  handle_server_message(ClientState *state, char *buffer);
-static int  handle_user_input(ClientState *state, char *buffer);
+static int  handle_user_input(ClientState *state);
 static int  is_client_command(const char *input);
 static int  process_client_command(ClientState *state, const char *input);
 static int  send_to_server(int sockfd, const char *message);
@@ -137,7 +136,6 @@ static int connect_to_server(void) {
     struct sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(PORT);
-    // Замените на IP вашего сервера
     inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr);
     if (connect(sockfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         close(sockfd);
@@ -192,7 +190,6 @@ static void drive_mode_enter(void) {
     GetConsoleMode(hStdin, &g_old_console_mode);
     DWORD mode = g_old_console_mode;
     mode &= ~(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT);
-    mode |= ENABLE_VIRTUAL_TERMINAL_INPUT; // для стрелок (не обязательно)
     SetConsoleMode(hStdin, mode);
     g_stdin_handle = hStdin;
     g_drive_mode = 1;
@@ -230,106 +227,181 @@ static void drive_mode_exit(void) {
 #endif
 
 // ============================================================================
-// ОСНОВНОЙ ЦИКЛ
+// ОСНОВНОЙ ЦИКЛ (Windows и Linux версии)
 // ============================================================================
 
+#ifdef _WIN32
+static int chat_loop(ClientState *state) {
+    char buffer[BUF_SIZE];
+    if (!state->connected || state->sockfd < 0) return -1;
+
+    // Настраиваем сокет на неблокирующий режим (для возможности таймаута)
+    u_long mode = 1;
+    ioctlsocket(state->sockfd, FIONBIO, &mode);
+
+    while (state->connected) {
+        // Проверяем данные от сервера (неблокирующий recv)
+        int n = recv(state->sockfd, buffer, BUF_SIZE - 1, 0);
+        if (n > 0) {
+            buffer[n] = '\0';
+            // Обрабатываем сообщение
+            if (strstr(buffer, DRIVE_MODE_START_MARKER)) {
+                char *marker = strstr(buffer, DRIVE_MODE_START_MARKER);
+                *marker = '\0';
+                printf("%s", buffer);
+                fflush(stdout);
+                drive_mode_enter();
+            } else if (strstr(buffer, DRIVE_MODE_END_MARKER)) {
+                char *marker = strstr(buffer, DRIVE_MODE_END_MARKER);
+                *marker = '\0';
+                printf("%s", buffer);
+                fflush(stdout);
+                drive_mode_exit();
+            } else {
+                printf("%s", buffer);
+                fflush(stdout);
+            }
+        } else if (n == 0) {
+            // Сервер закрыл соединение
+            printf("\nConnection closed by server\n");
+            state->connected = 0;
+            close(state->sockfd);
+            state->sockfd = -1;
+            return -1;
+        } else {
+            int err = WSAGetLastError();
+            if (err != WSAEWOULDBLOCK) {
+                printf("\nrecv error: %d\n", err);
+                state->connected = 0;
+                close(state->sockfd);
+                state->sockfd = -1;
+                return -1;
+            }
+        }
+
+        // Обработка ввода пользователя
+        int result = handle_user_input(state);
+        if (result == 0) return 0;
+        if (result == -1) {
+            state->connected = 0;
+            return -1;
+        }
+
+        // Небольшая задержка, чтобы не грузить CPU
+        Sleep(50);
+    }
+    return -1;
+}
+#else
 static int chat_loop(ClientState *state) {
     fd_set readfds;
     char buffer[BUF_SIZE];
     if (!state->connected || state->sockfd < 0) return -1;
 
     while (state->connected) {
-        int max_sd;
-        fdset_prepare(state->sockfd, &readfds, &max_sd);
-        struct timeval timeout = {1, 0};
-        int activity = select(max_sd + 1, &readfds, NULL, NULL, &timeout);
+        FD_ZERO(&readfds);
+        FD_SET(state->sockfd, &readfds);
+        FD_SET(STDIN_FILENO, &readfds);
+        int max_sd = (state->sockfd > STDIN_FILENO) ? state->sockfd : STDIN_FILENO;
+        struct timeval tv = {1, 0};
+        int activity = select(max_sd + 1, &readfds, NULL, NULL, &tv);
         if (activity < 0) {
             perror("select");
-            state->connected = 0;
-            return -1;
+            break;
         }
         if (activity == 0) continue;
 
         if (FD_ISSET(state->sockfd, &readfds)) {
-            int result = handle_server_message(state, buffer);
-            if (result <= 0) return result;
+            int n = recv(state->sockfd, buffer, BUF_SIZE - 1, 0);
+            if (n <= 0) {
+                if (n < 0) perror("recv");
+                printf("\nConnection to server lost\n");
+                state->connected = 0;
+                close(state->sockfd);
+                state->sockfd = -1;
+                return -1;
+            }
+            buffer[n] = '\0';
+            if (strstr(buffer, DRIVE_MODE_START_MARKER)) {
+                char *marker = strstr(buffer, DRIVE_MODE_START_MARKER);
+                *marker = '\0';
+                printf("%s", buffer);
+                fflush(stdout);
+                drive_mode_enter();
+            } else if (strstr(buffer, DRIVE_MODE_END_MARKER)) {
+                char *marker = strstr(buffer, DRIVE_MODE_END_MARKER);
+                *marker = '\0';
+                printf("%s", buffer);
+                fflush(stdout);
+                drive_mode_exit();
+            } else {
+                printf("%s", buffer);
+                fflush(stdout);
+            }
         }
-
-        if (state->connected && FD_ISSET(STDIN_FILENO, &readfds)) {
-            int result = handle_user_input(state, buffer);
+        if (FD_ISSET(STDIN_FILENO, &readfds)) {
+            int result = handle_user_input(state);
             if (result == 0) return 0;
+            if (result == -1) {
+                state->connected = 0;
+                return -1;
+            }
         }
     }
     return -1;
 }
+#endif
 
-static void fdset_prepare(int sockfd, fd_set *readfds, int *max_sd) {
-    FD_ZERO(readfds);
-    FD_SET(sockfd, readfds);
-    FD_SET(STDIN_FILENO, readfds);
-    *max_sd = (sockfd > STDIN_FILENO) ? sockfd : STDIN_FILENO;
-}
+// ============================================================================
+// ОБРАБОТКА ВВОДА ПОЛЬЗОВАТЕЛЯ (общая для обеих ОС)
+// ============================================================================
 
-static int handle_server_message(ClientState *state, char *buffer) {
-    int n = recv(state->sockfd, buffer, BUF_SIZE - 1, 0);
-    if (n <= 0) {
-        if (n < 0) perror("recv");
-        printf("\nConnection to server lost\n");
-        state->connected = 0;
-        close(state->sockfd);
-        state->sockfd = -1;
-        return -1;
-    }
-    buffer[n] = '\0';
-
-    if (strstr(buffer, DRIVE_MODE_START_MARKER)) {
-        char *marker = strstr(buffer, DRIVE_MODE_START_MARKER);
-        *marker = '\0';
-        printf("%s", buffer);
-        fflush(stdout);
-        drive_mode_enter();
-        return 1;
-    }
-    if (strstr(buffer, DRIVE_MODE_END_MARKER)) {
-        char *marker = strstr(buffer, DRIVE_MODE_END_MARKER);
-        *marker = '\0';
-        printf("%s", buffer);
-        fflush(stdout);
-        drive_mode_exit();
-        return 1;
-    }
-    printf("%s", buffer);
-    fflush(stdout);
-    return 1;
-}
-
-static int handle_user_input(ClientState *state, char *buffer) {
+static int handle_user_input(ClientState *state) {
     if (g_drive_mode) {
 #ifdef _WIN32
-        int key = _getch();   // сразу получаем символ без ожидания Enter
-        if (key == 224 || key == 0) { // стрелки – игнорируем
-            _getch();
-            return 1;
-        }
-        char ch = (char)key;
+        if (_kbhit()) {
+            int key = _getch();
+            if (key == 224 || key == 0) { // стрелки – игнорируем
+                _getch();
+                return 1;
+            }
+            char ch = (char)key;
 #else
         char ch;
         if (read(STDIN_FILENO, &ch, 1) <= 0) return 1;
 #endif
-        if (ch == 'q') {
-            send_to_server(state->sockfd, "\\drive_key q\n");
-            return 1;
-        }
-        char msg[32];
-        snprintf(msg, sizeof(msg), "\\drive_key %c\n", ch);
-        if (!send_to_server(state->sockfd, msg)) {
-            state->connected = 0;
-            return -1;
+            if (ch == 'q') {
+                send_to_server(state->sockfd, "\\drive_key q\n");
+                return 1;
+            }
+            char msg[32];
+            snprintf(msg, sizeof(msg), "\\drive_key %c\n", ch);
+            if (!send_to_server(state->sockfd, msg)) {
+                return -1;
+            }
         }
         return 1;
     }
 
-    // Обычный режим
+    // Обычный режим – ввод строки
+#ifdef _WIN32
+    // На Windows используем fgets, но только если есть данные
+    if (_kbhit()) {
+        char buffer[BUF_SIZE];
+        if (!fgets(buffer, BUF_SIZE, stdin)) return 1;
+        size_t len = strlen(buffer);
+        if (len > 0 && buffer[len-1] == '\n') buffer[--len] = '\0';
+        if (len == 0) return 1;
+
+        if (is_client_command(buffer)) {
+            return process_client_command(state, buffer);
+        }
+        strcat(buffer, "\n");
+        if (!send_to_server(state->sockfd, buffer)) return -1;
+    }
+#else
+    // На Linux используем fgets блокирующе, но select уже показал, что stdin готов
+    char buffer[BUF_SIZE];
     if (!fgets(buffer, BUF_SIZE, stdin)) return 1;
     size_t len = strlen(buffer);
     if (len > 0 && buffer[len-1] == '\n') buffer[--len] = '\0';
@@ -339,10 +411,8 @@ static int handle_user_input(ClientState *state, char *buffer) {
         return process_client_command(state, buffer);
     }
     strcat(buffer, "\n");
-    if (!send_to_server(state->sockfd, buffer)) {
-        state->connected = 0;
-        return -1;
-    }
+    if (!send_to_server(state->sockfd, buffer)) return -1;
+#endif
     return 1;
 }
 
