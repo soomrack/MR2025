@@ -24,16 +24,18 @@
 #include <signal.h>
 #include <random>
 #include <mutex>
-#include <termios.h>  
+#include <termios.h>  // Для UART
 
 const unsigned short SERVER_PORT = 8080;
 const std::string LOG_FILE = "sensor_data.log";
 const std::string DANGER_LOG_FILE = "dangerous_data.log";
 const size_t MAX_LOG_ENTRIES = 120;
 
-const std::string UART_PORT = "/dev/ttyACM0"; 
-const speed_t UART_BAUD_RATE = B9600; 
+// Настройки UART для Arduino
+const std::string UART_PORT = "/dev/ttyACM0";  // Или /dev/ttyUSB0
+const speed_t UART_BAUD_RATE = B9600;  // Скорость должна совпадать со скетчем Arduino
 
+// Номинальные диапазоны значений датчиков
 struct NormalRanges {
     float temp_min = 18.0f;
     float temp_max = 26.0f;
@@ -45,6 +47,7 @@ struct NormalRanges {
     float light_max = 800.0f;
 };
 
+// Глобальный флаг для graceful shutdown
 std::atomic<bool> server_running{true};
 
 void signal_handler(int signum) {
@@ -177,6 +180,7 @@ struct SensorData {
     }
 };
 
+// Класс для работы с Arduino через UART
 class ArduinoUART {
 private:
     int uart_fd;
@@ -190,31 +194,33 @@ private:
             std::cerr << "[UART] Failed to get terminal attributes: " << strerror(errno) << std::endl;
             return false;
         }
-
+        
+        // Настройка скорости
         cfsetospeed(&tty, UART_BAUD_RATE);
         cfsetispeed(&tty, UART_BAUD_RATE);
-
-        tty.c_cflag &= ~PARENB;  
-        tty.c_cflag &= ~CSTOPB; 
-        tty.c_cflag &= ~CSIZE;
-        tty.c_cflag |= CS8;   
-        tty.c_cflag &= ~CRTSCTS;  
-        tty.c_cflag |= CREAD | CLOCAL;  
         
-        tty.c_lflag &= ~ICANON;   
-        tty.c_lflag &= ~ECHO;    
+        // Настройка флагов
+        tty.c_cflag &= ~PARENB;   // Нет бита четности
+        tty.c_cflag &= ~CSTOPB;   // 1 стоп-бит
+        tty.c_cflag &= ~CSIZE;
+        tty.c_cflag |= CS8;       // 8 бит данных
+        tty.c_cflag &= ~CRTSCTS;  // Нет аппаратного контроля потока
+        tty.c_cflag |= CREAD | CLOCAL;  // Включить чтение, игнорировать управляющие линии
+        
+        tty.c_lflag &= ~ICANON;   // Неканонический режим
+        tty.c_lflag &= ~ECHO;     // Отключить эхо
         tty.c_lflag &= ~ECHOE;
         tty.c_lflag &= ~ECHONL;
-        tty.c_lflag &= ~ISIG;     
+        tty.c_lflag &= ~ISIG;     // Отключить сигнальные символы
         
-        tty.c_iflag &= ~(IXON | IXOFF | IXANY);  
-        tty.c_iflag &= ~(INLCR | ICRNL | IGNCR); 
+        tty.c_iflag &= ~(IXON | IXOFF | IXANY);  // Отключить программный контроль потока
+        tty.c_iflag &= ~(INLCR | ICRNL | IGNCR); // Отключить преобразование символов
         
-        tty.c_oflag &= ~OPOST;    
+        tty.c_oflag &= ~OPOST;    // Отключить пост-обработку вывода
         
-        
-        tty.c_cc[VMIN] = 0;      
-        tty.c_cc[VTIME] = 10;     
+        // Таймаут чтения
+        tty.c_cc[VMIN] = 0;       // Не ждать определенного количества символов
+        tty.c_cc[VTIME] = 10;     // Таймаут 1 секунда (в десятых долях секунды)
         
         if (tcsetattr(fd, TCSANOW, &tty) != 0) {
             std::cerr << "[UART] Failed to set terminal attributes: " << strerror(errno) << std::endl;
@@ -248,6 +254,7 @@ public:
         connected = true;
         std::cout << "[UART] Connected to Arduino on " << UART_PORT << std::endl;
         
+        // Очистка буфера
         tcflush(uart_fd, TCIFLUSH);
         
         return true;
@@ -283,9 +290,11 @@ public:
         std::cerr << "[UART] Failed to send request: " << strerror(errno) << std::endl;
         return data;
     }
-
+    
+    // Ждем ответа
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
+    
+    // Читаем ответ
     char buffer[256];
     memset(buffer, 0, sizeof(buffer));
     
@@ -302,7 +311,8 @@ public:
     
     buffer[bytes_read] = '\0';
     std::string response(buffer);
-
+    
+    // Удаляем символы новой строки и возврата каретки
     response.erase(std::remove(response.begin(), response.end(), '\r'), response.end());
     response.erase(std::remove(response.begin(), response.end(), '\n'), response.end());
     
@@ -310,7 +320,8 @@ public:
         std::cerr << "[UART] Empty response from Arduino" << std::endl;
         return data;
     }
-
+    
+    // Парсим данные: "Температура Влажность Освещенность ВлажностьПочвы"
     std::stringstream ss(response);
     float temp, humidity, light, soil_moisture;
     
@@ -332,6 +343,7 @@ public:
     }
 };
 
+// Класс для получения реальных данных с Arduino
 class RealSensorData {
 private:
     ArduinoUART& arduino;
@@ -346,6 +358,7 @@ public:
     SensorData getSensorData() {
         std::lock_guard<std::mutex> lock(data_mutex);
         SensorData newData = arduino.readSensorData();
+        // Если получили валидные данные (хотя бы один датчик не ноль), обновляем
         if (newData.temperature != 0.0f || newData.humidity != 0.0f || 
             newData.light != 0.0f || newData.soil_moisture != 0.0f) {
             lastData = newData;
@@ -382,7 +395,8 @@ private:
             data.checkDangerous(normal_ranges);
             
             std::lock_guard<std::mutex> guard(log_mutex);
-
+            
+            // Записываем в основной журнал
             if (logFile.is_open()) {
                 std::string log_entry = data.toCsvString();
                 logFile << log_entry << std::endl;
@@ -393,7 +407,8 @@ private:
                     log_cache.pop_front();
                 }
             }
-
+            
+            // Если данные опасные, записываем в отдельный журнал
             if (data.is_dangerous && dangerLogFile.is_open()) {
                 std::string danger_entry = data.toDangerCsvString();
                 dangerLogFile << danger_entry << std::endl;
@@ -410,7 +425,8 @@ private:
 public:
     DataLogger(std::function<SensorData()> provider, std::chrono::seconds interval = std::chrono::seconds(5))
         : dataProvider(provider), logging_interval(interval) {
-
+        
+        // Открываем основной файл лога
         logFile.open(LOG_FILE, std::ios::out | std::ios::app);
         if (!logFile.is_open()) {
             std::cerr << "[Logger]: Failed to open log file: " << LOG_FILE << std::endl;
@@ -421,7 +437,8 @@ public:
             }
             std::cout << "[Logger]: Log file opened: " << LOG_FILE << std::endl;
         }
-
+        
+        // Открываем файл опасных данных
         dangerLogFile.open(DANGER_LOG_FILE, std::ios::out | std::ios::app);
         if (!dangerLogFile.is_open()) {
             std::cerr << "[Logger]: Failed to open danger log file: " << DANGER_LOG_FILE << std::endl;
@@ -432,9 +449,11 @@ public:
             }
             std::cout << "[Logger]: Danger log file opened: " << DANGER_LOG_FILE << std::endl;
         }
-
+        
+        // Загружаем последние записи из файлов в кэш
         loadLastEntries();
-
+        
+        // Запускаем фоновый поток логирования
         logging_thread = std::thread(&DataLogger::logData, this);
     }
     
@@ -458,12 +477,13 @@ public:
     }
     
     void loadLastEntries() {
+        // Загрузка основного лога
         std::ifstream file(LOG_FILE);
         if (file.is_open()) {
             std::string line;
             std::vector<std::string> all_lines;
             
-            std::getline(file, line); 
+            std::getline(file, line); // Пропускаем заголовок
             
             while (std::getline(file, line)) {
                 all_lines.push_back(line);
@@ -476,13 +496,14 @@ public:
                 log_cache.push_back(all_lines[i]);
             }
         }
-
+        
+        // Загрузка опасного лога
         std::ifstream dangerFile(DANGER_LOG_FILE);
         if (dangerFile.is_open()) {
             std::string line;
             std::vector<std::string> all_lines;
             
-            std::getline(dangerFile, line); 
+            std::getline(dangerFile, line); // Пропускаем заголовок
             
             while (std::getline(dangerFile, line)) {
                 all_lines.push_back(line);
@@ -510,6 +531,7 @@ public:
         
         ss << "Last " << num_entries << " log entries:\n";
         ss << "----------------------------------------------------------------------------------------------------\n";
+        // Добавлен дополнительный пробел перед Temp(°C) для сдвига
         ss << std::left << std::setw(20) << "Timestamp" 
         << " " << std::setw(12) << "Temp(°C)" 
         << std::setw(12) << "Hum(%)" 
@@ -554,6 +576,7 @@ public:
         
         ss << "Last " << num_entries << " dangerous events:\n";
         ss << "----------------------------------------------------------------------------------------------------\n";
+        // Добавлен дополнительный пробел перед Temp(°C) для сдвига
         ss << std::left << std::setw(20) << "Timestamp" 
         << " " << std::setw(12) << "Temp(°C)" 
         << std::setw(12) << "Hum(%)" 
@@ -904,7 +927,8 @@ int main() {
     signal(SIGINT, signal_handler);
     
     std::cout << "Starting server...\n" << std::endl;
-
+    
+    // Инициализация UART
     ArduinoUART arduino;
     if (!arduino.connect()) {
         std::cerr << "[FATAL] Failed to connect to Arduino on " << UART_PORT << std::endl;
@@ -912,9 +936,11 @@ int main() {
         std::cerr << "Try: sudo chmod 666 " << UART_PORT << std::endl;
         return 1;
     }
-
+    
+    // Создаем объект для реальных данных
     RealSensorData realSensor(arduino);
-
+    
+    // Логгер с реальными данными
     DataLogger logger([&realSensor]() { return realSensor.getSensorData(); }, 
                       std::chrono::seconds(5));
     
