@@ -1,122 +1,113 @@
-// 1. Определения препроцессора
-#define _WIN32_WINNT 0x0600  // Требуем версию Windows Vista или новее для некоторых функций Winsock
-#define _CRT_SECURE_NO_WARNINGS // Отключаем предупреждения о небезопасных функциях типа strcpy
-#define _WINSOCK_DEPRECATED_NO_WARNINGS // Отключаем предупреждения об устаревших функциях Winsock
+#define _WIN32_WINNT 0x0600
+#define _CRT_SECURE_NO_WARNINGS
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
 
-// 2. Подключаемые заголовочные файлы
-#include <iostream>   // Стандартный ввод/вывод
-#include <string>     // Для работы со строками
-#include <thread>     // Для работы с потоками
-#include <chrono>     // Для работы со временем (Sleep, таймауты)
-#include <conio.h>    // Для _kbhit() и _getch() (неблокирующий ввод с клавиатуры)
-#include <fstream>    // Для работы с файлами
-#include <sstream>    // Для форматирования строк
-#include <iomanip>    // Для манипуляторов вывода (setw, setprecision)
-#include <ctime>      // Для работы с датой/временем
-#include <vector>     // Для динамических массивов
-#include <memory>     // Для умных указателей (unique_ptr)
-#include <unordered_map> // Для хеш-таблиц
-#include <functional> // Для std::function
+#include <iostream>
+#include <string>
+#include <thread>
+#include <chrono>
+#include <conio.h>
+#include <fstream>
+#include <sstream>
+#include <iomanip>
+#include <ctime>
+#include <vector>
+#include <memory>
+#include <unordered_map>
+#include <functional>
 
-// 3. Заголовки для работы с сетью Windows
-#include <winsock2.h> // Основной заголовок Windows Sockets
-#include <windows.h>  // Общие функции Windows API
-#include <ws2tcpip.h> // Дополнительные функции для TCP/IP
+#include <winsock2.h>
+#include <windows.h>
+#include <ws2tcpip.h>
 
-#pragma comment(lib, "ws2_32.lib") // Линковка библиотеки Winsock
+#pragma comment(lib, "ws2_32.lib")
 
-using namespace std; // Используем стандартное пространство имен
+using namespace std;
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (ОБЪЯВЛЕНИЯ) ==========
-string utf8_to_cp1251(const string& utf8_str); // Конвертация строки из UTF-8 в кодировку Windows-1251 (для консоли)
-void set_console_encoding();                   // Установка кодировки консоли
-void clear_screen();                           // Очистка экрана (вызов system("cls"))
-void print_header();                           // Печать шапки программы
-string get_current_filename();                 // Генерация имени файла для отчета на основе текущей даты/времени
-void save_to_file(const string& content);      // Сохранение строки в файл
+string utf8_to_cp1251(const string& utf8_str);
+void set_console_encoding();
+void clear_screen();
+void print_header();
+string get_current_filename();
+void save_to_file(const string& content);
 
 // ========== ИНТЕРФЕЙС РЕЖИМА РАБОТЫ ==========
 class IClientMode {
 public:
-    virtual ~IClientMode() = default; // Виртуальный деструктор
-    // Чисто виртуальная функция выполнения режима. Принимает ссылку на клиента.
+    virtual ~IClientMode() = default;
     virtual void execute(class RobotClient& client) = 0;
-    // Чисто виртуальная функция для получения имени режима (для меню)
     virtual string get_name() const = 0;
 };
 
 // ========== КЛАСС RobotClient (ОБЪЯВЛЕНИЕ) ==========
 class RobotClient {
 private:
-    SOCKET sock_;                // Сокет для соединения
-    string server_ip_;           // IP-адрес сервера
-    int port_;                   // Порт сервера
-    bool connected_;             // Флаг состояния подключения
-    bool receive_mode_;          // Флаг режима приема данных
-    static const int recv_timeout_ms_ = 5000; // Таймаут приема по умолчанию (5 сек)
+    SOCKET sock_;
+    string server_ip_;
+    int port_;
+    bool connected_;
+    bool receive_mode_;
+    static const int recv_timeout_ms_ = 5000;
 
 public:
-    // Конструктор: принимает IP и порт
     RobotClient(const string& ip, int p);
-    // Деструктор: вызывает disconnect()
     ~RobotClient();
-    bool connect_to_server();    // Установка соединения с сервером
-    void disconnect();           // Разрыв соединения
-    string send_command(const string& cmd); // Отправка команды без ожидания ответа
-    string send_request(const string& cmd); // Отправка команды и прием ответа (для статистики)
-    string send_monitoring_request(const string& cmd); // Отправка для мониторинга (непрерывный прием)
-    bool is_connected() const;   // Проверка соединения
+
+    bool connect_to_server();
+    void disconnect();
+    string send_command(const string& cmd);
+    string send_request(const string& cmd);
+    string send_monitoring_request(const string& cmd);
+    bool is_connected() const;
 };
 
 // ========== РЕЖИМЫ РАБОТЫ (ОБЪЯВЛЕНИЯ) ==========
-// Режим ручного управления роботом (клавиши W, A, S, D, X)
 class ControlMode : public IClientMode {
 public:
     void execute(RobotClient& client) override;
-    string get_name() const override { return "УПРАВЛЕНИЕ РОБОТОМ"; } 
+    string get_name() const override { return "Управление роботом"; }
+};
 
-// Режим запроса статистики (температура, CPU, логи и т.д.)
 class StatsMode : public IClientMode {
 public:
     void execute(RobotClient& client) override;
-    string get_name() const override { return "ЗАПРОС СТАТИСТИКИ"; } 
+    string get_name() const override { return "Запрос статистики"; }
 };
 
-// Режим мониторинга в реальном времени
 class MonitoringMode : public IClientMode {
 public:
     void execute(RobotClient& client) override;
-    string get_name() const override { return "МОНИТОРИНГ"; } 
+    string get_name() const override { return "Мониторинг"; }
 };
 
-// Режим настройки подключения (смена IP)
 class ConnectionSetupMode : public IClientMode {
 private:
-    string& ip_; // Ссылка на строку с IP для изменения
+    string& ip_;
 public:
     ConnectionSetupMode(string& ip) : ip_(ip) {}
     void execute(RobotClient& client) override;
-    string get_name() const override { return "НАСТРОЙКА ПОДКЛЮЧЕНИЯ"; } 
+    string get_name() const override { return "Настройка подключения"; }
 };
 
 // ========== МЕНЕДЖЕР РЕЖИМОВ ==========
 class ModeManager {
 private:
-    // Карта для хранения всех режимов. Ключ - строка (цифра меню), значение - умный указатель на объект режима.
     unordered_map<string, unique_ptr<IClientMode>> modes_;
-    string& current_ip_; // Ссылка на IP для передачи в ConnectionSetupMode
+    string& current_ip_;
+
 public:
     ModeManager(string& ip) : current_ip_(ip) {
-        // Регистрируем все режимы при создании
         register_mode("1", make_unique<ControlMode>());
         register_mode("2", make_unique<StatsMode>());
         register_mode("3", make_unique<MonitoringMode>());
         register_mode("4", make_unique<ConnectionSetupMode>(current_ip_));
     }
+
     void register_mode(const string& key, unique_ptr<IClientMode> mode) {
-        modes_[key] = move(mode); // Перемещаем умный указатель в карту
+        modes_[key] = move(mode);
     }
-    // Выполнить режим по ключу (цифре меню)
+
     bool execute_mode(const string& key, RobotClient& client) {
         auto it = modes_.find(key);
         if (it != modes_.end()) {
@@ -125,7 +116,8 @@ public:
         }
         return false;
     }
-    void show_menu() const; // Показать главное меню
+
+    void show_menu() const;
 };
 
 // ========== ГЛАВНОЕ ПРИЛОЖЕНИЕ КЛИЕНТА ==========
@@ -134,41 +126,42 @@ private:
     string server_ip_;
     unique_ptr<RobotClient> client_;
     unique_ptr<ModeManager> mode_manager_;
-    void initialize_console();                // Настройка консоли
-    string get_server_ip_from_user();        // Запрос IP у пользователя
-    void wait_for_exit();                    // Ожидание нажатия клавиши перед выходом
-    void test_connection();                  // Тестирование соединения
+
+    void initialize_console();
+    string get_server_ip_from_user();
+    void wait_for_exit();
+    void test_connection();
+
 public:
-    ClientApplication();                     // Конструктор
-    ~ClientApplication();                    // Деструктор
-    void run();                              // Запуск основного цикла программы
-    void shutdown();                         // Корректное завершение работы
+    ClientApplication();
+    ~ClientApplication();
+    void run();
+    void shutdown();
 };
 
 // ========== РЕАЛИЗАЦИЯ ВСПОМОГАТЕЛЬНЫХ ФУНКЦИЙ ==========
 string utf8_to_cp1251(const string& utf8_str) {
-    if (utf8_str.empty()) return ""; // Если строка пуста, возвращаем пустую строку
+    if (utf8_str.empty()) return "";
 
-    // 1. Получаем размер буфера в широких символах (UTF-16) для UTF-8 строки
     int wlen = MultiByteToWideChar(CP_UTF8, 0, utf8_str.c_str(), -1, NULL, 0);
-    if (wlen <= 0) return utf8_str; // Если ошибка, возвращаем исходную строку
+    if (wlen <= 0) return utf8_str;
 
-    // 2. Выделяем буфер и конвертируем UTF-8 -> UTF-16
     wchar_t* wbuf = new wchar_t[wlen];
     MultiByteToWideChar(CP_UTF8, 0, utf8_str.c_str(), -1, wbuf, wlen);
 
-    // 3. Получаем размер буфера для кодировки Windows-1251 из UTF-16 строки
     int clen = WideCharToMultiByte(1251, 0, wbuf, -1, NULL, 0, NULL, NULL);
-    if (clen <= 0) { delete[] wbuf; return utf8_str; }
+    if (clen <= 0) {
+        delete[] wbuf;
+        return utf8_str;
+    }
 
-    // 4. Выделяем буфер и конвертируем UTF-16 -> Windows-1251
     char* cbuf = new char[clen];
     WideCharToMultiByte(1251, 0, wbuf, -1, cbuf, clen, NULL, NULL);
 
-    // 5. Копируем результат в string и очищаем память
     string result(cbuf);
     delete[] wbuf;
     delete[] cbuf;
+
     return result;
 }
 
@@ -193,7 +186,6 @@ string get_current_filename() {
     struct tm timeinfo;
     localtime_s(&timeinfo, &now_time);
 
-    // Формируем имя файла по шаблону: robot_report_ГГГГ-ММ-ДД_ЧЧ-ММ-СС.txt
     stringstream ss;
     ss << "robot_report_"
         << setw(2) << setfill('0') << timeinfo.tm_year + 1900 << "-"
@@ -205,7 +197,6 @@ string get_current_filename() {
     return ss.str();
 }
 
-// Сохраняем переданный текст в файл с автогенерируемым именем
 void save_to_file(const string& content) {
     string filename = get_current_filename();
     ofstream file(filename);
@@ -215,10 +206,9 @@ void save_to_file(const string& content) {
 }
 
 // ========== РЕАЛИЗАЦИЯ RobotClient ==========
-// Конструктор: инициализируем переменные, сокет пока недействителен
 RobotClient::RobotClient(const string& ip, int p)
     : server_ip_(ip), port_(p), connected_(false), receive_mode_(false) {
-    sock_ = INVALID_SOCKET; // В Windows невалидный сокет обозначается так
+    sock_ = INVALID_SOCKET;
 }
 
 RobotClient::~RobotClient() {
@@ -243,7 +233,7 @@ bool RobotClient::connect_to_server() {
     setsockopt(sock_, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
     setsockopt(sock_, SOL_SOCKET, SO_SNDTIMEO, (const char*)&timeout, sizeof(timeout));
 
-    sockaddr_in server_addr;  //Настройка адреса сервера
+    sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(port_);
     server_addr.sin_addr.s_addr = inet_addr(server_ip_.c_str());

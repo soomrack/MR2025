@@ -3,26 +3,27 @@
 #include <cstring>
 #include <thread>
 #include <chrono>
-#include <queue>              // FIFO-контейнер. 
-#include <condition_variable> // Сигналы между потоками. 
-#include <fstream>            // Чтение и запись файлов
-#include <sstream>            // Сборка строк через потоковый синтаксис
-#include <iomanip>            // Форматирование вывода (ширина, точность, дата)
-#include <ctime>              // Работа с датой и временем в C-стиле
-#include <vector>             // Динамический массив
-#include <algorithm>          // Алгоритмы (min, max, find)
-#include <functional>         // Контейнер для функций и лямбд
-#include <memory>             // Умные указатели
-#include <unordered_map>      // Хеш-таблица (ключ -> значение)
+#include <mutex>
+#include <queue>
+#include <condition_variable>
+#include <fstream>
+#include <sstream>
+#include <iomanip>
+#include <ctime>
+#include <vector>
+#include <algorithm>
+#include <functional>
+#include <memory>
+#include <unordered_map>
 
-#include <sys/select.h>       // Мультиплексирование I/O. 
-#include <sys/statvfs.h>      // Информация о файловой системе. 
-#include <unistd.h>           // POSIX I/O: чтение, запись, закрытие
-#include <fcntl.h>            // Открытие файлов и устройств
-#include <termios.h>          // Настройка последовательного порта
-#include <sys/socket.h>       // Создание TCP-сокетов
-#include <netinet/in.h>       // Структуры для IP-адресов
-#include <arpa/inet.h>        // Преобразование IP в строку
+#include <sys/select.h>
+#include <sys/statvfs.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <termios.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 using namespace std;
 
@@ -56,75 +57,75 @@ public:
 };
 
 // ========== КЛАСС ARDUINO_COMM ==========
-class ArduinoComm {                          // Класс для общения с Arduino по UART
+class ArduinoComm {
 private:
-    int serial_port_;                        // Файловый дескриптор последовательного порта
-    mutex serial_mutex_;                     // Мьютекс для потокобезопасной отправки команд
-    bool running_;                           // Флаг работы потока-читателя
-    class Logger& logger_;                   // Ссылка на логгер для записи событий
-    string read_buffer_;                     // Буфер накопления принятых данных (неполные строки)
+    int serial_port_;
+    mutex serial_mutex_;
+    bool running_;
+    class Logger& logger_;
+    string read_buffer_;
 
-    int open_serial(const char* port);       // Приватный метод открытия и настройки порта
+    int open_serial(const char* port);
 
 public:
-    ArduinoComm(Logger& log_ref);            // Конструктор: сохраняет ссылку на логгер
-    ~ArduinoComm();                          // Деструктор: вызывает disconnect()
-    bool connect(const char* port);          // Подключение к порту (например, "/dev/ttyACM0")
-    void disconnect();                       // Закрытие порта
-    bool send_command(const string& cmd);    // Отправка команды с добавлением "\n"
-    void start_reader_thread(function<void(const string&)> data_callback); // Запуск фонового чтения
-    void stop();                             // Остановка потока-читателя
-    bool is_connected() const;               // Проверка, открыт ли порт
+    ArduinoComm(Logger& log_ref);
+    ~ArduinoComm();
+    bool connect(const char* port);
+    void disconnect();
+    bool send_command(const string& cmd);
+    void start_reader_thread(function<void(const string&)> data_callback);
+    void stop();
+    bool is_connected() const;
 };
 
 // ========== КЛАСС SYSTEM_MONITOR ==========
-class SystemMonitor {                                    // Класс мониторинга системы (температура, CPU, критические события)
+class SystemMonitor {
 private:
-    mutex monitor_mutex_;                                // Мьютекс для защиты данных при многопоточном доступе
-    string temp_log_file_;                               // Путь к CSV-файлу истории температуры
-    string critical_log_file_;                           // Путь к файлу критических событий
-    string cpu_load_log_file_;                           // Путь к CSV-файлу истории загрузки CPU
+    mutex monitor_mutex_;
+    string temp_log_file_;
+    string critical_log_file_;
+    string cpu_load_log_file_;
 
-    struct TempRecord {                                  // Структура записи о температуре
-        string timestamp;                                //   Время измерения
-        float temperature;                               //   Значение температуры в °C
+    struct TempRecord {
+        string timestamp;
+        float temperature;
     };
 
-    struct CpuLoadRecord {                               // Структура записи о загрузке CPU
-        string timestamp;                                //   Время измерения
-        float load_percent;                              //   Процент загрузки
+    struct CpuLoadRecord {
+        string timestamp;
+        float load_percent;
     };
 
-    vector<TempRecord> temp_history_;                    // История измерений температуры в памяти
-    vector<CpuLoadRecord> cpu_load_history_;             // История измерений загрузки CPU в памяти
+    vector<TempRecord> temp_history_;
+    vector<CpuLoadRecord> cpu_load_history_;
 
-    float min_temp_;                                     // Минимальная зафиксированная температура
-    float max_temp_;                                     // Максимальная зафиксированная температура
-    float max_cpu_load_;                                 // Максимальная зафиксированная загрузка CPU
-    float critical_temp_threshold_;                      // Порог критической температуры (по умолчанию 55°C)
-    float critical_cpu_threshold_;                       // Порог критической загрузки CPU (по умолчанию 80%)
+    float min_temp_;
+    float max_temp_;
+    float max_cpu_load_;
+    float critical_temp_threshold_;
+    float critical_cpu_threshold_;
 
-    class Logger& logger_;                               // Ссылка на логгер
-    bool running_;                                       // Флаг работы фонового мониторинга
+    class Logger& logger_;
+    bool running_;
 
-    string get_current_time();                           // Получение текущего времени строкой
-    float read_cpu_temperature();                        // Чтение температуры из /sys/class/thermal/thermal_zone0/temp
-    float read_cpu_load();                               // Чтение загрузки из /proc/loadavg
-    void check_critical_conditions();                    // Проверка превышения порогов и вызов log_critical_event
-    void log_critical_event(const string& message);      // Запись критического события в файл
+    string get_current_time();
+    float read_cpu_temperature();
+    float read_cpu_load();
+    void check_critical_conditions();
+    void log_critical_event(const string& message);
 
 public:
-    SystemMonitor(Logger& log_ref);                      // Конструктор: создаёт CSV-файлы, задаёт пороги
-    ~SystemMonitor();                                    // Деструктор: вызывает stop()
-    void log_temperature();                              // Измерение и запись температуры в историю и файл
-    void log_cpu_load();                                 // Измерение и запись загрузки CPU в историю и файл
-    void process_arduino_data(const string& data);       // Разбор данных от Arduino (TEMP_STATS, CMD, SPEED)
-    string get_temperature_stats();                      // Формирование отчёта по температуре
-    string get_cpu_load_stats();                         // Формирование отчёта по загрузке CPU
-    string get_critical_events(int last_n = 10);         // Чтение последних N критических событий из файла
-    string get_full_report();                            // Формирование полного отчёта (температура + CPU + крит. события)
-    void start_monitoring();                             // Запуск фонового потока (каждые 10 сек log + check)
-    void stop();                                         // Остановка фонового потока
+    SystemMonitor(Logger& log_ref);
+    ~SystemMonitor();
+    void log_temperature();
+    void log_cpu_load();
+    void process_arduino_data(const string& data);
+    string get_temperature_stats();
+    string get_cpu_load_stats();
+    string get_critical_events(int last_n = 10);
+    string get_full_report();
+    void start_monitoring();
+    void stop();
 };
 
 // ========== КОМАНДЫ-ОБРАБОТЧИКИ ==========
@@ -203,43 +204,42 @@ public:
 };
 
 // ========== КЛАСС CLIENT_HANDLER ==========
-class ClientHandler {                                            // Обработчик одного клиентского соединения
+class ClientHandler {
 private:
-    int client_socket_;                                          // Сокет подключившегося клиента
-    string client_ip_;                                           // IP-адрес клиента (строка)
-    class Logger& logger_;                                       // Ссылка на логгер
-    class SystemMonitor& monitor_;                               // Ссылка на системный монитор
-    class ArduinoComm& arduino_;                                 // Ссылка на связь с Arduino
-    class CommandManager& cmd_manager_;                          // Ссылка на менеджер команд
-    bool monitoring_mode_;                                       // Флаг режима мониторинга 
+    int client_socket_;
+    string client_ip_;
+    class Logger& logger_;
+    class SystemMonitor& monitor_;
+    class ArduinoComm& arduino_;
+    class CommandManager& cmd_manager_;
+    bool monitoring_mode_;
 
-    void send_full_response(const string& response);             // Отправка ответа клиенту частями, пока не уйдёт всё
+    void send_full_response(const string& response);
 
 public:
-    ClientHandler(int socket, sockaddr_in addr,                  // Конструктор: сохраняет сокет, извлекает IP из addr
-        Logger& log_ref, SystemMonitor& mon_ref,                 //   Сохраняет ссылки на все сервисы
-        ArduinoComm& ard_ref, CommandManager& cmd_ref);
-    void handle();                                               // Главный цикл: приём команд, вызов process(), отправка ответа
+    ClientHandler(int socket, sockaddr_in addr, Logger& log_ref,
+        SystemMonitor& mon_ref, ArduinoComm& ard_ref, CommandManager& cmd_ref);
+    void handle();
 };
 
 // ========== КЛАСС TCP_SERVER ==========
-class TcpServer {                                                // TCP-сервер: принимает клиентов, создаёт потоки-обработчики
+class TcpServer {
 private:
-    int server_socket_;                                          // Слушающий сокет сервера
-    int port_;                                                   // Порт, на котором сервер принимает подключения
-    bool running_;                                               // Флаг работы главного цикла accept()
-    class Logger& logger_;                                       // Ссылка на логгер
-    class SystemMonitor& monitor_;                               // Ссылка на системный монитор
-    class ArduinoComm& arduino_;                                 // Ссылка на связь с Arduino
-    class CommandManager& cmd_manager_;                          // Ссылка на менеджер команд
+    int server_socket_;
+    int port_;
+    bool running_;
+    class Logger& logger_;
+    class SystemMonitor& monitor_;
+    class ArduinoComm& arduino_;
+    class CommandManager& cmd_manager_;
 
 public:
-    TcpServer(int p, Logger& log_ref, SystemMonitor& mon_ref,   // Конструктор: сохраняет порт и ссылки на все сервисы
+    TcpServer(int p, Logger& log_ref, SystemMonitor& mon_ref,
         ArduinoComm& ard_ref, CommandManager& cmd_ref);
-    ~TcpServer();                                                // Деструктор: вызывает stop()
-    bool start();                                                // Создание сокета, bind, listen
-    void run();                                                  // Главный цикл: accept() + создание потока с ClientHandler
-    void stop();                                                 // Остановка сервера, закрытие слушающего сокета
+    ~TcpServer();
+    bool start();
+    void run();
+    void stop();
 };
 
 // ========== ГЛАВНОЕ ПРИЛОЖЕНИЕ СЕРВЕРА ==========
@@ -296,39 +296,36 @@ Logger::~Logger() {
     if (log_file_.is_open()) log_file_.close();
 }
 
-void Logger::log(const string& message, const string& type) {  // Основной метод логирования
-    lock_guard<mutex> lock(log_mutex_);                         //   Блокировка мьютекса до конца функции (потокобезопасность)
-    string timestamp = get_current_time();                      //   Получение текущего времени: "ГГГГ-ММ-ДД ЧЧ:ММ:СС"
-    string entry = "[" + timestamp + "] [" + type + "] " + message; // Формирование строки: [время] [тип] сообщение
+void Logger::log(const string& message, const string& type) {
+    lock_guard<mutex> lock(log_mutex_);
+    string timestamp = get_current_time();
+    string entry = "[" + timestamp + "] [" + type + "] " + message;
 
-    cout << entry << endl;                                      //   Вывод в консоль сервера
-    log_history_.push_back(entry);                              //   Добавление в историю логов (оперативная память)
-    if (log_history_.size() > 1000)                             //   Ограничение истории:
-        log_history_.erase(log_history_.begin());               //     удаление самой старой записи при превышении 1000
+    cout << entry << endl;
+    log_history_.push_back(entry);
+    if (log_history_.size() > 1000) log_history_.erase(log_history_.begin());
 
-    if (log_file_.is_open()) {                                  //   Если файл server.log открыт:
-        log_file_ << entry << endl;                             //     запись строки в файл
-        log_file_.flush();                                      //     принудительный сброс буфера на диск
+    if (log_file_.is_open()) {
+        log_file_ << entry << endl;
+        log_file_.flush();
     }
 }
 
-void Logger::log_command(const string& client_ip, const string& command) { // Логирование команды от клиента
-    log("CMD from " + client_ip + ": " + command, "COMMAND");              //   Вызов основного log() с типом "COMMAND"
-}                                                                          //   Формат: [время] [COMMAND] CMD from IP: команда
+void Logger::log_command(const string& client_ip, const string& command) {
+    log("CMD from " + client_ip + ": " + command, "COMMAND");
+}
 
-string Logger::get_recent_logs(int count) {                              // Получение последних N записей лога
-    lock_guard<mutex> lock(log_mutex_);                                  //   Блокировка мьютекса (потокобезопасное чтение истории)
-    stringstream ss;                                                     //   Поток для сборки результирующей строки
-    ss << "=== ПОСЛЕДНИЕ ЛОГИ (последние " << count << ") ===\n";       //   Заголовок с количеством
-    ss << string(60, '=') << "\n";                                       //   Разделительная линия из 60 символов '='
+string Logger::get_recent_logs(int count) {
+    lock_guard<mutex> lock(log_mutex_);
+    stringstream ss;
+    ss << "=== ПОСЛЕДНИЕ ЛОГИ (последние " << count << ") ===\n";
+    ss << string(60, '=') << "\n";
 
-    int start = log_history_.size() > count                              //   Вычисление индекса начала:
-        ? log_history_.size() - count                                    //     если история больше count — берём последние count
-        : 0;                                                             //     иначе — с самого начала (0)
-    for (size_t i = start; i < log_history_.size(); i++) {               //   Цикл от start до конца истории
-        ss << log_history_[i] << "\n";                                   //     Добавление каждой записи с переводом строки
+    int start = log_history_.size() > count ? log_history_.size() - count : 0;
+    for (size_t i = start; i < log_history_.size(); i++) {
+        ss << log_history_[i] << "\n";
     }
-    return ss.str();                                                     //   Возврат собранной строки (вызывается из GetLogsCommand)
+    return ss.str();
 }
 
 // ========== РЕАЛИЗАЦИЯ ARDUINO_COMM ==========
@@ -336,31 +333,31 @@ ArduinoComm::ArduinoComm(Logger& log_ref) : serial_port_(-1), running_(true), lo
 
 ArduinoComm::~ArduinoComm() { disconnect(); }
 
-int ArduinoComm::open_serial(const char* port) {                     // Открытие и настройка последовательного порта
-    int fd = open(port, O_RDWR | O_NOCTTY | O_SYNC);                //   Открытие порта: чтение/запись, не терминал, синхронно
-    if (fd < 0) return fd;                                           //   Ошибка открытия — возврат -1
+int ArduinoComm::open_serial(const char* port) {
+    int fd = open(port, O_RDWR | O_NOCTTY | O_SYNC);
+    if (fd < 0) return fd;
 
-    struct termios tty;                                              //   Структура с настройками порта
-    memset(&tty, 0, sizeof(tty));                                    //   Обнуление структуры перед заполнением
-    if (tcgetattr(fd, &tty) != 0) { close(fd); return -1; }         //   Чтение текущих настроек, при ошибке — закрыть порт
+    struct termios tty;
+    memset(&tty, 0, sizeof(tty));
+    if (tcgetattr(fd, &tty) != 0) { close(fd); return -1; }
 
-    cfsetospeed(&tty, B9600);                                        //   Установка скорости отправки: 9600 бод
-    cfsetispeed(&tty, B9600);                                        //   Установка скорости приёма: 9600 бод
+    cfsetospeed(&tty, B9600);
+    cfsetispeed(&tty, B9600);
 
-    tty.c_cflag = (tty.c_cflag & ~CSIZE) | CS8;                     //   8 бит данных (очистка битов размера, установка CS8)
-    tty.c_iflag &= ~IGNBRK;                                          //   Не игнорировать сигнал BREAK
-    tty.c_lflag = 0;                                                 //   Отключение канонического режима, эха, сигналов
-    tty.c_oflag = 0;                                                 //   Отключение обработки вывода
-    tty.c_cc[VMIN] = 0;                                              //   Минимальное количество байт для read(): 0 (неблокирующий)
-    tty.c_cc[VTIME] = 5;                                             //   Таймаут чтения: 0.5 секунды (5 * 100 мс)
-    tty.c_iflag &= ~(IXON | IXOFF | IXANY);                          //   Отключение программного управления потоком (XON/XOFF)
-    tty.c_cflag |= (CLOCAL | CREAD);                                 //   Игнорировать модемные сигналы, разрешить приём
-    tty.c_cflag &= ~(PARENB | PARODD);                               //   Без бита чётности
-    tty.c_cflag &= ~CSTOPB;                                          //   1 стоп-бит (очистка CSTOPB = 1 бит, установка = 2 бита)
-    tty.c_cflag &= ~CRTSCTS;                                         //   Отключение аппаратного управления потоком (RTS/CTS)
+    tty.c_cflag = (tty.c_cflag & ~CSIZE) | CS8;
+    tty.c_iflag &= ~IGNBRK;
+    tty.c_lflag = 0;
+    tty.c_oflag = 0;
+    tty.c_cc[VMIN] = 0;
+    tty.c_cc[VTIME] = 5;
+    tty.c_iflag &= ~(IXON | IXOFF | IXANY);
+    tty.c_cflag |= (CLOCAL | CREAD);
+    tty.c_cflag &= ~(PARENB | PARODD);
+    tty.c_cflag &= ~CSTOPB;
+    tty.c_cflag &= ~CRTSCTS;
 
-    if (tcsetattr(fd, TCSANOW, &tty) != 0) { close(fd); return -1; } // Применение настроек немедленно, при ошибке — закрыть порт
-    return fd;                                                       //   Возврат файлового дескриптора открытого порта
+    if (tcsetattr(fd, TCSANOW, &tty) != 0) { close(fd); return -1; }
+    return fd;
 }
 
 bool ArduinoComm::connect(const char* port) {
@@ -383,26 +380,26 @@ bool ArduinoComm::send_command(const string& cmd) {
     return true;
 }
 
-void ArduinoComm::start_reader_thread(function<void(const string&)> data_callback) { // Запуск фонового потока чтения из Arduino
-    thread([this, data_callback]() {                                                   //   Создание потока с захватом this и колбэка
-        char buffer[256];                                                              //   Буфер для чтения данных
-        while (running_) {                                                             //   Пока разрешена работа:
-            int bytes = read(serial_port_, buffer, sizeof(buffer) - 1);                //     Чтение из порта (неблокирующее, до 255 байт)
-            if (bytes > 0) {                                                           //     Если данные получены:
-                buffer[bytes] = '\0';                                                  //       Добавление нуль-терминатора
-                read_buffer_ += buffer;                                                //       Дописывание в буфер-накопитель
+void ArduinoComm::start_reader_thread(function<void(const string&)> data_callback) {
+    thread([this, data_callback]() {
+        char buffer[256];
+        while (running_) {
+            int bytes = read(serial_port_, buffer, sizeof(buffer) - 1);
+            if (bytes > 0) {
+                buffer[bytes] = '\0';
+                read_buffer_ += buffer;
 
-                size_t pos;                                                            //       Поиск всех завершённых строк (по '\n')
-                while ((pos = read_buffer_.find('\n')) != string::npos) {              //       Пока есть символ перевода строки:
-                    string line = read_buffer_.substr(0, pos);                         //         Извлечение строки до '\n'
-                    line.erase(line.find_last_not_of(" \r\n\t") + 1);                  //         Удаление пробельных символов в конце
-                    if (!line.empty()) data_callback(line);                            //         Если строка не пуста — вызов колбэка
-                    read_buffer_.erase(0, pos + 1);                                    //         Удаление обработанной строки из буфера
+                size_t pos;
+                while ((pos = read_buffer_.find('\n')) != string::npos) {
+                    string line = read_buffer_.substr(0, pos);
+                    line.erase(line.find_last_not_of(" \r\n\t") + 1);
+                    if (!line.empty()) data_callback(line);
+                    read_buffer_.erase(0, pos + 1);
                 }
             }
-            this_thread::sleep_for(chrono::milliseconds(10));                          //     Пауза 10 мс между чтениями
+            this_thread::sleep_for(chrono::milliseconds(10));
         }
-        }).detach();                                                                       //   Отсоединение потока (работает независимо)
+        }).detach();
 }
 
 void ArduinoComm::stop() { running_ = false; }
@@ -579,43 +576,40 @@ string SystemMonitor::get_cpu_load_stats() {
     return ss.str();
 }
 
-string SystemMonitor::get_critical_events(int last_n) {                    // Получение последних N критических событий
-    lock_guard<mutex> lock(monitor_mutex_);                                //   Блокировка мьютекса (потокобезопасность)
-    stringstream ss;                                                       //   Поток для сборки ответа
+string SystemMonitor::get_critical_events(int last_n) {
+    lock_guard<mutex> lock(monitor_mutex_);
+    stringstream ss;
 
-    ss << "\n" << string(80, '=') << "\n";                                 //   Разделительная линия из 80 символов '='
-    ss << "КРИТИЧЕСКИЕ СОБЫТИЯ (последние " << last_n << ")\n";           //   Заголовок с количеством
-    ss << string(80, '=') << "\n";                                         //   Ещё одна разделительная линия
+    ss << "\n" << string(80, '=') << "\n";
+    ss << "КРИТИЧЕСКИЕ СОБЫТИЯ (последние " << last_n << ")\n";
+    ss << string(80, '=') << "\n";
 
-    ifstream crit_file(critical_log_file_);                                //   Открытие файла критических событий на чтение
-    if (crit_file.is_open()) {                                             //   Если файл открыт успешно:
-        vector<string> all_events;                                         //     Вектор для хранения всех строк файла
-        string line;                                                       //     Переменная для чтения строки
-        while (getline(crit_file, line)) {                                 //     Построчное чтение файла:
-            if (!line.empty() && line.back() == '\r') line.pop_back();     //       Удаление '\r' в конце (Windows CRLF -> LF)
-            if (line.empty()) continue;                                    //       Пропуск пустых строк
-            all_events.push_back(line);                                    //       Добавление строки в вектор
-            if (all_events.size() > 1000)                                  //       Ограничение размера вектора:
-                all_events.erase(all_events.begin());                      //         удаление самой старой записи при >1000
+    ifstream crit_file(critical_log_file_);
+    if (crit_file.is_open()) {
+        vector<string> all_events;
+        string line;
+        while (getline(crit_file, line)) {
+            if (!line.empty() && line.back() == '\r') line.pop_back();
+            if (line.empty()) continue;
+            all_events.push_back(line);
+            if (all_events.size() > 1000) all_events.erase(all_events.begin());
         }
 
-        if (all_events.empty()) {                                          //     Если событий нет:
-            ss << "  Критических событий не случилось\n";                 //       Сообщение об отсутствии событий
+        if (all_events.empty()) {
+            ss << "  Критических событий не случилось\n";
         }
-        else {                                                             //     Если события есть:
-            ss << "  Обнаружены следующие критические события:\n\n";      //       Подзаголовок
-            int start = all_events.size() > last_n                        //       Вычисление индекса начала:
-                ? all_events.size() - last_n                               //         если больше last_n — последние last_n
-                : 0;                                                       //         иначе — с самого начала
-            for (size_t i = start; i < all_events.size(); i++) {           //       Цикл от start до конца:
-                ss << "  * " << all_events[i] << "\n";                    //         Вывод события с маркером *
+        else {
+            ss << "  Обнаружены следующие критические события:\n\n";
+            int start = all_events.size() > last_n ? all_events.size() - last_n : 0;
+            for (size_t i = start; i < all_events.size(); i++) {
+                ss << "  * " << all_events[i] << "\n";
             }
         }
     }
-    else {                                                                 //   Если файл не удалось открыть:
-        ss << "  Критических событий не зарегистрировано\n";              //     Сообщение об отсутствии файла
+    else {
+        ss << "  Критических событий не зарегистрировано\n";
     }
-    return ss.str();                                                       //   Возврат собранной строки
+    return ss.str();
 }
 
 string SystemMonitor::get_full_report() {
