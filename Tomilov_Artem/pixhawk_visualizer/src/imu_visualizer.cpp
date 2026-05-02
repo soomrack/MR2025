@@ -258,10 +258,10 @@ static std::vector<VF> build_grid()
     int N=10;
     for (int i=-N;i<=N;i++){
         float f=i*step;
-        v.push_back({f,   (float)(-N*step),0,gc,gc,gc});
-        v.push_back({f,   (float)( N*step),0,gc,gc,gc});
-        v.push_back({(float)(-N*step),f,   0,gc,gc,gc});
-        v.push_back({(float)( N*step),f,   0,gc,gc,gc});
+        v.push_back({f, (float)(-N*step), 0, gc, gc, gc});
+        v.push_back({f, (float)( N*step), 0, gc, gc, gc});
+        v.push_back({(float)(-N*step), f, 0, gc, gc, gc});
+        v.push_back({(float)( N*step), f, 0, gc, gc, gc});
     }
     return v;
 }
@@ -579,7 +579,7 @@ void run_visualizer(SharedBuffer& buf)
 
         // FC модель — переместить в текущую позицию
         glm::mat4 fc_pos = glm::translate(glm::mat4(1),
-            glm::vec3((float)nav.px,(float)nav.py,(float)nav.pz));
+        glm::vec3((float)nav.px,(float)nav.py,(float)nav.pz));
         // Применить ориентацию
         glm::quat q((float)nav.qw,(float)nav.qx,(float)nav.qy,(float)nav.qz);
         glm::mat4 fc_model = fc_pos * glm::mat4_cast(q);
