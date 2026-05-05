@@ -1,0 +1,350 @@
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <windows.h>
+#include <time.h>
+
+#pragma comment(lib, "ws2_32.lib")
+
+#define BUFFER_SIZE 1024
+#define DEFAULT_PORT 55555
+
+volatile int running = 1;
+SOCKET peerSocket = INVALID_SOCKET;
+CRITICAL_SECTION lock;
+
+
+typedef struct {
+    char key;
+    const char* smile;
+} HotkeySmile;
+
+static const HotkeySmile HOTKEY_SMILES[] = {
+    {'1', "-_-"},   // T1 → -_-
+    {'2', "0_0"},   // T2 → 0_0
+    {'3', "xD"},    // T3 → xD
+    {'4', ":D"},    // T4 → :D
+    {'5', ":("},    // T5 → :(
+    {'6', ":)"},    // T6 → :)
+    {'7', ">_<"},   // T7 → >_<
+    {'8', "T_T"},   // T8 → T_T
+    {'9', "^_^"},   // T9 → ^_^
+    {'0', "o_O"}    // T0 → o_O
+};
+
+#define HOTKEY_COUNT (sizeof(HOTKEY_SMILES) / sizeof(HOTKEY_SMILES[0]))
+
+// Цвета консоли
+void set_console_color(int color) {
+    HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);  //Обращаемся к дескриптору
+    SetConsoleTextAttribute(hConsole, color);
+}
+
+void reset_console_color() {
+    set_console_color(7); // Белый
+}
+
+// Получение смайлика по горячей клавише
+const char* get_smile_by_hotkey(char key) {
+    for (size_t i = 0; i < HOTKEY_COUNT; i++) {
+        if (HOTKEY_SMILES[i].key == key) {
+            return HOTKEY_SMILES[i].smile;
+        }
+    }
+    return NULL;
+}
+
+// Обработчик Ctrl+C
+BOOL WINAPI consoleHandler(DWORD signal) {
+    if (signal == CTRL_C_EVENT) {
+        running = 0;
+        printf("\n[Shutting down...]\n");
+        if (peerSocket != INVALID_SOCKET) {
+            shutdown(peerSocket, SD_BOTH);
+        }
+        return TRUE;
+    }
+    return FALSE;
+}
+
+// Получение временной метки
+char* get_timestamp(char* buf) {
+    time_t now = time(NULL); // Текущее время в секундах
+    struct tm* t = localtime(&now);  // Преобразует в локальное
+    sprintf(buf, "[%02d:%02d:%02d]", t->tm_hour, t->tm_min, t->tm_sec);
+    return buf;
+}
+
+// Вывод справки
+void print_help() {
+    printf("\n=== P2P Chat Commands ===\n");
+    printf("  /help     - Show this help\n");
+    printf("  /exit     - Exit chat\n");
+    printf("  exit      - Exit chat\n");
+    printf("\nHotkeys for smileys (type T + number):\n");
+    printf("  T1 \x1A -_-    T2 \x1A 0_0    T3 \x1A xD     T4 \x1A :D\n");
+    printf("  T5 \x1A :(     T6 \x1A :)     T7 \x1A >_<    T8 \x1A T_T\n");
+    printf("  T9 \x1A ^_^    T0 \x1A o_O\n");
+    printf("==========================\n\n");
+}
+
+// Поток для приема сообщений
+DWORD WINAPI ReceiveThread(LPVOID lpParam) {
+    char buffer[BUFFER_SIZE]; //Временное хранилище
+    
+    while (running) {
+        int bytes = recv(peerSocket, buffer, BUFFER_SIZE - 1, 0);
+        if (bytes <= 0) {
+            if (running) {
+                printf("\n[Peer disconnected]\n");
+                running = 0;
+            }
+            break;
+        }
+        
+        buffer[bytes] = '\0';
+        // Удаляем \n и \r
+        size_t len = strlen(buffer);
+        while (len > 0 && (buffer[len-1] == '\n' || buffer[len-1] == '\r')) {
+            buffer[--len] = '\0';
+        }
+        
+        set_console_color(11); // Голубой
+        char timestamp[16];
+        printf("\r< %s %s\n", get_timestamp(timestamp), buffer);
+        reset_console_color();
+        printf("You: ");
+        fflush(stdout);
+    }
+    
+    return 0;
+}
+
+// Поток для сервера (прием входящих подключений)
+DWORD WINAPI ServerThread(LPVOID lpParam) {
+    int listenPort = *(int*)lpParam;
+    
+    WSADATA wsaData;
+    WSAStartup(MAKEWORD(2, 2), &wsaData);
+    
+    SOCKET serverSock = socket(AF_INET, SOCK_STREAM, 0);
+    if (serverSock == INVALID_SOCKET) {
+        printf("[Server] socket() failed\n");
+        return 1;
+    }
+    
+    int opt = 1;
+    setsockopt(serverSock, SOL_SOCKET, SO_REUSEADDR, (char*)&opt, sizeof(opt));
+    
+    sockaddr_in addr;
+    addr.sin_family = AF_INET;   /*IPv4*/
+    addr.sin_port = htons(listenPort);  // Порт
+    addr.sin_addr.s_addr = INADDR_ANY;  // Слушаем все интерфейсы
+    
+    if (bind(serverSock, (struct sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR) {
+        printf("[Server] bind() failed on port %d\n", listenPort);
+        closesocket(serverSock);
+        return 1;
+    }
+    
+    if (listen(serverSock, SOMAXCONN) == SOCKET_ERROR) {
+        printf("[Server] listen() failed\n");
+        closesocket(serverSock);
+        return 1;
+    }
+    
+    printf("[Server] Listening on port %d...\n", listenPort);
+    
+    while (running) {
+        sockaddr_in clientAddr;
+        int addrSize = sizeof(clientAddr);
+        SOCKET client = accept(serverSock, (struct sockaddr*)&clientAddr, &addrSize);
+        
+        if (client == INVALID_SOCKET) {
+            continue;
+        }
+        
+        EnterCriticalSection(&lock);
+        if (peerSocket == INVALID_SOCKET) {
+            peerSocket = client;    
+            char ip[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &clientAddr.sin_addr, ip, INET_ADDRSTRLEN);
+            printf("\n[+] Incoming connection from %s:%d\n", ip, ntohs(clientAddr.sin_port));
+            printf("You: ");
+            fflush(stdout);
+        } else {
+            printf("\n[!] Another peer tried to connect (rejected)\n");
+            closesocket(client);
+        }
+        LeaveCriticalSection(&lock);
+    }
+    
+    closesocket(serverSock);
+    WSACleanup();
+    return 0;
+}
+
+// Подключение к удаленному пиру
+void connect_to_peer(const char* address) {
+    char ip[64] = {0};
+    int port;
+    
+    // Парсинг адреса
+    const char* sep = strchr(address, ':');
+    if (!sep) {
+        printf("[!] Invalid address format. Use IP:PORT\n");
+        return;
+    }
+    
+    int ip_len = sep - address;
+    strncpy(ip, address, ip_len);
+    ip[ip_len] = '\0';
+    port = atoi(sep + 1); //преобразуем строку в число
+    
+    printf("[Client] Connecting to %s:%d...\n", ip, port);
+    
+    SOCKET sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock == INVALID_SOCKET) {
+        printf("[Client] socket() failed\n");
+        return;
+    }
+    
+    sockaddr_in addr;
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    inet_pton(AF_INET, ip, &addr.sin_addr);
+    
+    if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR) {
+        printf("[!] Could not connect to peer. Waiting for incoming connection...\n");
+        closesocket(sock);
+        return;
+    }
+    
+    EnterCriticalSection(&lock);
+    if (peerSocket == INVALID_SOCKET) {
+        peerSocket = sock;
+        printf("[+] Connected to peer %s:%d\n", ip, port);
+        printf("You: ");
+        fflush(stdout);
+    } else {
+        closesocket(sock);
+    }
+    LeaveCriticalSection(&lock);
+}
+
+// Функция для проверки является ли строка командой смайлика (T1, T2 и т.д.)
+int is_smile_command(const char* input, const char** smile) {
+    if (strlen(input) == 2 && (input[0] == 'T' || input[0] == 't' || input[0] == 'Т' || input[0] == 'т')) {
+        *smile = get_smile_by_hotkey(input[1]);
+        if (*smile) return 1;
+    }
+    return 0;
+}
+
+int main(int argc, char* argv[]) {
+    // Установка кодировки для русского языка
+    SetConsoleOutputCP(1251);
+    SetConsoleCP(1251);
+    
+    if (argc < 2) {
+        printf("Usage: %s <listen_port> [remote_ip:port]\n", argv[0]);
+        printf("Example: %s 55555\n", argv[0]);
+        printf("         %s 55556 127.0.0.1:55555\n", argv[0]);
+        return 1;
+    }
+    
+    // Установка обработчика Ctrl+C
+    SetConsoleCtrlHandler(consoleHandler, TRUE);
+    
+    // Парсинг порта для прослушивания
+    int listenPort = atoi(argv[1]);
+    if (listenPort <= 0 || listenPort > 65535) {
+        printf("[!] Invalid port: %s\n", argv[1]);
+        return 1;
+    }
+    
+    InitializeCriticalSection(&lock);
+    
+    // Запуск серверного потока
+    HANDLE hServer = CreateThread(NULL, 0, ServerThread, &listenPort, 0, NULL);
+    if (!hServer) {
+        printf("Failed to start server thread\n");
+        return 1;
+    }
+    CloseHandle(hServer);
+    
+    // Подключение к удаленному пиру если указан
+    if (argc >= 3) {
+        Sleep(100); 
+        connect_to_peer(argv[2]);
+    } else {
+        printf("Waiting for peer to connect...\n");
+        printf("Type /help for available commands\n");
+    }
+    
+    // Ожидание подключения
+    while (running && peerSocket == INVALID_SOCKET) {
+        Sleep(100);
+    }
+    
+    // Прием сообщений
+    if (running && peerSocket != INVALID_SOCKET) {
+        HANDLE hRecv = CreateThread(NULL, 0, ReceiveThread, NULL, 0, NULL);
+        if (hRecv) CloseHandle(hRecv);
+        
+        printf("\nYou: ");
+        fflush(stdout);
+        
+        // Цикл ввода
+        char input[BUFFER_SIZE];
+        while (running) {
+            if (fgets(input, BUFFER_SIZE, stdin) == NULL) break;
+            
+
+            size_t len = strlen(input);
+            if (len > 0 && input[len-1] == '\n') {
+                input[len-1] = '\0';
+            }
+
+
+            if (strcmp(input, "/help") == 0) {
+                print_help();
+                continue;
+            }
+            
+            if (strcmp(input, "exit") == 0 || strcmp(input, "/exit") == 0) {
+                running = 0;
+                break;
+            }
+            
+            // Горячие клавиши для смайликов
+            const char* smile = NULL;
+            const char* message_to_send = input;
+            
+            if (is_smile_command(input, &smile)) {
+                message_to_send = smile;
+            }
+            
+            if (len > 0 && peerSocket != INVALID_SOCKET) {
+                send(peerSocket, message_to_send, strlen(message_to_send), 0);
+                
+                set_console_color(14); // Желтый
+                char timestamp[16];
+                printf("\r> %s %s\n", get_timestamp(timestamp), message_to_send);
+                reset_console_color();
+                printf("You: ");
+                fflush(stdout);
+            }
+        }
+    }
+    
+    // Очистка
+    if (peerSocket != INVALID_SOCKET) {
+        closesocket(peerSocket);
+    }
+    DeleteCriticalSection(&lock);
+    
+    return 0;
+}
