@@ -13,7 +13,6 @@
 #include <cstring>
 #include <fstream>
 #include <ctime>
-#include <iomanip>
 #include <deque>
 #include <unistd.h>
 #include <sys/socket.h>
@@ -22,20 +21,17 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <signal.h>
-#include <random>
 #include <mutex>
-#include <termios.h>  // Для UART
+#include <termios.h>  
 
 const unsigned short SERVER_PORT = 8080;
 const std::string LOG_FILE = "sensor_data.log";
 const std::string DANGER_LOG_FILE = "dangerous_data.log";
 const size_t MAX_LOG_ENTRIES = 120;
 
-// Настройки UART для Arduino
-const std::string UART_PORT = "/dev/ttyACM0";  // Или /dev/ttyUSB0
-const speed_t UART_BAUD_RATE = B9600;  // Скорость должна совпадать со скетчем Arduino
+const std::string UART_PORT = "/dev/ttyACM0";  
+const speed_t UART_BAUD_RATE = B9600;  
 
-// Номинальные диапазоны значений датчиков
 struct NormalRanges {
     float temp_min = 18.0f;
     float temp_max = 26.0f;
@@ -47,7 +43,6 @@ struct NormalRanges {
     float light_max = 800.0f;
 };
 
-// Глобальный флаг для graceful shutdown
 std::atomic<bool> server_running{true};
 
 void signal_handler(int signum) {
@@ -64,212 +59,208 @@ struct SensorData {
     bool is_dangerous = false;
     std::vector<std::string> danger_reasons;
 
-    std::string toString() const {
-        std::stringstream ss;
-        ss << std::fixed << std::setprecision(1) 
-           << temperature << " " << humidity << " " 
-           << soil_moisture << " " << light;
-        return ss.str();
-    }    
-
-    std::string toFormattedString() const {
-        std::stringstream ss;
-        ss << "Temperature: " << std::fixed << std::setprecision(1) 
-           << temperature << "°C, "
-           << "Humidity: " << humidity << "%, "
-           << "Soil Moisture: " << soil_moisture << "%, "
-           << "Light: " << light << " lux";
-        
-        if (is_dangerous) {
-            ss << " [DANGER: ";
-            for (size_t i = 0; i < danger_reasons.size(); ++i) {
-                if (i > 0) ss << ", ";
-                ss << danger_reasons[i];
-            }
-            ss << "]";
-        }
-        
-        return ss.str();
-    }
-    
-    std::string toCsvString() const {
-        std::stringstream ss;
-        auto time_t = std::chrono::system_clock::to_time_t(timestamp);
-        ss << std::put_time(std::localtime(&time_t), "%Y-%m-%d %H:%M:%S");
-        ss << "," << std::fixed << std::setprecision(1)
-           << temperature << "," << humidity << "," 
-           << soil_moisture << "," << light;
-        return ss.str();
-    }
-    
-    std::string toDangerCsvString() const {
-        std::stringstream ss;
-        auto time_t_value = std::chrono::system_clock::to_time_t(timestamp);
-        ss << std::put_time(std::localtime(&time_t_value), "%Y-%m-%d %H:%M:%S");
-        ss << "," << std::fixed << std::setprecision(1)
-        << temperature << "," << humidity << "," 
-        << soil_moisture << "," << light << ",";
-        
-        for (size_t i = 0; i < danger_reasons.size(); ++i) {
-            if (i > 0) ss << "; ";
-            ss << danger_reasons[i];
-        }
-        
-        return ss.str();
-    }
-    
-    void checkDangerous(const NormalRanges& ranges) {
-        is_dangerous = false;
-        danger_reasons.clear();
-        
-        if (temperature < ranges.temp_min) {
-            is_dangerous = true;
-            std::stringstream ss;
-            ss << "Temperature too low: " << std::fixed << std::setprecision(1) 
-               << temperature << "°C (min: " << ranges.temp_min << "°C)";
-            danger_reasons.push_back(ss.str());
-        } else if (temperature > ranges.temp_max) {
-            is_dangerous = true;
-            std::stringstream ss;
-            ss << "Temperature too high: " << std::fixed << std::setprecision(1) 
-               << temperature << "°C (max: " << ranges.temp_max << "°C)";
-            danger_reasons.push_back(ss.str());
-        }
-        
-        if (humidity < ranges.humidity_min) {
-            is_dangerous = true;
-            std::stringstream ss;
-            ss << "Humidity too low: " << std::fixed << std::setprecision(1) 
-               << humidity << "% (min: " << ranges.humidity_min << "%)";
-            danger_reasons.push_back(ss.str());
-        } else if (humidity > ranges.humidity_max) {
-            is_dangerous = true;
-            std::stringstream ss;
-            ss << "Humidity too high: " << std::fixed << std::setprecision(1) 
-               << humidity << "% (max: " << ranges.humidity_max << "%)";
-            danger_reasons.push_back(ss.str());
-        }
-        
-        if (soil_moisture < ranges.soil_moisture_min) {
-            is_dangerous = true;
-            std::stringstream ss;
-            ss << "Soil moisture too low: " << std::fixed << std::setprecision(1) 
-               << soil_moisture << "% (min: " << ranges.soil_moisture_min << "%)";
-            danger_reasons.push_back(ss.str());
-        } else if (soil_moisture > ranges.soil_moisture_max) {
-            is_dangerous = true;
-            std::stringstream ss;
-            ss << "Soil moisture too high: " << std::fixed << std::setprecision(1) 
-               << soil_moisture << "% (max: " << ranges.soil_moisture_max << "%)";
-            danger_reasons.push_back(ss.str());
-        }
-        
-        if (light < ranges.light_min) {
-            is_dangerous = true;
-            std::stringstream ss;
-            ss << "Light too low: " << std::fixed << std::setprecision(1) 
-               << light << " lux (min: " << ranges.light_min << " lux)";
-            danger_reasons.push_back(ss.str());
-        } else if (light > ranges.light_max) {
-            is_dangerous = true;
-            std::stringstream ss;
-            ss << "Light too high: " << std::fixed << std::setprecision(1) 
-               << light << " lux (max: " << ranges.light_max << " lux)";
-            danger_reasons.push_back(ss.str());
-        }
-    }
+    std::string toFormattedString() const;
+    std::string toCsvString() const;
+    std::string toDangerCsvString() const;
+    void checkDangerous(const NormalRanges& ranges);
 };
 
-// Класс для работы с Arduino через UART
+
+std::string SensorData::toFormattedString() const {
+    std::stringstream ss;
+    ss << "Temperature: " << std::fixed << std::setprecision(1) 
+       << temperature << "°C, "
+       << "Humidity: " << humidity << "%, "
+       << "Soil Moisture: " << soil_moisture << "%, "
+       << "Light: " << light << " lux";
+    
+    if (is_dangerous) {
+        ss << " [DANGER: ";
+        for (size_t i = 0; i < danger_reasons.size(); ++i) {
+            if (i > 0) ss << ", ";
+            ss << danger_reasons[i];
+        }
+        ss << "]";
+    }
+    
+    return ss.str();
+}
+
+std::string SensorData::toCsvString() const {
+    std::stringstream ss;
+    auto time_t = std::chrono::system_clock::to_time_t(timestamp);
+    ss << std::put_time(std::localtime(&time_t), "%Y-%m-%d %H:%M:%S");
+    ss << "," << std::fixed << std::setprecision(1)
+       << temperature << "," << humidity << "," 
+       << soil_moisture << "," << light;
+    return ss.str();
+}
+
+std::string SensorData::toDangerCsvString() const {
+    std::stringstream ss;
+    auto time_t_value = std::chrono::system_clock::to_time_t(timestamp);
+    ss << std::put_time(std::localtime(&time_t_value), "%Y-%m-%d %H:%M:%S");
+    ss << "," << std::fixed << std::setprecision(1)
+    << temperature << "," << humidity << "," 
+    << soil_moisture << "," << light << ",";
+    
+    for (size_t i = 0; i < danger_reasons.size(); ++i) {
+        if (i > 0) ss << "; ";
+        ss << danger_reasons[i];
+    }
+    
+    return ss.str();
+}
+
+void SensorData::checkDangerous(const NormalRanges& ranges) {
+    is_dangerous = false;
+    danger_reasons.clear();
+    
+    if (temperature < ranges.temp_min) {
+        is_dangerous = true;
+        std::stringstream ss;
+        ss << "Temperature too low" << std::fixed << std::setprecision(1);
+        danger_reasons.push_back(ss.str());
+    } else if (temperature > ranges.temp_max) {
+        is_dangerous = true;
+        std::stringstream ss;
+        ss << "Temperature too high" << std::fixed << std::setprecision(1);
+        danger_reasons.push_back(ss.str());
+    }
+    
+    if (humidity < ranges.humidity_min) {
+        is_dangerous = true;
+        std::stringstream ss;
+        ss << "Humidity too low" << std::fixed << std::setprecision(1);
+        danger_reasons.push_back(ss.str());
+    } else if (humidity > ranges.humidity_max) {
+        is_dangerous = true;
+        std::stringstream ss;
+        ss << "Humidity too high" << std::fixed << std::setprecision(1);
+        danger_reasons.push_back(ss.str());
+    }
+    
+    if (soil_moisture < ranges.soil_moisture_min) {
+        is_dangerous = true;
+        std::stringstream ss;
+        ss << "Soil moisture too low" << std::fixed << std::setprecision(1);
+        danger_reasons.push_back(ss.str());
+    } else if (soil_moisture > ranges.soil_moisture_max) {
+        is_dangerous = true;
+        std::stringstream ss;
+        ss << "Soil moisture too high" << std::fixed << std::setprecision(1);
+        danger_reasons.push_back(ss.str());
+    }
+    
+    if (light < ranges.light_min) {
+        is_dangerous = true;
+        std::stringstream ss;
+        ss << "Light too low" << std::fixed << std::setprecision(1);
+        danger_reasons.push_back(ss.str());
+    } else if (light > ranges.light_max) {
+        is_dangerous = true;
+        std::stringstream ss;
+        ss << "Light too high" << std::fixed << std::setprecision(1);
+        danger_reasons.push_back(ss.str());
+    }
+}
+
 class ArduinoUART {
 private:
     int uart_fd;
     std::mutex uart_mutex;
     std::atomic<bool> connected;
     
-    bool configureUART(int fd) {
-        struct termios tty;
-        
-        if (tcgetattr(fd, &tty) != 0) {
-            std::cerr << "[UART] Failed to get terminal attributes: " << strerror(errno) << std::endl;
-            return false;
-        }
-        
-        // Настройка скорости
-        cfsetospeed(&tty, UART_BAUD_RATE);
-        cfsetispeed(&tty, UART_BAUD_RATE);
-        
-        // Настройка флагов
-        tty.c_cflag &= ~PARENB;   // Нет бита четности
-        tty.c_cflag &= ~CSTOPB;   // 1 стоп-бит
-        tty.c_cflag &= ~CSIZE;
-        tty.c_cflag |= CS8;       // 8 бит данных
-        tty.c_cflag &= ~CRTSCTS;  // Нет аппаратного контроля потока
-        tty.c_cflag |= CREAD | CLOCAL;  // Включить чтение, игнорировать управляющие линии
-        
-        tty.c_lflag &= ~ICANON;   // Неканонический режим
-        tty.c_lflag &= ~ECHO;     // Отключить эхо
-        tty.c_lflag &= ~ECHOE;
-        tty.c_lflag &= ~ECHONL;
-        tty.c_lflag &= ~ISIG;     // Отключить сигнальные символы
-        
-        tty.c_iflag &= ~(IXON | IXOFF | IXANY);  // Отключить программный контроль потока
-        tty.c_iflag &= ~(INLCR | ICRNL | IGNCR); // Отключить преобразование символов
-        
-        tty.c_oflag &= ~OPOST;    // Отключить пост-обработку вывода
-        
-        // Таймаут чтения
-        tty.c_cc[VMIN] = 0;       // Не ждать определенного количества символов
-        tty.c_cc[VTIME] = 10;     // Таймаут 1 секунда (в десятых долях секунды)
-        
-        if (tcsetattr(fd, TCSANOW, &tty) != 0) {
-            std::cerr << "[UART] Failed to set terminal attributes: " << strerror(errno) << std::endl;
-            return false;
-        }
-        
-        return true;
-    }
+    bool configureUART(int fd);
     
 public:
-    ArduinoUART() : uart_fd(-1), connected(false) {}
+    ArduinoUART();
+    ~ArduinoUART();
     
-    ~ArduinoUART() {
-        disconnect();
+    bool connect();
+    void disconnect();
+    SensorData readSensorData();
+    bool isConnected() const;
+};
+
+ArduinoUART::ArduinoUART() : uart_fd(-1), connected(false) {}
+
+ArduinoUART::~ArduinoUART() {
+    disconnect();
+}
+
+bool ArduinoUART::configureUART(int fd) {
+    struct termios tty;
+    
+    if (tcgetattr(fd, &tty) != 0) {
+        std::cerr << "[UART] Failed to get terminal attributes: " << strerror(errno) << std::endl;
+        return false;
+    }
+
+    cfsetospeed(&tty, UART_BAUD_RATE);
+    cfsetispeed(&tty, UART_BAUD_RATE);
+
+    tty.c_cflag &= ~PARENB;   
+    tty.c_cflag &= ~CSTOPB;   
+    tty.c_cflag &= ~CSIZE;
+    tty.c_cflag |= CS8;      
+    tty.c_cflag &= ~CRTSCTS;  
+    tty.c_cflag |= CREAD | CLOCAL;  
+    
+    tty.c_lflag &= ~ICANON;   
+    tty.c_lflag &= ~ECHO;     
+    tty.c_lflag &= ~ECHOE;
+    tty.c_lflag &= ~ECHONL;
+    tty.c_lflag &= ~ISIG;     
+    
+    tty.c_iflag &= ~(IXON | IXOFF | IXANY);  
+    tty.c_iflag &= ~(INLCR | ICRNL | IGNCR); 
+    
+    tty.c_oflag &= ~OPOST;    
+    
+    tty.c_cc[VMIN] = 0;       
+    tty.c_cc[VTIME] = 10;   
+    
+    if (tcsetattr(fd, TCSANOW, &tty) != 0) {
+        std::cerr << "[UART] Failed to set terminal attributes: " << strerror(errno) << std::endl;
+        return false;
     }
     
-    bool connect() {
-        uart_fd = open(UART_PORT.c_str(), O_RDWR | O_NOCTTY | O_SYNC);
-        if (uart_fd < 0) {
-            std::cerr << "[UART] Failed to open port " << UART_PORT 
-                      << ": " << strerror(errno) << std::endl;
-            return false;
-        }
-        
-        if (!configureUART(uart_fd)) {
-            close(uart_fd);
-            uart_fd = -1;
-            return false;
-        }
-        
-        connected = true;
-        std::cout << "[UART] Connected to Arduino on " << UART_PORT << std::endl;
-        
-        // Очистка буфера
-        tcflush(uart_fd, TCIFLUSH);
-        
-        return true;
+    return true;
+}
+
+bool ArduinoUART::connect() {
+    uart_fd = open(UART_PORT.c_str(), O_RDWR | O_NOCTTY | O_SYNC);
+    if (uart_fd < 0) {
+        std::cerr << "[UART] Failed to open port " << UART_PORT 
+                  << ": " << strerror(errno) << std::endl;
+        return false;
     }
     
-    void disconnect() {
-        if (uart_fd != -1) {
-            close(uart_fd);
-            uart_fd = -1;
-            std::cout << "[UART] Disconnected from Arduino" << std::endl;
-        }
-        connected = false;
+    if (!configureUART(uart_fd)) {
+        close(uart_fd);
+        uart_fd = -1;
+        return false;
     }
     
-   SensorData readSensorData() {
+    connected = true;
+    std::cout << "[UART] Connected to Arduino on " << UART_PORT << std::endl;
+    
+    tcflush(uart_fd, TCIFLUSH);
+    
+    return true;
+}
+
+void ArduinoUART::disconnect() {
+    if (uart_fd != -1) {
+        close(uart_fd);
+        uart_fd = -1;
+        std::cout << "[UART] Disconnected from Arduino" << std::endl;
+    }
+    connected = false;
+}
+
+SensorData ArduinoUART::readSensorData() {
     SensorData data;
     data.temperature = 0.0f;
     data.humidity = 0.0f;
@@ -282,19 +273,16 @@ public:
     }
     
     std::lock_guard<std::mutex> lock(uart_mutex);
-    
-    // Отправляем символ '1' для запроса данных
+  
     char request = '1';
     ssize_t written = write(uart_fd, &request, 1);
     if (written != 1) {
         std::cerr << "[UART] Failed to send request: " << strerror(errno) << std::endl;
         return data;
     }
-    
-    // Ждем ответа
+
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    
-    // Читаем ответ
+
     char buffer[256];
     memset(buffer, 0, sizeof(buffer));
     
@@ -311,8 +299,7 @@ public:
     
     buffer[bytes_read] = '\0';
     std::string response(buffer);
-    
-    // Удаляем символы новой строки и возврата каретки
+
     response.erase(std::remove(response.begin(), response.end(), '\r'), response.end());
     response.erase(std::remove(response.begin(), response.end(), '\n'), response.end());
     
@@ -320,8 +307,7 @@ public:
         std::cerr << "[UART] Empty response from Arduino" << std::endl;
         return data;
     }
-    
-    // Парсим данные: "Температура Влажность Освещенность ВлажностьПочвы"
+
     std::stringstream ss(response);
     float temp, humidity, light, soil_moisture;
     
@@ -337,13 +323,11 @@ public:
     
     return data;
 }
-    
-    bool isConnected() const {
-        return connected;
-    }
-};
 
-// Класс для получения реальных данных с Arduino
+bool ArduinoUART::isConnected() const {
+    return connected;
+}
+
 class RealSensorData {
 private:
     ArduinoUART& arduino;
@@ -351,26 +335,24 @@ private:
     std::mutex data_mutex;
     
 public:
-    RealSensorData(ArduinoUART& uart) : arduino(uart) {
-        lastData.timestamp = std::chrono::system_clock::now();
-    }
-    
-    SensorData getSensorData() {
-        std::lock_guard<std::mutex> lock(data_mutex);
-        SensorData newData = arduino.readSensorData();
-        // Если получили валидные данные (хотя бы один датчик не ноль), обновляем
-        if (newData.temperature != 0.0f || newData.humidity != 0.0f || 
-            newData.light != 0.0f || newData.soil_moisture != 0.0f) {
-            lastData = newData;
-        }
-        return lastData;
-    }
-    
-    SensorData getCurrentSensorData() {
-        std::lock_guard<std::mutex> lock(data_mutex);
-        return lastData;
-    }
+    RealSensorData(ArduinoUART& uart);
+    SensorData getSensorData();
 };
+
+RealSensorData::RealSensorData(ArduinoUART& uart) : arduino(uart) {
+    lastData.timestamp = std::chrono::system_clock::now();
+}
+
+SensorData RealSensorData::getSensorData() {
+    std::lock_guard<std::mutex> lock(data_mutex);
+    SensorData newData = arduino.readSensorData();
+    if (newData.temperature != 0.0f || newData.humidity != 0.0f || 
+        newData.light != 0.0f || newData.soil_moisture != 0.0f) {
+        lastData = newData;
+    }
+    return lastData;
+}
+
 
 class DataLogger {
 private:
@@ -385,233 +367,243 @@ private:
     NormalRanges normal_ranges;
     mutable std::mutex log_mutex;
     
-    void logData() {
-        while (logging_active) {
-            std::this_thread::sleep_for(logging_interval);
-            
-            if (!logging_active) break;
-            
-            SensorData data = dataProvider();
-            data.checkDangerous(normal_ranges);
-            
-            std::lock_guard<std::mutex> guard(log_mutex);
-            
-            // Записываем в основной журнал
-            if (logFile.is_open()) {
-                std::string log_entry = data.toCsvString();
-                logFile << log_entry << std::endl;
-                logFile.flush();
-                
-                log_cache.push_back(log_entry);
-                if (log_cache.size() > MAX_LOG_ENTRIES) {
-                    log_cache.pop_front();
-                }
-            }
-            
-            // Если данные опасные, записываем в отдельный журнал
-            if (data.is_dangerous && dangerLogFile.is_open()) {
-                std::string danger_entry = data.toDangerCsvString();
-                dangerLogFile << danger_entry << std::endl;
-                dangerLogFile.flush();
-                
-                danger_log_cache.push_back(danger_entry);
-                if (danger_log_cache.size() > MAX_LOG_ENTRIES) {
-                    danger_log_cache.pop_front();
-                }
-            }
-        }
-    }
+    void logData();
     
 public:
-    DataLogger(std::function<SensorData()> provider, std::chrono::seconds interval = std::chrono::seconds(5))
-        : dataProvider(provider), logging_interval(interval) {
-        
-        // Открываем основной файл лога
-        logFile.open(LOG_FILE, std::ios::out | std::ios::app);
-        if (!logFile.is_open()) {
-            std::cerr << "[Logger]: Failed to open log file: " << LOG_FILE << std::endl;
-        } else {
-            logFile.seekp(0, std::ios::end);
-            if (logFile.tellp() == 0) {
-                logFile << "Timestamp,Temperature,Humidity,Soil_Moisture,Light" << std::endl;
-            }
-            std::cout << "[Logger]: Log file opened: " << LOG_FILE << std::endl;
-        }
-        
-        // Открываем файл опасных данных
-        dangerLogFile.open(DANGER_LOG_FILE, std::ios::out | std::ios::app);
-        if (!dangerLogFile.is_open()) {
-            std::cerr << "[Logger]: Failed to open danger log file: " << DANGER_LOG_FILE << std::endl;
-        } else {
-            dangerLogFile.seekp(0, std::ios::end);
-            if (dangerLogFile.tellp() == 0) {
-                dangerLogFile << "Timestamp,Temperature,Humidity,Soil_Moisture,Light,Danger_Reasons" << std::endl;
-            }
-            std::cout << "[Logger]: Danger log file opened: " << DANGER_LOG_FILE << std::endl;
-        }
-        
-        // Загружаем последние записи из файлов в кэш
-        loadLastEntries();
-        
-        // Запускаем фоновый поток логирования
-        logging_thread = std::thread(&DataLogger::logData, this);
-    }
+    DataLogger(std::function<SensorData()> provider, std::chrono::seconds interval = std::chrono::seconds(5));
+    ~DataLogger();
     
-    ~DataLogger() {
-        stop();
-    }
-    
-    void stop() {
-        logging_active = false;
-        if (logging_thread.joinable()) {
-            logging_thread.join();
+    void stop();
+    void loadLastEntries();
+    std::string getLastEntries(size_t count) const;
+    std::string getLastDangerEntries(size_t count) const;
+    size_t getTotalEntries() const;
+    size_t getTotalDangerEntries() const;
+    NormalRanges getNormalRanges() const;
+};
+
+DataLogger::DataLogger(std::function<SensorData()> provider, std::chrono::seconds interval)
+    : dataProvider(provider), logging_interval(interval) {
+
+    logFile.open(LOG_FILE, std::ios::out | std::ios::app);
+    if (!logFile.is_open()) {
+        std::cerr << "[Logger]: Failed to open log file: " << LOG_FILE << std::endl;
+    } else {
+        logFile.seekp(0, std::ios::end);
+        if (logFile.tellp() == 0) {
+            logFile << "Timestamp,Temperature,Humidity,Soil_Moisture,Light" << std::endl;
         }
-        if (logFile.is_open()) {
-            logFile.close();
-            std::cout << "[Logger]: Log file closed" << std::endl;
-        }
-        if (dangerLogFile.is_open()) {
-            dangerLogFile.close();
-            std::cout << "[Logger]: Danger log file closed" << std::endl;
-        }
-    }
-    
-    void loadLastEntries() {
-        // Загрузка основного лога
-        std::ifstream file(LOG_FILE);
-        if (file.is_open()) {
-            std::string line;
-            std::vector<std::string> all_lines;
-            
-            std::getline(file, line); // Пропускаем заголовок
-            
-            while (std::getline(file, line)) {
-                all_lines.push_back(line);
-            }
-            file.close();
-            
-            log_cache.clear();
-            size_t start = all_lines.size() > MAX_LOG_ENTRIES ? all_lines.size() - MAX_LOG_ENTRIES : 0;
-            for (size_t i = start; i < all_lines.size(); ++i) {
-                log_cache.push_back(all_lines[i]);
-            }
-        }
-        
-        // Загрузка опасного лога
-        std::ifstream dangerFile(DANGER_LOG_FILE);
-        if (dangerFile.is_open()) {
-            std::string line;
-            std::vector<std::string> all_lines;
-            
-            std::getline(dangerFile, line); // Пропускаем заголовок
-            
-            while (std::getline(dangerFile, line)) {
-                all_lines.push_back(line);
-            }
-            dangerFile.close();
-            
-            danger_log_cache.clear();
-            size_t start = all_lines.size() > MAX_LOG_ENTRIES ? all_lines.size() - MAX_LOG_ENTRIES : 0;
-            for (size_t i = start; i < all_lines.size(); ++i) {
-                danger_log_cache.push_back(all_lines[i]);
-            }
-        }
-    }
-    
-    std::string getLastEntries(size_t count) const {
-        std::stringstream ss;
-    
-        if (log_cache.empty()) {
-            ss << "No log entries available";
-            return ss.str();
-        }
-        
-        size_t num_entries = std::min(count, log_cache.size());
-        size_t start = log_cache.size() - num_entries;
-        
-        ss << "Last " << num_entries << " log entries:\n";
-        ss << "----------------------------------------------------------------------------------------------------\n";
-        // Добавлен дополнительный пробел перед Temp(°C) для сдвига
-        ss << std::left << std::setw(20) << "Timestamp" 
-        << " " << std::setw(12) << "Temp(°C)" 
-        << std::setw(12) << "Hum(%)" 
-        << std::setw(15) << "Soil(%)" 
-        << std::setw(10) << "Light(lux)" << "\n";
-        ss << "----------------------------------------------------------------------------------------------------\n";
-        
-        for (size_t i = start; i < log_cache.size(); ++i) {
-            std::string entry = log_cache[i];
-            std::stringstream entry_ss(entry);
-            std::string timestamp, temp, hum, soil, light;
-            
-            std::getline(entry_ss, timestamp, ',');
-            std::getline(entry_ss, temp, ',');
-            std::getline(entry_ss, hum, ',');
-            std::getline(entry_ss, soil, ',');
-            std::getline(entry_ss, light, ',');
-            
-            ss << std::left << std::setw(20) << timestamp
-            << " " << std::setw(12) << temp
-            << std::setw(12) << hum
-            << std::setw(15) << soil
-            << std::setw(10) << light << "\n";
-        }
-        
-        ss << "----------------------------------------------------------------------------------------------------\n";
-        ss << "Total entries in log: " << log_cache.size() << "\n";
-        
-        return ss.str();
+        std::cout << "[Logger]: Log file opened: " << LOG_FILE << std::endl;
     }
 
-    std::string getLastDangerEntries(size_t count) const {
-        std::stringstream ss;
-        
-        if (danger_log_cache.empty()) {
-            ss << "No dangerous events recorded";
-            return ss.str();
+    dangerLogFile.open(DANGER_LOG_FILE, std::ios::out | std::ios::app);
+    if (!dangerLogFile.is_open()) {
+        std::cerr << "[Logger]: Failed to open danger log file: " << DANGER_LOG_FILE << std::endl;
+    } else {
+        dangerLogFile.seekp(0, std::ios::end);
+        if (dangerLogFile.tellp() == 0) {
+            dangerLogFile << "Timestamp,Temperature,Humidity,Soil_Moisture,Light,Danger_Reasons" << std::endl;
         }
+        std::cout << "[Logger]: Danger log file opened: " << DANGER_LOG_FILE << std::endl;
+    }
+
+    loadLastEntries();
+    logging_thread = std::thread(&DataLogger::logData, this);
+}
+
+DataLogger::~DataLogger() {
+    stop();
+}
+
+void DataLogger::stop() {
+    logging_active = false;
+    if (logging_thread.joinable()) {
+        logging_thread.join();
+    }
+    if (logFile.is_open()) {
+        logFile.close();
+        std::cout << "[Logger]: Log file closed" << std::endl;
+    }
+    if (dangerLogFile.is_open()) {
+        dangerLogFile.close();
+        std::cout << "[Logger]: Danger log file closed" << std::endl;
+    }
+}
+
+void DataLogger::logData() {
+    while (logging_active) {
+        std::this_thread::sleep_for(logging_interval);
         
-        size_t num_entries = std::min(count, danger_log_cache.size());
-        size_t start = danger_log_cache.size() - num_entries;
+        if (!logging_active) break;
         
-        ss << "Last " << num_entries << " dangerous events:\n";
-        ss << "----------------------------------------------------------------------------------------------------\n";
-        // Добавлен дополнительный пробел перед Temp(°C) для сдвига
-        ss << std::left << std::setw(20) << "Timestamp" 
-        << " " << std::setw(12) << "Temp(°C)" 
-        << std::setw(12) << "Hum(%)" 
-        << std::setw(15) << "Soil(%)" 
-        << std::setw(10) << "Light(lux)" << "\n";
-        ss << "----------------------------------------------------------------------------------------------------\n";
+        SensorData data = dataProvider();
+        data.checkDangerous(normal_ranges);
         
-        for (size_t i = start; i < danger_log_cache.size(); ++i) {
-            std::string entry = danger_log_cache[i];
-            std::stringstream entry_ss(entry);
-            std::string timestamp, temp, hum, soil, light;
+        std::lock_guard<std::mutex> guard(log_mutex);
+
+        if (logFile.is_open()) {
+            std::string log_entry = data.toCsvString();
+            logFile << log_entry << std::endl;
+            logFile.flush();
             
-            std::getline(entry_ss, timestamp, ',');
-            std::getline(entry_ss, temp, ',');
-            std::getline(entry_ss, hum, ',');
-            std::getline(entry_ss, soil, ',');
-            std::getline(entry_ss, light, ',');
-            
-            ss << std::left << std::setw(20) << timestamp
-            << " " << std::setw(12) << temp
-            << std::setw(12) << hum
-            << std::setw(15) << soil
-            << std::setw(10) << light << "\n";
+            log_cache.push_back(log_entry);
+            if (log_cache.size() > MAX_LOG_ENTRIES) {
+                log_cache.pop_front();
+            }
         }
+
+        if (data.is_dangerous && dangerLogFile.is_open()) {
+            std::string danger_entry = data.toDangerCsvString();
+            dangerLogFile << danger_entry << std::endl;
+            dangerLogFile.flush();
+            
+            danger_log_cache.push_back(danger_entry);
+            if (danger_log_cache.size() > MAX_LOG_ENTRIES) {
+                danger_log_cache.pop_front();
+            }
+        }
+    }
+}
+
+void DataLogger::loadLastEntries() {
+    std::ifstream file(LOG_FILE);
+    if (file.is_open()) {
+        std::string line;
+        std::vector<std::string> all_lines;
         
-        ss << "----------------------------------------------------------------------------------------------------\n";
-        ss << "Total dangerous events: " << danger_log_cache.size() << "\n";
+        std::getline(file, line); 
         
+        while (std::getline(file, line)) {
+            all_lines.push_back(line);
+        }
+        file.close();
+        
+        log_cache.clear();
+        size_t start = all_lines.size() > MAX_LOG_ENTRIES ? all_lines.size() - MAX_LOG_ENTRIES : 0;
+        for (size_t i = start; i < all_lines.size(); ++i) {
+            log_cache.push_back(all_lines[i]);
+        }
+    }
+
+    std::ifstream dangerFile(DANGER_LOG_FILE);
+    if (dangerFile.is_open()) {
+        std::string line;
+        std::vector<std::string> all_lines;
+        
+        std::getline(dangerFile, line); 
+        
+        while (std::getline(dangerFile, line)) {
+            all_lines.push_back(line);
+        }
+        dangerFile.close();
+        
+        danger_log_cache.clear();
+        size_t start = all_lines.size() > MAX_LOG_ENTRIES ? all_lines.size() - MAX_LOG_ENTRIES : 0;
+        for (size_t i = start; i < all_lines.size(); ++i) {
+            danger_log_cache.push_back(all_lines[i]);
+        }
+    }
+}
+
+std::string DataLogger::getLastEntries(size_t count) const {
+    std::stringstream ss;
+
+    if (log_cache.empty()) {
+        ss << "No log entries available";
         return ss.str();
     }
     
-    size_t getTotalEntries() const { return log_cache.size(); }
-    size_t getTotalDangerEntries() const { return danger_log_cache.size(); }
-    NormalRanges getNormalRanges() const { return normal_ranges; }
-};
+    size_t num_entries = std::min(count, log_cache.size());
+    size_t start = log_cache.size() - num_entries;
+    
+    ss << "Last " << num_entries << " log entries:\n";
+    ss << "----------------------------------------------------------------------------------------------------\n";
+    ss << std::left << std::setw(20) << "Timestamp" 
+    << " " << std::setw(12) << "Temp(°C)" 
+    << std::setw(12) << "Hum(%)" 
+    << std::setw(15) << "Soil(%)" 
+    << std::setw(10) << "Light(lux)" << "\n";
+    ss << "----------------------------------------------------------------------------------------------------\n";
+    
+    for (size_t i = start; i < log_cache.size(); ++i) {
+        std::string entry = log_cache[i];
+        std::stringstream entry_ss(entry);
+        std::string timestamp, temp, hum, soil, light;
+        
+        std::getline(entry_ss, timestamp, ',');
+        std::getline(entry_ss, temp, ',');
+        std::getline(entry_ss, hum, ',');
+        std::getline(entry_ss, soil, ',');
+        std::getline(entry_ss, light, ',');
+        
+        ss << std::left << std::setw(20) << timestamp
+        << " " << std::setw(12) << temp
+        << std::setw(12) << hum
+        << std::setw(15) << soil
+        << std::setw(10) << light << "\n";
+    }
+    
+    ss << "----------------------------------------------------------------------------------------------------\n";
+    ss << "Total entries in log: " << log_cache.size() << "\n";
+    
+    return ss.str();
+}
+
+std::string DataLogger::getLastDangerEntries(size_t count) const {
+    std::stringstream ss;
+    
+    if (danger_log_cache.empty()) {
+        ss << "No dangerous events recorded";
+        return ss.str();
+    }
+    
+    size_t num_entries = std::min(count, danger_log_cache.size());
+    size_t start = danger_log_cache.size() - num_entries;
+    
+    ss << "Last " << num_entries << " dangerous events:\n";
+    ss << "----------------------------------------------------------------------------------------------------\n";
+    ss << std::left << std::setw(20) << "Timestamp" 
+    << " " << std::setw(12) << "Temp(°C)" 
+    << std::setw(12) << "Hum(%)" 
+    << std::setw(15) << "Soil(%)" 
+    << std::setw(10) << "Light(lux)" << "\n";
+    ss << "----------------------------------------------------------------------------------------------------\n";
+    
+    for (size_t i = start; i < danger_log_cache.size(); ++i) {
+        std::string entry = danger_log_cache[i];
+        std::stringstream entry_ss(entry);
+        std::string timestamp, temp, hum, soil, light;
+        
+        std::getline(entry_ss, timestamp, ',');
+        std::getline(entry_ss, temp, ',');
+        std::getline(entry_ss, hum, ',');
+        std::getline(entry_ss, soil, ',');
+        std::getline(entry_ss, light, ',');
+        
+        ss << std::left << std::setw(20) << timestamp
+        << " " << std::setw(12) << temp
+        << std::setw(12) << hum
+        << std::setw(15) << soil
+        << std::setw(10) << light << "\n";
+    }
+    
+    ss << "----------------------------------------------------------------------------------------------------\n";
+    ss << "Total dangerous events: " << danger_log_cache.size() << "\n";
+    
+    return ss.str();
+}
+
+size_t DataLogger::getTotalEntries() const { 
+    return log_cache.size(); 
+}
+
+size_t DataLogger::getTotalDangerEntries() const { 
+    return danger_log_cache.size(); 
+}
+
+NormalRanges DataLogger::getNormalRanges() const { 
+    return normal_ranges; 
+}
 
 class CommandHandler {
 public:
@@ -630,158 +622,168 @@ private:
     std::thread streaming_thread;
     int current_socket = -1;
     
-    bool sendResponse(int socket, const std::string& response) {
-        ssize_t result = send(socket, response.c_str(), response.length(), 0);
-        if (result == -1) {
-            std::cerr << "[Error]: Failed to send response: " << strerror(errno) << std::endl;
-            return false;
-        }
-        return true;
-    }
-    
-    void startDataStream() {
-        std::cout << "[Stream]: Started data stream" << std::endl;
-        
-        while (streaming_active && server_running) {
-            SensorData sensorData = realSensor->getSensorData();
-            sensorData.checkDangerous(logger->getNormalRanges());
-            
-            std::string response = "DATA: " + sensorData.toFormattedString() + "\n";
-            sendResponse(current_socket, response);
-            
-            for (int i = 0; i < 20 && streaming_active && server_running; ++i) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            }
-        }
-        
-        std::cout << "[Stream]: Stopped data stream" << std::endl;
-    }
+    bool sendResponse(int socket, const std::string& response);
+    void startDataStream();
 
 public:
-    CommandHandler(RealSensorData* sensor, DataLogger* dataLogger) : realSensor(sensor), logger(dataLogger) {        
-        registerCommand("GET_DATA", "Get sensor data (formatted)", CommandType::SERVER,
-            [this](int sock, const std::string& cmd) -> bool {
-                SensorData sensorData = realSensor->getSensorData();
-                sensorData.checkDangerous(logger->getNormalRanges());
-                std::string response = sensorData.toFormattedString();
-                sendResponse(sock, response);
-                std::cout << "[Command]: GET_DATA - Sent sensor data: " 
-                          << sensorData.toFormattedString() << std::endl;
-                return true;
-            });
-        
-        registerCommand("START_STREAM", "Start streaming sensor data every 2 seconds", CommandType::SERVER,
-            [this](int sock, const std::string& cmd) -> bool {
-                if (streaming_active) {
-                    sendResponse(sock, "ERROR: Data stream already active");
-                    return true;
-                }
-                
-                current_socket = sock;
-                streaming_active = true;
-                streaming_thread = std::thread(&CommandHandler::startDataStream, this);
-                
-                sendResponse(sock, "OK: Data streaming started (every 2 seconds). Use STOP_STREAM to stop.");
-                std::cout << "[Command]: START_STREAM - Started data streaming" << std::endl;
-                return true;
-            });
-        
-        registerCommand("STOP_STREAM", "Stop streaming sensor data", CommandType::SERVER,
-            [this](int sock, const std::string& cmd) -> bool {
-                if (!streaming_active) {
-                    sendResponse(sock, "ERROR: No active data stream");
-                    return true;
-                }
-                
-                streaming_active = false;
-                if (streaming_thread.joinable()) {
-                    streaming_thread.join();
-                }
-                
-                sendResponse(sock, "OK: Data streaming stopped");
-                std::cout << "[Command]: STOP_STREAM - Stopped data streaming" << std::endl;
-                return true;
-            });
-        
-        registerCommand("GET_LOG", "Get last 120 log entries from sensor data history", CommandType::SERVER,
-            [this](int sock, const std::string& cmd) -> bool {
-                std::string log_entries = logger->getLastEntries(120);
-                sendResponse(sock, log_entries);
-                std::cout << "[Command]: GET_LOG - Sent " << logger->getTotalEntries() 
-                          << " log entries to client" << std::endl;
-                return true;
-            });
-        
-        registerCommand("GET_DANGER_LOG", "Get last 120 dangerous events from sensor data history", CommandType::SERVER,
-            [this](int sock, const std::string& cmd) -> bool {
-                std::string danger_entries = logger->getLastDangerEntries(120);
-                sendResponse(sock, danger_entries);
-                std::cout << "[Command]: GET_DANGER_LOG - Sent " << logger->getTotalDangerEntries() 
-                          << " dangerous events to client" << std::endl;
-                return true;
-            });
-        
-        registerCommand("QUIT", "Disconnect from server", CommandType::TERMINATE,
-            [this](int sock, const std::string& cmd) -> bool {
-                if (streaming_active) {
-                    streaming_active = false;
-                    if (streaming_thread.joinable()) {
-                        streaming_thread.join();
-                    }
-                }
-                sendResponse(sock, "OK:Disconnected");
-                std::cout << "[Command]: QUIT - Client disconnected" << std::endl;
-                return false;
-            });
-
-        registerCommand("SHUTDOWN", "Shutdown the server gracefully", CommandType::SERVER,
-            [this](int sock, const std::string& cmd) -> bool {
-                sendResponse(sock, "OK: Server is shutting down...");
-                std::cout << "[Command]: SHUTDOWN - Server shutdown requested by admin" << std::endl;
-                server_running = false;  
-                return false;  
-            });
-    }
+    CommandHandler(RealSensorData* sensor, DataLogger* dataLogger);
     
     void registerCommand(const std::string& command, const std::string& description, 
-                        CommandType type, std::function<bool(int, const std::string&)> handler) {
-        commands[command] = handler;
-        commandDescriptions[command] = description;
-        
-        if (type == CommandType::TERMINATE) {
-            terminateCommands.insert(command);
-        }
-    }
-    
-    bool handleCommand(int socket, const std::string& message, bool& shouldExit) {
-        auto it = commands.find(message);
-        if (it != commands.end()) {
-            bool result = it->second(socket, message);
-            if (!result) {
-                shouldExit = true;
-            }
+                        CommandType type, std::function<bool(int, const std::string&)> handler);
+    bool handleCommand(int socket, const std::string& message, bool& shouldExit);
+    bool isTerminateCommand(const std::string& message) const;
+    void cleanup();
+};
+
+CommandHandler::CommandHandler(RealSensorData* sensor, DataLogger* dataLogger) 
+    : realSensor(sensor), logger(dataLogger) {        
+    registerCommand("GET_DATA", "Get sensor data (formatted)", CommandType::SERVER,
+        [this](int sock, const std::string& cmd) -> bool {
+            SensorData sensorData = realSensor->getSensorData();
+            sensorData.checkDangerous(logger->getNormalRanges());
+            std::string response = sensorData.toFormattedString();
+            sendResponse(sock, response);
+            std::cout << "[Command]: GET_DATA - Sent sensor data: " 
+                      << sensorData.toFormattedString() << std::endl;
             return true;
-        }
-        
-        //std::string error = "ERROR:Unknown command. Available: GET_DATA, START_STREAM, STOP_STREAM, GET_LOG, GET_DANGER_LOG, QUIT, SHUTDOWN";
-        //send(socket, error.c_str(), error.length(), 0);
-        std::cout << "[Command]: Unknown command from client: " << message << std::endl;
-        return false;
-    }
+        });
     
-    bool isTerminateCommand(const std::string& message) const {
-        return terminateCommands.find(message) != terminateCommands.end();
-    }
+    registerCommand("START_STREAM", "Start streaming sensor data every 2 seconds", CommandType::SERVER,
+        [this](int sock, const std::string& cmd) -> bool {
+            if (streaming_active) {
+                sendResponse(sock, "ERROR: Data stream already active");
+                return true;
+            }
+            
+            current_socket = sock;
+            streaming_active = true;
+            streaming_thread = std::thread(&CommandHandler::startDataStream, this);
+            
+            sendResponse(sock, "OK: Data streaming started (every 2 seconds). Use STOP_STREAM to stop.");
+            std::cout << "[Command]: START_STREAM - Started data streaming" << std::endl;
+            return true;
+        });
     
-    void cleanup() {
-        if (streaming_active) {
+    registerCommand("STOP_STREAM", "Stop streaming sensor data", CommandType::SERVER,
+        [this](int sock, const std::string& cmd) -> bool {
+            if (!streaming_active) {
+                sendResponse(sock, "ERROR: No active data stream");
+                return true;
+            }
+            
             streaming_active = false;
             if (streaming_thread.joinable()) {
                 streaming_thread.join();
             }
+            
+            sendResponse(sock, "OK: Data streaming stopped");
+            std::cout << "[Command]: STOP_STREAM - Stopped data streaming" << std::endl;
+            return true;
+        });
+    
+    registerCommand("GET_LOG", "Get last 120 log entries from sensor data history", CommandType::SERVER,
+        [this](int sock, const std::string& cmd) -> bool {
+            std::string log_entries = logger->getLastEntries(120);
+            sendResponse(sock, log_entries);
+            std::cout << "[Command]: GET_LOG - Sent " << logger->getTotalEntries() 
+                      << " log entries to client" << std::endl;
+            return true;
+        });
+    
+    registerCommand("GET_DANGER_LOG", "Get last 120 dangerous events from sensor data history", CommandType::SERVER,
+        [this](int sock, const std::string& cmd) -> bool {
+            std::string danger_entries = logger->getLastDangerEntries(120);
+            sendResponse(sock, danger_entries);
+            std::cout << "[Command]: GET_DANGER_LOG - Sent " << logger->getTotalDangerEntries() 
+                      << " dangerous events to client" << std::endl;
+            return true;
+        });
+    
+    registerCommand("QUIT", "Disconnect from server", CommandType::TERMINATE,
+        [this](int sock, const std::string& cmd) -> bool {
+            if (streaming_active) {
+                streaming_active = false;
+                if (streaming_thread.joinable()) {
+                    streaming_thread.join();
+                }
+            }
+            sendResponse(sock, "OK:Disconnected");
+            std::cout << "[Command]: QUIT - Client disconnected" << std::endl;
+            return false;
+        });
+
+    registerCommand("SHUTDOWN", "Shutdown the server gracefully", CommandType::SERVER,
+        [this](int sock, const std::string& cmd) -> bool {
+            sendResponse(sock, "OK: Server is shutting down...");
+            std::cout << "[Command]: SHUTDOWN - Server shutdown requested by admin" << std::endl;
+            server_running = false;  
+            return false;  
+        });
+}
+
+void CommandHandler::registerCommand(const std::string& command, const std::string& description, 
+                    CommandType type, std::function<bool(int, const std::string&)> handler) {
+    commands[command] = handler;
+    commandDescriptions[command] = description;
+    
+    if (type == CommandType::TERMINATE) {
+        terminateCommands.insert(command);
+    }
+}
+
+bool CommandHandler::handleCommand(int socket, const std::string& message, bool& shouldExit) {
+    auto it = commands.find(message);
+    if (it != commands.end()) {
+        bool result = it->second(socket, message);
+        if (!result) {
+            shouldExit = true;
+        }
+        return true;
+    }
+    
+    std::cout << "[Command]: Unknown command from client: " << message << std::endl;
+    return false;
+}
+
+bool CommandHandler::isTerminateCommand(const std::string& message) const {
+    return terminateCommands.find(message) != terminateCommands.end();
+}
+
+void CommandHandler::cleanup() {
+    if (streaming_active) {
+        streaming_active = false;
+        if (streaming_thread.joinable()) {
+            streaming_thread.join();
         }
     }
-};
+}
+
+bool CommandHandler::sendResponse(int socket, const std::string& response) {
+    ssize_t result = send(socket, response.c_str(), response.length(), 0);
+    if (result == -1) {
+        std::cerr << "[Error]: Failed to send response: " << strerror(errno) << std::endl;
+        return false;
+    }
+    return true;
+}
+
+void CommandHandler::startDataStream() {
+    std::cout << "[Stream]: Started data stream" << std::endl;
+    
+    while (streaming_active && server_running) {
+        SensorData sensorData = realSensor->getSensorData();
+        sensorData.checkDangerous(logger->getNormalRanges());
+        
+        std::string response = "DATA: " + sensorData.toFormattedString() + "\n";
+        sendResponse(current_socket, response);
+        
+        for (int i = 0; i < 20 && streaming_active && server_running; ++i) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+    }
+    
+    std::cout << "[Stream]: Stopped data stream" << std::endl;
+}
 
 class ClientHandler {
 private:
@@ -789,76 +791,83 @@ private:
     CommandHandler& cmdHandler;
     std::atomic<bool>& running;
     
-    void log(const std::string& message) {
-        std::cout << message << std::endl;
-    }
-    
-    std::string receiveFromClient() {
-        char buffer[8192];
-        memset(buffer, 0, sizeof(buffer));
-        
-        ssize_t received_bytes = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
-        
-        if (received_bytes > 0) {
-            buffer[received_bytes] = '\0';
-            std::string message(buffer);
-            message.erase(std::remove(message.begin(), message.end(), '\n'), message.end());
-            message.erase(std::remove(message.begin(), message.end(), '\r'), message.end());
-            return message;
-        } else if (received_bytes == 0) {
-            return "Client disconnected";
-        } else {
-            if (errno != ECONNRESET && errno != EAGAIN) {
-                log("[Error]: Error receiving from client: " + std::string(strerror(errno)));
-            }
-            return "ERROR";
-        }
-    }
+    void log(const std::string& message);
+    std::string receiveFromClient();
 
 public:
-    ClientHandler(int sock, CommandHandler& handler, std::atomic<bool>& run)
-        : client_socket(sock), cmdHandler(handler), running(run) {}
-    
-    ~ClientHandler() {
-        cmdHandler.cleanup();
-    }
-    
-    void run() {
-        log("[System]: Started");
+    ClientHandler(int sock, CommandHandler& handler, std::atomic<bool>& run);
+    ~ClientHandler();
+    void run();
+};
 
-        bool client_active = true;
-        bool shouldExit = false;
+ClientHandler::ClientHandler(int sock, CommandHandler& handler, std::atomic<bool>& run)
+    : client_socket(sock), cmdHandler(handler), running(run) {}
+
+ClientHandler::~ClientHandler() {
+    cmdHandler.cleanup();
+}
+
+void ClientHandler::log(const std::string& message) {
+    std::cout << message << std::endl;
+}
+
+std::string ClientHandler::receiveFromClient() {
+    char buffer[8192];
+    memset(buffer, 0, sizeof(buffer));
+    
+    ssize_t received_bytes = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
+    
+    if (received_bytes > 0) {
+        buffer[received_bytes] = '\0';
+        std::string message(buffer);
+        message.erase(std::remove(message.begin(), message.end(), '\n'), message.end());
+        message.erase(std::remove(message.begin(), message.end(), '\r'), message.end());
+        return message;
+    } else if (received_bytes == 0) {
+        return "Client disconnected";
+    } else {
+        if (errno != ECONNRESET && errno != EAGAIN) {
+            log("[Error]: Error receiving from client: " + std::string(strerror(errno)));
+        }
+        return "ERROR";
+    }
+}
+
+void ClientHandler::run() {
+    log("[System]: Started");
+
+    bool client_active = true;
+    bool shouldExit = false;
+    
+    while (running && client_active && !shouldExit) {
+        std::string command = receiveFromClient();
         
-        while (running && client_active && !shouldExit) {
-            std::string command = receiveFromClient();
-            
-            if (command.empty()) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-                continue;
-            }
-            
-            if (command == "ERROR") {
-                log("[System]: Connection error, closing client session");
-                break;
-            }
-            
-            if (command == "Client disconnected") {
-                log("[System]: Client disconnected");
-                break;
-            }
-            
-            cmdHandler.handleCommand(client_socket, command, shouldExit);
-            
-            if (shouldExit) {
-                log("[System]: Client requested disconnect");
-                client_active = false;
-            }
+        if (command.empty()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            continue;
         }
         
-        cmdHandler.cleanup();
-        log("[System]: Stopped");
+        if (command == "ERROR") {
+            log("[System]: Connection error, closing client session");
+            break;
+        }
+        
+        if (command == "Client disconnected") {
+            log("[System]: Client disconnected");
+            break;
+        }
+        
+        cmdHandler.handleCommand(client_socket, command, shouldExit);
+        
+        if (shouldExit) {
+            log("[System]: Client requested disconnect");
+            client_active = false;
+        }
     }
-};
+    
+    cmdHandler.cleanup();
+    log("[System]: Stopped");
+}
 
 int create_socket() {
     int server_socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -927,8 +936,7 @@ int main() {
     signal(SIGINT, signal_handler);
     
     std::cout << "Starting server...\n" << std::endl;
-    
-    // Инициализация UART
+
     ArduinoUART arduino;
     if (!arduino.connect()) {
         std::cerr << "[FATAL] Failed to connect to Arduino on " << UART_PORT << std::endl;
@@ -936,15 +944,12 @@ int main() {
         std::cerr << "Try: sudo chmod 666 " << UART_PORT << std::endl;
         return 1;
     }
-    
-    // Создаем объект для реальных данных
+
     RealSensorData realSensor(arduino);
-    
-    // Логгер с реальными данными
+
     DataLogger logger([&realSensor]() { return realSensor.getSensorData(); }, 
                       std::chrono::seconds(5));
-    
-    // Тестовое чтение
+
     std::cout << "[System] Testing Arduino communication..." << std::endl;
     SensorData testData = realSensor.getSensorData();
     if (testData.temperature != 0.0f || testData.humidity != 0.0f) {
