@@ -37,6 +37,8 @@ typedef struct {
 } ClientState;
 
 static int      g_drive_mode = 0;
+static char     server_ip[64] = "127.0.0.1";   // IP по умолчанию
+
 #ifdef _WIN32
     static HANDLE g_stdin_handle = NULL;
     static DWORD  g_old_console_mode = 0;
@@ -65,7 +67,7 @@ static int  send_to_server(int sockfd, const char *message);
 // MAIN
 // ============================================================================
 
-int main(void) {
+int main(int argc, char *argv[]) {
 #ifdef _WIN32
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2,2), &wsaData) != 0) {
@@ -74,12 +76,22 @@ int main(void) {
     }
 #endif
 
+    // Чтение IP из командной строки
+    if (argc >= 2) {
+        strncpy(server_ip, argv[1], sizeof(server_ip) - 1);
+        server_ip[sizeof(server_ip) - 1] = '\0';
+        printf("[INFO] Connecting to server: %s\n", server_ip);
+    } else {
+        printf("[INFO] No server IP provided, using default: 127.0.0.1\n");
+        printf("Usage: %s <server_ip>\n", argv[0]);
+    }
+
     ClientState state;
     int running = 1;
     printf("=== CHAT CLIENT STARTING ===\n\n");
     client_state_init(&state);
 
-    printf("Connecting to server at 127.0.0.1:%d...\n", PORT);
+    printf("Connecting to server at %s:%d...\n", server_ip, PORT);
     state.sockfd = connect_to_server();
     if (state.sockfd < 0) {
         printf("[ERROR] Failed to connect to server\n");
@@ -136,7 +148,11 @@ static int connect_to_server(void) {
     struct sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(PORT);
-    inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr);
+    if (inet_pton(AF_INET, server_ip, &server_addr.sin_addr) <= 0) {
+        printf("[ERROR] Invalid server IP: %s\n", server_ip);
+        close(sockfd);
+        return -1;
+    }
     if (connect(sockfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         close(sockfd);
         return -1;
@@ -235,16 +251,15 @@ static int chat_loop(ClientState *state) {
     char buffer[BUF_SIZE];
     if (!state->connected || state->sockfd < 0) return -1;
 
-    // Настраиваем сокет на неблокирующий режим (для возможности таймаута)
+    // Неблокирующий режим сокета
     u_long mode = 1;
     ioctlsocket(state->sockfd, FIONBIO, &mode);
 
     while (state->connected) {
-        // Проверяем данные от сервера (неблокирующий recv)
+        // Проверка данных от сервера
         int n = recv(state->sockfd, buffer, BUF_SIZE - 1, 0);
         if (n > 0) {
             buffer[n] = '\0';
-            // Обрабатываем сообщение
             if (strstr(buffer, DRIVE_MODE_START_MARKER)) {
                 char *marker = strstr(buffer, DRIVE_MODE_START_MARKER);
                 *marker = '\0';
@@ -262,7 +277,6 @@ static int chat_loop(ClientState *state) {
                 fflush(stdout);
             }
         } else if (n == 0) {
-            // Сервер закрыл соединение
             printf("\nConnection closed by server\n");
             state->connected = 0;
             close(state->sockfd);
@@ -287,8 +301,7 @@ static int chat_loop(ClientState *state) {
             return -1;
         }
 
-        // Небольшая задержка, чтобы не грузить CPU
-        Sleep(50);
+        Sleep(50); // не грузим CPU
     }
     return -1;
 }
@@ -385,7 +398,6 @@ static int handle_user_input(ClientState *state) {
 
     // Обычный режим – ввод строки
 #ifdef _WIN32
-    // На Windows используем fgets, но только если есть данные
     if (_kbhit()) {
         char buffer[BUF_SIZE];
         if (!fgets(buffer, BUF_SIZE, stdin)) return 1;
@@ -400,7 +412,6 @@ static int handle_user_input(ClientState *state) {
         if (!send_to_server(state->sockfd, buffer)) return -1;
     }
 #else
-    // На Linux используем fgets блокирующе, но select уже показал, что stdin готов
     char buffer[BUF_SIZE];
     if (!fgets(buffer, BUF_SIZE, stdin)) return 1;
     size_t len = strlen(buffer);
