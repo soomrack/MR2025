@@ -45,3 +45,10 @@ Makefile
 
 # Debugging
 *.dSYM/
+
+# Latex
+
+*.aux
+*.out
+*.toc
+*.synctex.gz

@@ -15,128 +15,122 @@
 \citation{groves2013}
 \citation{glfw_docs}
 \@writefile{toc}{\contentsline {section}{Введение}{3}{Doc-Start}\protected@file@percent }
-\citation{mavlink_proto}
 \citation{mavlink_docs}
 \citation{px4_docs}
 \citation{posix_termios}
-\@writefile{toc}{\contentsline {section}{\numberline {1}Чтение сырых данных с Pixhawk}{5}{section.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {1}Первичное считывание данных с Pixhawk}{5}{section.1}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {1.1}Протокол MAVLink и сообщение RAW\_IMU}{5}{subsection.1.1}\protected@file@percent }
 \@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Поля сообщения MAVLink \texttt  {RAW\_IMU}}}{5}{table.caption.1}\protected@file@percent }
 \providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
 \newlabel{tab:rawimu}{{1}{5}{Поля сообщения MAVLink \texttt {RAW\_IMU}}{table.caption.1}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {1.2}Реализация первичного модуля чтения}{5}{subsection.1.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.2}Модуль первичного считывания}{5}{subsection.1.2}\protected@file@percent }
 \@writefile{lol}{\contentsline {lstlisting}{\numberline {1}{\ignorespaces Настройка последовательного порта через termios}}{5}{lstlisting.1}\protected@file@percent }
 \citation{mavlink_proto}
-\@writefile{lol}{\contentsline {lstlisting}{\numberline {2}{\ignorespaces Цикл чтения и парсинга MAVLink-пакетов}}{6}{lstlisting.2}\protected@file@percent }
 \citation{px4_docs}
-\@writefile{toc}{\contentsline {subsection}{\numberline {1.3}Запись данных в CSV}{7}{subsection.1.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {1.4}Результаты первичного чтения}{7}{subsection.1.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.3}Результаты первичного считывания}{6}{subsection.1.3}\protected@file@percent }
 \citation{mavlink_docs}
-\@writefile{toc}{\contentsline {section}{\numberline {2}Архитектура системы визуализации}{8}{section.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Обзор проекта}{8}{subsection.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2}Архитектура системы визуализации}{7}{section.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Общая структура}{7}{subsection.2.1}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {2.2}Структура файлов проекта}{8}{subsection.2.2}\protected@file@percent }
 \@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Файлы проекта}}{8}{table.caption.2}\protected@file@percent }
 \newlabel{tab:files}{{2}{8}{Файлы проекта}{table.caption.2}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.3}Разделяемые структуры данных}{9}{subsection.2.3}\protected@file@percent }
-\@writefile{lol}{\contentsline {lstlisting}{\numberline {3}{\ignorespaces Структура сырого пакета IMU}}{9}{lstlisting.3}\protected@file@percent }
-\@writefile{lol}{\contentsline {lstlisting}{\numberline {4}{\ignorespaces Структура навигационного состояния}}{9}{lstlisting.4}\protected@file@percent }
-\@writefile{lol}{\contentsline {lstlisting}{\numberline {5}{\ignorespaces Потокобезопасный разделяемый буфер}}{9}{lstlisting.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.3}Разделяемые структуры данных (\texttt  {imu\_shared.h})}{8}{subsection.2.3}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {2}{\ignorespaces Структуры RawIMU и NavState}}{8}{lstlisting.2}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {3}{\ignorespaces Потокобезопасный разделяемый буфер}}{9}{lstlisting.3}\protected@file@percent }
 \citation{mavlink_docs}
 \citation{glfw_docs}
 \citation{mavlink_proto}
-\@writefile{toc}{\contentsline {section}{\numberline {3}Зависимости и система сборки}{11}{section.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Используемые библиотеки}{11}{subsection.3.1}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Внешние зависимости проекта}}{11}{table.caption.3}\protected@file@percent }
-\newlabel{tab:deps}{{3}{11}{Внешние зависимости проекта}{table.caption.3}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Конфигурация CMake}{11}{subsection.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3}Зависимости и система сборки}{10}{section.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Используемые библиотеки}{10}{subsection.3.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Внешние зависимости проекта}}{10}{table.caption.3}\protected@file@percent }
+\newlabel{tab:deps}{{3}{10}{Внешние зависимости проекта}{table.caption.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Конфигурация CMake}{10}{subsection.3.2}\protected@file@percent }
 \citation{titterton2004}
 \citation{kuipers1999}
 \citation{kuipers1999}
-\@writefile{toc}{\contentsline {section}{\numberline {4}Математика инерциальной навигации}{12}{section.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Калибровка датчиков}{12}{subsection.4.1}\protected@file@percent }
-\newlabel{eq:calib}{{1}{12}{Калибровка датчиков}{equation.1}{}}
-\newlabel{eq:biases}{{2}{12}{Калибровка датчиков}{equation.2}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Представление ориентации кватернионами}{12}{subsection.4.2}\protected@file@percent }
-\newlabel{eq:quat}{{3}{12}{Представление ориентации кватернионами}{equation.3}{}}
 \citation{mahony2008}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Математика инерциальной навигации}{11}{section.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Калибровка датчиков}{11}{subsection.4.1}\protected@file@percent }
+\newlabel{eq:calib}{{1}{11}{Калибровка датчиков}{equation.1}{}}
+\newlabel{eq:biases}{{2}{11}{Калибровка датчиков}{equation.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Представление ориентации кватернионами}{11}{subsection.4.2}\protected@file@percent }
+\newlabel{eq:quat}{{3}{11}{Представление ориентации кватернионами}{equation.3}{}}
 \citation{titterton2004}
 \citation{kuipers1999}
 \citation{titterton2004}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Интегрирование кватерниона}{13}{subsection.4.3}\protected@file@percent }
-\newlabel{eq:qdot}{{4}{13}{Интегрирование кватерниона}{equation.4}{}}
-\newlabel{eq:dq}{{5}{13}{Интегрирование кватерниона}{equation.5}{}}
-\newlabel{eq:qupdate}{{6}{13}{Интегрирование кватерниона}{equation.6}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}Матрица поворота из кватерниона}{13}{subsection.4.4}\protected@file@percent }
-\newlabel{eq:rot}{{7}{13}{Матрица поворота из кватерниона}{equation.7}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Кватернионное интегрирование гироскопа}{12}{subsection.4.3}\protected@file@percent }
+\newlabel{eq:qdot}{{4}{12}{Кватернионное интегрирование гироскопа}{equation.4}{}}
+\newlabel{eq:dq}{{5}{12}{Кватернионное интегрирование гироскопа}{equation.5}{}}
+\newlabel{eq:qupdate}{{6}{12}{Кватернионное интегрирование гироскопа}{equation.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}Матрица поворота из кватерниона}{12}{subsection.4.4}\protected@file@percent }
+\newlabel{eq:rot}{{7}{12}{Матрица поворота из кватерниона}{equation.7}{}}
 \citation{groves2013}
-\citation{woodman2007}
 \citation{skog2010}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.5}Углы Эйлера (конвенция ZYX)}{14}{subsection.4.5}\protected@file@percent }
-\newlabel{eq:roll}{{8}{14}{Углы Эйлера (конвенция ZYX)}{equation.8}{}}
-\newlabel{eq:pitch}{{9}{14}{Углы Эйлера (конвенция ZYX)}{equation.9}{}}
-\newlabel{eq:yaw}{{10}{14}{Углы Эйлера (конвенция ZYX)}{equation.10}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.6}Двойное интегрирование (скорость и позиция)}{14}{subsection.4.6}\protected@file@percent }
-\newlabel{eq:aworld}{{11}{14}{Двойное интегрирование (скорость и позиция)}{equation.11}{}}
-\newlabel{eq:vel}{{12}{14}{Двойное интегрирование (скорость и позиция)}{equation.12}{}}
-\newlabel{eq:pos}{{13}{14}{Двойное интегрирование (скорость и позиция)}{equation.13}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.7}Метод ZUPT}{14}{subsection.4.7}\protected@file@percent }
-\newlabel{eq:zupt}{{14}{14}{Метод ZUPT}{equation.14}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5}Реализация алгоритмов}{16}{section.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Функция интегрирования IMU}{16}{subsection.5.1}\protected@file@percent }
-\@writefile{lol}{\contentsline {lstlisting}{\numberline {6}{\ignorespaces Калибровка сырых показаний}}{16}{lstlisting.6}\protected@file@percent }
-\@writefile{lol}{\contentsline {lstlisting}{\numberline {7}{\ignorespaces Кватернионное интегрирование гироскопа (ось-угол)}}{16}{lstlisting.7}\protected@file@percent }
-\@writefile{lol}{\contentsline {lstlisting}{\numberline {8}{\ignorespaces Мировое ускорение и ZUPT}}{17}{lstlisting.8}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Вычисление углов Эйлера}{17}{subsection.5.2}\protected@file@percent }
-\@writefile{lol}{\contentsline {lstlisting}{\numberline {9}{\ignorespaces Углы Эйлера из кватерниона (конвенция ZYX)}}{18}{lstlisting.9}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {6}Реализация визуализации}{19}{section.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Шейдеры OpenGL 3.3}{19}{subsection.6.1}\protected@file@percent }
-\@writefile{lol}{\contentsline {lstlisting}{\numberline {10}{\ignorespaces Вершинный шейдер 3D-модели}}{19}{lstlisting.10}\protected@file@percent }
-\@writefile{lol}{\contentsline {lstlisting}{\numberline {11}{\ignorespaces Фрагментный шейдер с освещением Ламберта}}{19}{lstlisting.11}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Геометрия модели полётного контроллера}{20}{subsection.6.2}\protected@file@percent }
-\@writefile{lol}{\contentsline {lstlisting}{\numberline {12}{\ignorespaces Сборка процедурной модели FC}}{20}{lstlisting.12}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Кольцевой буфер для HUD-графиков}{20}{subsection.6.3}\protected@file@percent }
-\@writefile{lol}{\contentsline {lstlisting}{\numberline {13}{\ignorespaces Кольцевой буфер для временных рядов}}{20}{lstlisting.13}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.4}Главный цикл рендера}{21}{subsection.6.4}\protected@file@percent }
-\@writefile{lol}{\contentsline {lstlisting}{\numberline {14}{\ignorespaces Матрица модели из позиции и кватерниона}}{21}{lstlisting.14}\protected@file@percent }
-\@writefile{lol}{\contentsline {lstlisting}{\numberline {15}{\ignorespaces Траектория с затуханием цвета}}{22}{lstlisting.15}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.5}Компоновка экрана}{22}{subsection.6.5}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Компоновка окна визуализатора ($1400 \times 860$ пикс.)}}{22}{table.caption.4}\protected@file@percent }
-\newlabel{tab:layout}{{4}{22}{Компоновка окна визуализатора ($1400 \times 860$ пикс.)}{table.caption.4}{}}
-\citation{px4_docs}
-\@writefile{toc}{\contentsline {section}{\numberline {7}Инструкция по установке и запуску}{23}{section.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.1}Установка зависимостей}{23}{subsection.7.1}\protected@file@percent }
-\@writefile{lol}{\contentsline {lstlisting}{\numberline {16}{\ignorespaces Установка системных зависимостей}}{23}{lstlisting.16}\protected@file@percent }
-\@writefile{lol}{\contentsline {lstlisting}{\numberline {17}{\ignorespaces Клонирование MAVLink}}{23}{lstlisting.17}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}Сборка проекта}{23}{subsection.7.2}\protected@file@percent }
-\@writefile{lol}{\contentsline {lstlisting}{\numberline {18}{\ignorespaces Сборка через CMake}}{23}{lstlisting.18}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.3}Настройка прав доступа к порту}{23}{subsection.7.3}\protected@file@percent }
-\@writefile{lol}{\contentsline {lstlisting}{\numberline {19}{\ignorespaces Права на последовательный порт}}{23}{lstlisting.19}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.4}Запуск}{24}{subsection.7.4}\protected@file@percent }
-\@writefile{lol}{\contentsline {lstlisting}{\numberline {20}{\ignorespaces Запуск приложения}}{24}{lstlisting.20}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.5}Управление в окне визуализации}{24}{subsection.7.5}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Управление в окне визуализации}}{24}{table.caption.5}\protected@file@percent }
-\newlabel{tab:controls}{{5}{24}{Управление в окне визуализации}{table.caption.5}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {8}Результаты и анализ}{25}{section.8}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.1}Результаты измерения ориентации}{25}{subsection.8.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.2}Результаты оценки позиции}{25}{subsection.8.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.3}Анализ причин дрейфа}{25}{subsection.8.3}\protected@file@percent }
-\newlabel{eq:noise}{{15}{25}{Анализ причин дрейфа}{equation.15}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.5}Углы Эйлера (конвенция ZYX)}{13}{subsection.4.5}\protected@file@percent }
+\newlabel{eq:roll}{{8}{13}{Углы Эйлера (конвенция ZYX)}{equation.8}{}}
+\newlabel{eq:pitch}{{9}{13}{Углы Эйлера (конвенция ZYX)}{equation.9}{}}
+\newlabel{eq:yaw}{{10}{13}{Углы Эйлера (конвенция ZYX)}{equation.10}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.6}Двойное интегрирование (скорость и позиция)}{13}{subsection.4.6}\protected@file@percent }
+\newlabel{eq:aworld}{{11}{13}{Двойное интегрирование (скорость и позиция)}{equation.11}{}}
+\newlabel{eq:vel}{{12}{13}{Двойное интегрирование (скорость и позиция)}{equation.12}{}}
+\newlabel{eq:pos}{{13}{13}{Двойное интегрирование (скорость и позиция)}{equation.13}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.7}Метод ZUPT}{13}{subsection.4.7}\protected@file@percent }
+\newlabel{eq:zupt}{{14}{13}{Метод ZUPT}{equation.14}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5}Реализация навигационного алгоритма}{15}{section.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Функция \texttt  {integrate\_imu()}}{15}{subsection.5.1}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {4}{\ignorespaces Калибровка сырых показаний}}{15}{lstlisting.4}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {5}{\ignorespaces Кватернионное интегрирование гироскопа}}{15}{lstlisting.5}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {6}{\ignorespaces Мировое ускорение, компенсация гравитации и ZUPT}}{16}{lstlisting.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Вычисление углов Эйлера}{16}{subsection.5.2}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {7}{\ignorespaces Углы Эйлера из кватерниона (ZYX)}}{16}{lstlisting.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6}Реализация визуализации}{18}{section.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Шейдеры OpenGL~3.3}{18}{subsection.6.1}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {8}{\ignorespaces Вершинный и фрагментный шейдеры 3D-модели}}{18}{lstlisting.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Процедурная модель полётного контроллера}{19}{subsection.6.2}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {9}{\ignorespaces Процедурная сборка модели FC}}{19}{lstlisting.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Главный цикл рендера}{19}{subsection.6.3}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {10}{\ignorespaces Матрица модели из позиции и кватерниона}}{20}{lstlisting.10}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {11}{\ignorespaces Траектория с цветовым затуханием}}{20}{lstlisting.11}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.4}HUD-панель графиков}{21}{subsection.6.4}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Содержимое HUD-панелей}}{21}{table.caption.4}\protected@file@percent }
+\newlabel{tab:hud}{{4}{21}{Содержимое HUD-панелей}{table.caption.4}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Инструкция по установке и запуску}{22}{section.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.1}Установка зависимостей}{22}{subsection.7.1}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {12}{\ignorespaces Установка системных зависимостей (Ubuntu)}}{22}{lstlisting.12}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {13}{\ignorespaces Клонирование MAVLink}}{22}{lstlisting.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}Сборка проекта}{22}{subsection.7.2}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {14}{\ignorespaces Сборка через CMake}}{22}{lstlisting.14}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.3}Настройка прав и запуск}{22}{subsection.7.3}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {15}{\ignorespaces Права на порт и запуск}}{22}{lstlisting.15}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.4}Управление в окне визуализации}{23}{subsection.7.4}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Управление в окне визуализации}}{23}{table.caption.5}\protected@file@percent }
+\newlabel{tab:controls}{{5}{23}{Управление в окне визуализации}{table.caption.5}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {8}Результаты работы}{24}{section.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.1}Внешний вид программы}{24}{subsection.8.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Главное окно визуализатора: 3D-сцена и HUD-панель}}{24}{figure.caption.6}\protected@file@percent }
+\newlabel{fig:main}{{1}{24}{Главное окно визуализатора: 3D-сцена и HUD-панель}{figure.caption.6}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Визуализатор при вращении устройства: реакция HUD-графиков гироскопа}}{24}{figure.caption.7}\protected@file@percent }
+\newlabel{fig:rotate}{{2}{24}{Визуализатор при вращении устройства: реакция HUD-графиков гироскопа}{figure.caption.7}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Укрупнённый вид HUD-панели: акселерометр, гироскоп, углы Эйлера, скорость}}{24}{figure.caption.8}\protected@file@percent }
+\newlabel{fig:hud}{{3}{24}{Укрупнённый вид HUD-панели: акселерометр, гироскоп, углы Эйлера, скорость}{figure.caption.8}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.2}Результаты оценки ориентации}{24}{subsection.8.2}\protected@file@percent }
 \citation{groves2013}
 \citation{woodman2007}
 \citation{groves2013}
 \citation{groves2013}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.3}Результаты оценки позиции}{25}{subsection.8.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.4}Анализ причин дрейфа}{25}{subsection.8.4}\protected@file@percent }
+\newlabel{eq:noise}{{15}{25}{Анализ причин дрейфа}{equation.15}{}}
+\newlabel{eq:drift}{{16}{25}{Анализ причин дрейфа}{equation.16}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.5}Возможные направления развития}{25}{subsection.8.5}\protected@file@percent }
 \citation{madgwick2011}
 \citation{mahony2008}
-\citation{px4_docs}
 \citation{skog2010}
-\newlabel{eq:drift}{{16}{26}{Анализ причин дрейфа}{equation.16}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.4}Методы устранения дрейфа}{26}{subsection.8.4}\protected@file@percent }
-\citation{mavlink_docs}
 \citation{kuipers1999}
 \citation{groves2013}
 \citation{skog2010}
 \citation{glfw_docs}
-\citation{titterton2004,woodman2007}
+\citation{titterton2004}
 \citation{groves2013}
 \@writefile{toc}{\contentsline {section}{Заключение}{27}{Item.16}\protected@file@percent }
 \bibcite{titterton2004}{1}
@@ -147,9 +141,9 @@
 \bibcite{groves2013}{6}
 \bibcite{skog2010}{7}
 \bibcite{mavlink_proto}{8}
-\@writefile{toc}{\contentsline {section}{Список использованных источников}{28}{Item.16}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{Список использованных источников}{29}{Item.16}\protected@file@percent }
 \bibcite{mavlink_docs}{9}
 \bibcite{px4_docs}{10}
 \bibcite{glfw_docs}{11}
 \bibcite{posix_termios}{12}
-\gdef \@abspage@last{29}
+\gdef \@abspage@last{30}

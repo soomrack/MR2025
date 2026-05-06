@@ -1,178 +1,161 @@
-% !TEX root = coursework_imu.tex
+% !TEX program  = xelatex
+% !TEX root     = coursework_imu.tex
 \input{preambule.tex}
-
-% Дополнительные пакеты, не входящие в преамбулу
+ 
 \usepackage{amssymb}
 \usepackage{bm}
 \usepackage{mathtools}
 \usepackage{cite}
 \usepackage{setspace}
-
-% Настройки листингов для C++ и GLSL
+ 
 \lstset{
-    basicstyle   = \ttfamily\small,
-    numbers      = left,
-    numbersep    = 5pt,
-    tabsize      = 4,
-    showstringspaces = false,
-    keepspaces   = true,
-    breaklines   = true,
-    frame        = single,
-    captionpos   = b,
-    language     = C++
+    basicstyle        = \ttfamily\small,
+    numbers           = left,
+    numbersep         = 5pt,
+    tabsize           = 4,
+    showstringspaces  = false,
+    keepspaces        = true,
+    breaklines        = true,
+    frame             = single,
+    captionpos        = b,
+    language          = C++
 }
-
+ 
 \setlength{\tabcolsep}{6pt}
-
+ 
+% ─────────────────────────────────────────────────────────────────────────────
 \begin{document}
-
 \linespread{1.5}\selectfont
+ 
+% ══════════════════════════ ТИТУЛЬНЫЙ ЛИСТ ══════════════════════════════════
 \thispagestyle{empty}
-
 \begin{center}
-  Санкт-Петербургский политехнический университет Петра Великого
-
-  Институт компьютерных наук и технологий
-
+  Санкт-Петербургский политехнический университет Петра Великого\\[2pt]
+  Институт компьютерных наук и технологий\\[2pt]
   Высшая школа программной инженерии
 \end{center}
-
+ 
 \vfill
-
+ 
 \begin{center}
-  \textbf{Курсовая работа}
-
+  \textbf{Курсовая работа}\\[4pt]
   \textbf{по дисциплине <<Объектно-ориентированное программирование>>}
 \end{center}
-
+ 
 \vskip8mm
-
 Тема: <<Система визуализации инерциальной навигации на основе
 полётного контроллера Pixhawk>>
-
 \vskip10mm
-
-Выполнил
-
-Студент гр. 3331506/30401 \hfill Томилов А.\,С.
-
+ 
+Выполнил\\
+Студент гр.~3331506/30401 \hfill Томилов~А.\,С.
 \vskip8mm
-
-Преподаватель \hfill Ананьевский М.\,С.
-
+Преподаватель \hfill Ананьевский~М.\,С.
 \vskip10mm
-
-\hfill <<\_\_\_>>\_\_\_\_\_\_\_\_\_ 2026 г.
-
+\hfill <<\_\_\_>>\_\_\_\_\_\_\_\_\_ 2026~г.
+ 
 \vfill
 \begin{center}
-  Санкт-Петербург
-
-  2026 г.
+  Санкт-Петербург\\
+  2026~г.
 \end{center}
 \newpage
-
-% ─── Содержание ───────────────────────────────────────────────────────────────
+ 
+% ══════════════════════════ СОДЕРЖАНИЕ ══════════════════════════════════════
 \tableofcontents
 \newpage
-
+ 
 % ─────────────────────────────────────────────────────────────────────────────
 \section*{Введение}
 \addcontentsline{toc}{section}{Введение}
 % ─────────────────────────────────────────────────────────────────────────────
-
+ 
 Инерциальная навигация~--- один из фундаментальных методов определения
 положения и ориентации объекта в пространстве без использования внешних
-сигналов~\cite{woodman2007}. В основе метода лежат данные инерциального
-измерительного блока (IMU --- \textit{Inertial Measurement Unit}),
-включающего трёхосевые акселерометр и гироскоп. Интегрируя угловые
-скорости и линейные ускорения во времени, можно восстановить полную
-навигационную картину: ориентацию, скорость и положение
-объекта~\cite{titterton2004}.
-
-Полётный контроллер Pixhawk является промышленным стандартом в области
-автономных летательных аппаратов~\cite{px4_docs}. Он оснащён
-высококачественным МЭМС-IMU и поддерживает протокол
-MAVLink~\cite{mavlink_proto}~--- открытый телеметрический стандарт,
-позволяющий в реальном времени получать сырые данные датчиков на внешний
-компьютер~\cite{mavlink_docs}.
-
-Целью данной работы является разработка программной системы, которая
-осуществляет чтение сырых IMU-данных (сообщения \texttt{RAW\_IMU}
-протокола MAVLink) с полётного контроллера Pixhawk и выполняет их
-обработку в реальном времени: вычисление ориентации объекта через
-кватернионное интегрирование гироскопа~\cite{kuipers1999}, а также
-оценку скорости и позиции посредством двойного интегрирования
-ускорения~\cite{groves2013}. Результаты визуализируются в интерактивном
-3D-окне с использованием OpenGL~3.3 и библиотеки GLFW~\cite{glfw_docs}.
-
+радионавигационных сигналов~\cite{woodman2007}. В основе метода лежат данные
+инерциального измерительного блока (IMU~--- \textit{Inertial Measurement Unit}),
+включающего трёхосевые акселерометр и гироскоп. Интегрируя угловые скорости и
+линейные ускорения во времени, можно восстановить полную навигационную картину:
+ориентацию, скорость и положение объекта~\cite{titterton2004}.
+ 
+Полётный контроллер Pixhawk является широко распространённым стандартом в области
+автономных летательных аппаратов~\cite{px4_docs}. Он оснащён высококачественным
+МЭМС-IMU и поддерживает протокол MAVLink~\cite{mavlink_proto}~--- открытый
+телеметрический стандарт, позволяющий в реальном времени получать сырые данные
+датчиков на внешний компьютер~\cite{mavlink_docs}.
+ 
+Целью данной работы является разработка программной системы, которая осуществляет
+чтение сырых IMU-данных (сообщения \texttt{RAW\_IMU} протокола MAVLink) с
+полётного контроллера Pixhawk и выполняет их обработку в реальном времени:
+вычисление ориентации объекта через кватернионное интегрирование
+гироскопа~\cite{kuipers1999}, а также оценку скорости и позиции посредством
+двойного интегрирования ускорения~\cite{groves2013}. Результаты визуализируются
+в интерактивном 3D-окне с использованием OpenGL~3.3 и библиотеки
+GLFW~\cite{glfw_docs}.
+ 
 \textbf{Задачи работы:}
 \begin{enumerate}[leftmargin=2cm]
-    \item реализовать модуль приёма данных по протоколу MAVLink через
-    последовательный порт;
+    \item реализовать автономный модуль первичного считывания данных по протоколу
+          MAVLink через последовательный порт с записью в CSV;
+    \item разработать многопоточную архитектуру с потокобезопасным разделяемым
+          буфером;
     \item реализовать алгоритм калибровки и кватернионного интегрирования
-    гироскопических данных;
+          гироскопических данных;
     \item реализовать алгоритм двойного интегрирования акселерометра для
-    оценки позиции;
+          оценки позиции;
     \item реализовать механизм ZUPT (\textit{Zero Velocity Update}) для
-    частичной компенсации дрейфа;
-    \item создать OpenGL-визуализацию навигационного состояния в реальном
-    времени с 3D-моделью, траекторией движения и HUD-панелью графиков;
+          частичной компенсации дрейфа;
+    \item создать OpenGL-визуализацию с 3D-моделью полётного контроллера,
+          траекторией движения и HUD-панелью графиков датчиков;
     \item провести анализ точности полученных результатов.
 \end{enumerate}
-
+ 
 \newpage
-
+ 
 % ─────────────────────────────────────────────────────────────────────────────
-\section{Чтение сырых данных с Pixhawk}
+\section{Первичное считывание данных с Pixhawk}
 % ─────────────────────────────────────────────────────────────────────────────
-
+ 
 \subsection{Протокол MAVLink и сообщение RAW\_IMU}
-
-Первым этапом работы стало освоение взаимодействия с полётным
-контроллером через протокол MAVLink~\cite{mavlink_proto}.
+ 
 MAVLink (\textit{Micro Air Vehicle Link})~--- лёгкий бинарный протокол
 сериализации для беспилотных систем, разработанный Лоренцем Майером
-в 2009 году~\cite{mavlink_docs}. Протокол широко применяется в
-экосистеме PX4 и ArduPilot~\cite{px4_docs}.
-
-Для получения сырых показаний датчиков используется сообщение
-\texttt{RAW\_IMU} (идентификатор~27 в диалекте \texttt{common}).
-Оно содержит девять целочисленных полей в единицах внутренней шкалы
-датчика (LSB --- \textit{Least Significant Bit}):
-
+в 2009~году~\cite{mavlink_docs}. Протокол широко используется в экосистемах
+PX4 и ArduPilot~\cite{px4_docs}. Для получения сырых показаний датчиков
+применяется сообщение \texttt{RAW\_IMU} (идентификатор~27 в диалекте
+\texttt{common}), содержащее девять целочисленных полей в единицах внутренней
+шкалы датчика (LSB~--- \textit{Least Significant Bit}):
+ 
 \begin{table}[H]
-    \centering
-    \caption{Поля сообщения MAVLink \texttt{RAW\_IMU}}
-    \label{tab:rawimu}
-    \begin{tabularx}{\textwidth}{|
-        >{\centering\arraybackslash}p{4.5cm}|
-        >{\centering\arraybackslash}p{3cm}|
-        >{\centering\arraybackslash}X|}
-        \hline
-        \textbf{Поле} & \textbf{Датчик} & \textbf{Описание} \\
-        \hline
-        \texttt{xacc, yacc, zacc} & Акселерометр & Ускорение по осям X, Y, Z (LSB) \\
-        \hline
-        \texttt{xgyro, ygyro, zgyro} & Гироскоп & Угловая скорость по осям (LSB) \\
-        \hline
-        \texttt{xmag, ymag, zmag} & Магнитометр & Магнитное поле по осям (LSB) \\
-        \hline
-    \end{tabularx}
+\centering
+\caption{Поля сообщения MAVLink \texttt{RAW\_IMU}}
+\label{tab:rawimu}
+\begin{tabularx}{\textwidth}{|>{\centering\arraybackslash}p{4.5cm}|
+                               >{\centering\arraybackslash}p{3cm}|
+                               >{\centering\arraybackslash}X|}
+\hline
+\textbf{Поле} & \textbf{Датчик} & \textbf{Описание} \\
+\hline
+\texttt{xacc, yacc, zacc}   & Акселерометр & Ускорение по осям X, Y, Z (LSB) \\
+\hline
+\texttt{xgyro, ygyro, zgyro}& Гироскоп     & Угловая скорость по осям (LSB) \\
+\hline
+\texttt{xmag, ymag, zmag}   & Магнитометр  & Магнитное поле по осям (LSB) \\
+\hline
+\end{tabularx}
 \end{table}
-
-\subsection{Реализация первичного модуля чтения}
-
-В качестве первого шага был написан автономный модуль считывания,
-позволявший проверить корректность соединения с Pixhawk и получить
-сырые данные для анализа и подбора калибровочных коэффициентов.
-
-Взаимодействие реализовано через последовательный порт
-\texttt{/dev/ttyACM0} со скоростью 115\,200~бод.
-Инициализация выполнена через POSIX-интерфейс
-\texttt{termios}~\cite{posix_termios}: 8 бит данных, без паритета,
-один стоп-бит, аппаратное управление потоком отключено, таймаут 1~с.
-
+ 
+\subsection{Модуль первичного считывания}
+ 
+На первом этапе работы был написан автономный модуль
+\texttt{read\_raw\_data\_from\_pixhawk.cpp}, позволивший проверить
+корректность соединения с Pixhawk и собрать сырые данные для анализа и
+подбора калибровочных коэффициентов. Взаимодействие реализовано через
+последовательный порт \texttt{/dev/ttyACM0} на скорости 115\,200~бод.
+Инициализация порта выполнена через POSIX-интерфейс
+\texttt{termios}~\cite{posix_termios}: 8~бит данных, без паритета, один
+стоп-бит, без аппаратного управления потоком, таймаут~1~с.
+ 
 \begin{lstlisting}[caption={Настройка последовательного порта через termios}]
 int setup_serial_port(const char* port, int baudrate) {
     int fd = open(port, O_RDWR | O_NOCTTY);
@@ -183,252 +166,218 @@ int setup_serial_port(const char* port, int baudrate) {
     cfsetispeed(&tty, baudrate);
     tty.c_cflag |= (CLOCAL | CREAD);
     tty.c_cflag &= ~CSIZE;
-    tty.c_cflag |= CS8;       // 8 data bits
-    tty.c_cflag &= ~PARENB;   // no parity
-    tty.c_cflag &= ~CSTOPB;   // 1 stop bit
-    tty.c_cflag &= ~CRTSCTS;  // no hardware flow control
+    tty.c_cflag |= CS8;
+    tty.c_cflag &= ~(PARENB | CSTOPB | CRTSCTS);
     tty.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
     tty.c_iflag &= ~(IXON | IXOFF | IXANY);
     tty.c_oflag &= ~OPOST;
     tty.c_cc[VMIN]  = 0;
-    tty.c_cc[VTIME] = 10;     // 1 second timeout
+    tty.c_cc[VTIME] = 10;
     tcsetattr(fd, TCSANOW, &tty);
     return fd;
 }
 \end{lstlisting}
-
-MAVLink-парсер реализован в виде конечного автомата: функция
+ 
+MAVLink-парсер реализован в виде конечного автомата:
 \texttt{mavlink\_parse\_char()} возвращает ненулевое значение только
 при получении полного валидного пакета с проверкой CRC-16~\cite{mavlink_proto}.
-
-\begin{lstlisting}[caption={Цикл чтения и парсинга MAVLink-пакетов}]
-mavlink_message_t msg;
-mavlink_status_t  status;
-uint8_t buffer[2048];
-
-while (running) {
-    int n = read(serial_fd, buffer, sizeof(buffer));
-    if (n > 0) {
-        for (int i = 0; i < n; i++) {
-            if (mavlink_parse_char(MAVLINK_COMM_0,
-                                   buffer[i], &msg, &status)) {
-                if (msg.msgid == MAVLINK_MSG_ID_RAW_IMU) {
-                    mavlink_raw_imu_t imu;
-                    mavlink_msg_raw_imu_decode(&msg, &imu);
-                    handle_message(&imu);
-                }
-            }
-        }
-    }
-}
-\end{lstlisting}
-
-\subsection{Запись данных в CSV}
-
-Каждый принятый пакет записывается в CSV-файл с меткой времени
-высокого разрешения, получаемой через \texttt{gettimeofday()} с
-точностью до микросекунды. Принудительный сброс буфера (\texttt{flush()})
-выполняется каждые 50~пакетов. Формат строки:
-
-\begin{center}
-\texttt{timestamp, AX\_raw, AY\_raw, AZ\_raw, GX\_raw, GY\_raw,
-GZ\_raw, MX\_raw, MY\_raw, MZ\_raw}
-\end{center}
-
-Данные CSV были использованы для экспериментального подбора смещений
-нуля (bias) датчиков по поведению сигналов в состоянии покоя.
-
-\subsection{Результаты первичного чтения}
-
-Сообщения \texttt{RAW\_IMU} стабильно поступали с частотой
-порядка 100~Гц, что соответствует штатной конфигурации IMU
-на Pixhawk~\cite{px4_docs}. Сырые данные акселерометра в покое
-показали устойчивое значение по оси~Z (проекция силы тяжести),
-а гироскоп~--- дрейф нуля, подлежащий компенсации на следующем этапе.
-
+Каждый принятый пакет \texttt{RAW\_IMU} записывается в CSV-файл с меткой
+времени с точностью до микросекунды~(\texttt{gettimeofday()}); принудительный
+сброс буфера выполняется каждые 50~пакетов.
+ 
+\subsection{Результаты первичного считывания}
+ 
+Сообщения \texttt{RAW\_IMU} стабильно поступали с частотой порядка
+100~Гц, что соответствует штатной конфигурации IMU на
+Pixhawk~\cite{px4_docs}. Сырые данные акселерометра в покое показали
+устойчивое значение по оси~Z (проекция силы тяжести), а гироскоп~---
+дрейф нуля, подлежащий компенсации на следующем этапе.
+ 
 \newpage
-
+ 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Архитектура системы визуализации}
 % ─────────────────────────────────────────────────────────────────────────────
-
-\subsection{Обзор проекта}
-
+ 
+\subsection{Общая структура}
+ 
 На основе опыта, полученного при реализации модуля чтения, была
 разработана полноценная система \textbf{Pixhawk IMU Visualizer}~---
-многопоточное приложение на C++14, в котором два параллельных потока
-взаимодействуют через потокобезопасный разделяемый буфер.
-
-\textit{Главный поток} реализует чтение данных: устанавливает
-соединение с Pixhawk, непрерывно парсит входящий поток байтов и при
-получении пакета \texttt{RAW\_IMU} помещает данные в очередь, а также
-записывает их в CSV-файл.
-
-\textit{Поток визуализатора} выполняет навигационные вычисления
-и рендеринг: извлекает пакеты из очереди, запускает алгоритм
-интегрирования и обновляет трёхмерную сцену на каждом кадре.
-
+многопоточное приложение на C++14. Два параллельных потока взаимодействуют
+через потокобезопасный разделяемый буфер (\texttt{SharedBuffer}):
+ 
+\textit{Главный поток} (\texttt{pixhawk\_imu\_reader.cpp}) устанавливает
+соединение с Pixhawk по UART, непрерывно парсит входящий байтовый поток
+и при получении пакета \texttt{RAW\_IMU} помещает данные в очередь, а также
+дублирует их в CSV-файл.
+ 
+\textit{Поток визуализации} (\texttt{imu\_visualizer.cpp}) извлекает пакеты
+из очереди, запускает алгоритм инерциальной навигации и обновляет 3D-сцену на
+каждом кадре.
+ 
 \subsection{Структура файлов проекта}
-
+ 
 \begin{table}[H]
-    \centering
-    \caption{Файлы проекта}
-    \label{tab:files}
-    \begin{tabularx}{\textwidth}{|l|X|}
-        \hline
-        \textbf{Файл} & \textbf{Назначение} \\
-        \hline
-        \texttt{imu\_shared.h} & Общие структуры данных: \texttt{RawIMU},
-            \texttt{NavState}, \texttt{SharedBuffer}, константы калибровки \\
-        \hline
-        \texttt{imu\_visualizer.h} & Объявление функции
-            \texttt{run\_visualizer()} \\
-        \hline
-        \texttt{imu\_visualizer.cpp} & Навигационный алгоритм, GLSL-шейдеры,
-            геометрия модели и OpenGL-рендер \\
-        \hline
-        \texttt{pixhawk\_imu\_reader.cpp} & MAVLink-ридер, запуск потока
-            визуализации \\
-        \hline
-        \texttt{CMakeLists.txt} & Система сборки CMake \\
-        \hline
-        \texttt{c\_library\_v2/} & Заголовочная библиотека MAVLink~C~\cite{mavlink_docs} \\
-        \hline
-    \end{tabularx}
+\centering
+\caption{Файлы проекта}
+\label{tab:files}
+\begin{tabularx}{\textwidth}{|l|X|}
+\hline
+\textbf{Файл} & \textbf{Назначение} \\
+\hline
+\texttt{imu\_shared.h}            & Общие структуры данных: \texttt{RawIMU},
+                                    \texttt{NavState}, \texttt{SharedBuffer},
+                                    константы калибровки \\
+\hline
+\texttt{imu\_visualizer.h}        & Объявление функции \texttt{run\_visualizer()} \\
+\hline
+\texttt{imu\_visualizer.cpp}      & Навигационный алгоритм, GLSL-шейдеры,
+                                    геометрия модели и OpenGL-рендер \\
+\hline
+\texttt{pixhawk\_imu\_reader.cpp} & MAVLink-ридер, запуск потока визуализации \\
+\hline
+\texttt{read\_raw\_data\_from\_pixhawk.cpp} & Автономный модуль первичного считывания \\
+\hline
+\texttt{CMakeLists.txt}           & Система сборки CMake \\
+\hline
+\texttt{c\_library\_v2/}          & Заголовочная библиотека MAVLink~C~\cite{mavlink_docs} \\
+\hline
+\end{tabularx}
 \end{table}
-
-\subsection{Разделяемые структуры данных}
-
-Все общие данные инкапсулированы в трёх структурах, описанных в
-файле \texttt{imu\_shared.h}.
-
-Структура \texttt{RawIMU} хранит одно необработанное измерение
-с меткой времени и шестью целочисленными каналами датчиков:
-
-\begin{lstlisting}[caption={Структура сырого пакета IMU}]
+ 
+\subsection{Разделяемые структуры данных (\texttt{imu\_shared.h})}
+ 
+Вся общая информация инкапсулирована в трёх структурах. Структура
+\texttt{RawIMU} хранит одно необработанное измерение:
+ 
+\begin{lstlisting}[caption={Структуры RawIMU и NavState}]
 struct RawIMU {
     double  timestamp;
-    int16_t xacc, yacc, zacc;    // акселерометр (LSB)
-    int16_t xgyro, ygyro, zgyro; // гироскоп (LSB)
-    int16_t xmag, ymag, zmag;    // магнитометр (LSB)
+    int16_t xacc,  yacc,  zacc;   // акселерометр (LSB)
+    int16_t xgyro, ygyro, zgyro;  // гироскоп (LSB)
+    int16_t xmag,  ymag,  zmag;   // магнитометр (LSB)
 };
-\end{lstlisting}
-
-Структура \texttt{NavState} хранит полное навигационное состояние:
-
-\begin{lstlisting}[caption={Структура навигационного состояния}]
+ 
 struct NavState {
     double qw=1, qx=0, qy=0, qz=0; // кватернион ориентации
     double wx=0, wy=0, wz=0;        // угловые скорости (рад/с)
     double vx=0, vy=0, vz=0;        // скорость (м/с)
     double px=0, py=0, pz=0;        // позиция (м)
     double roll=0, pitch=0, yaw=0;  // углы Эйлера (градусы)
-    double ax=0, ay=0, az=0;        // ускорение (м/с^2)
+    double ax=0,  ay=0,  az=0;      // ускорение (м/с^2)
 };
 \end{lstlisting}
-
+ 
 Структура \texttt{SharedBuffer} объединяет всё межпоточное взаимодействие.
 Каждое поле защищено отдельным мьютексом, что позволяет потокам работать
-параллельно без глобальной блокировки всей структуры. Флаг
-\texttt{running} объявлен как \texttt{std::atomic<bool>}, поэтому его
-чтение и запись потокобезопасны без явного мьютекса:
-
+параллельно без глобальной блокировки. Флаг \texttt{running} объявлен как
+\texttt{std::atomic<bool>}:
+ 
 \begin{lstlisting}[caption={Потокобезопасный разделяемый буфер}]
 struct SharedBuffer {
     std::mutex           mtx;
-    std::deque<RawIMU>   queue;        // очередь пакетов (макс. 500)
+    std::deque<RawIMU>   queue;         // очередь пакетов (макс. 500)
     static const int     MAX_QUEUE = 500;
     std::atomic<bool>    running{true};
     std::mutex           nav_mtx;
-    NavState             nav;          // текущее состояние
+    NavState             nav;
     std::mutex           trail_mtx;
     std::deque<std::array<float,3>> trail; // траектория (макс. 2000)
     static const int     MAX_TRAIL = 2000;
-
-    void push(const RawIMU& r){ /* потокобезопасная запись */ }
-    bool pop(RawIMU& out)     { /* потокобезопасное чтение */ }
-    void add_trail_point(float x, float y, float z) { ... }
+ 
+    void push(const RawIMU& r) {
+        std::lock_guard<std::mutex> lk(mtx);
+        if ((int)queue.size() < MAX_QUEUE) queue.push_back(r);
+    }
+    bool pop(RawIMU& out) {
+        std::lock_guard<std::mutex> lk(mtx);
+        if (queue.empty()) return false;
+        out = queue.front(); queue.pop_front(); return true;
+    }
 };
 \end{lstlisting}
-
+ 
 \newpage
-
+ 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Зависимости и система сборки}
 % ─────────────────────────────────────────────────────────────────────────────
-
+ 
 \subsection{Используемые библиотеки}
-
+ 
 \begin{table}[H]
-    \centering
-    \caption{Внешние зависимости проекта}
-    \label{tab:deps}
-    \begin{tabularx}{\textwidth}{|l|l|X|}
-        \hline
-        \textbf{Библиотека} & \textbf{Версия} & \textbf{Роль в проекте} \\
-        \hline
-        MAVLink \texttt{c\_library\_v2}~\cite{mavlink_docs}
-            & 2.0 & Парсинг телеметрических пакетов,
-                    декодирование \texttt{RAW\_IMU} \\
-        \hline
-        GLFW3~\cite{glfw_docs}
-            & $\geq$3.3 & Создание окна OpenGL, ввод мыши и клавиатуры \\
-        \hline
-        GLEW & $\geq$2.1 & Загрузка расширений OpenGL 3.3 \\
-        \hline
-        GLM  & $\geq$0.9.9 & Матричная и кватернионная математика \\
-        \hline
-        pthreads & POSIX & Межпоточная синхронизация \\
-        \hline
-    \end{tabularx}
+\centering
+\caption{Внешние зависимости проекта}
+\label{tab:deps}
+\begin{tabularx}{\textwidth}{|l|l|X|}
+\hline
+\textbf{Библиотека} & \textbf{Версия} & \textbf{Роль в проекте} \\
+\hline
+MAVLink \texttt{c\_library\_v2}~\cite{mavlink_docs} & 2.0
+    & Парсинг телеметрии, декодирование \texttt{RAW\_IMU} \\
+\hline
+GLFW3~\cite{glfw_docs} & $\geq$3.3
+    & Создание окна OpenGL, ввод мыши и клавиатуры \\
+\hline
+GLEW & $\geq$2.1
+    & Загрузка расширений OpenGL~3.3 \\
+\hline
+GLM  & $\geq$0.9.9
+    & Матричная и кватернионная математика \\
+\hline
+pthreads & POSIX
+    & Межпоточная синхронизация (\texttt{std::thread}, \texttt{std::mutex}) \\
+\hline
+\end{tabularx}
 \end{table}
-
+ 
 Библиотека MAVLink является заголовочной~--- она полностью состоит из
-\texttt{.h}-файлов и не требует отдельной компиляции~\cite{mavlink_proto}.
-Остальные зависимости устанавливаются из репозитория пакетов Ubuntu.
-
+\texttt{.h}-файлов и не требует компиляции~\cite{mavlink_proto}. Остальные
+зависимости устанавливаются из репозитория пакетов Ubuntu.
+ 
 \subsection{Конфигурация CMake}
-
-Сборочная система использует CMake версии не ниже~3.10. Скрипт
-\texttt{CMakeLists.txt} настроен на стандарт C++14, включает поиск
-зависимостей через \texttt{find\_package} и \texttt{PkgConfig}
-и компилирует проект с флагами оптимизации \texttt{-O2} и
-предупреждениями \texttt{-Wall -Wextra}.
-
+ 
+Сборочная система использует CMake версии не ниже~3.10 и настроена на
+стандарт C++14. Зависимости ищутся через \texttt{find\_package} и
+\texttt{PkgConfig}; проект компилируется с флагами \texttt{-O2 -Wall -Wextra}.
+CMake ищет GLFW тремя способами последовательно: через \texttt{find\_package},
+через \texttt{PkgConfig} и, наконец, вручную через \texttt{find\_path} /
+\texttt{find\_library}~--- это обеспечивает совместимость с различными
+дистрибутивами Ubuntu.
+ 
 \newpage
-
+ 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Математика инерциальной навигации}
 % ─────────────────────────────────────────────────────────────────────────────
-
+ 
 \subsection{Калибровка датчиков}
-
+ 
 Сырые показания МЭМС-датчиков содержат постоянное смещение нуля (bias),
-обусловленное конструктивными особенностями кристалла~\cite{titterton2004}.
-Смещения определялись экспериментально по показаниям датчика в покое.
-Перевод в физические единицы осуществляется линейным масштабированием:
+обусловленное технологическими особенностями изготовления
+кристалла~\cite{titterton2004}. Смещения определялись экспериментально по
+данным CSV-файла в состоянии покоя. Перевод в физические единицы выполняется
+линейным масштабированием:
 \begin{equation}
     a_i = \bigl(\tilde{a}_i - b_{a,i}\bigr) \cdot S_a, \quad
     \omega_i = \bigl(\tilde{\omega}_i - b_{\omega,i}\bigr) \cdot S_\omega,
     \label{eq:calib}
 \end{equation}
 где $\tilde{a}_i$, $\tilde{\omega}_i$~--- сырые целочисленные отсчёты;
-$b_{a,i}$, $b_{\omega,i}$~--- смещения нуля; $S_a = 9{,}81 / 3050$
-[м/с$^2$/отсчёт], $S_\omega = 0{,}001$ [рад/с/отсчёт].
-
-Числовые значения смещений, определённые экспериментально из
-CSV-данных в статике:
+$b_{a,i}$, $b_{\omega,i}$~--- смещения нуля;
+$S_a = 9{,}81/3050$ [м/с$^2$/отсчёт],
+$S_\omega = 0{,}001$ [рад/с/отсчёт].
+ 
+Экспериментально определённые смещения, вынесенные в пространство имён
+\texttt{Calib} в файле \texttt{imu\_shared.h}:
 \begin{equation}
     \mathbf{b}_a = (31,\; 24,\; 0)^\top, \quad
     \mathbf{b}_\omega = (-7,\; 1{,}5,\; 3)^\top.
     \label{eq:biases}
 \end{equation}
-
-Константы вынесены в пространство имён \texttt{Calib} в файле
-\texttt{imu\_shared.h}, что позволяет изменять их в одном месте.
-
+ 
 \subsection{Представление ориентации кватернионами}
-
+ 
 Ориентация тела в пространстве описывается единичным
 кватернионом~\cite{kuipers1999}:
 \begin{equation}
@@ -436,160 +385,155 @@ CSV-данных в статике:
     \quad \|\mathbf{q}\| = 1.
     \label{eq:quat}
 \end{equation}
-
-Кватернионы предпочтительнее матриц вращения и углов Эйлера: они не
-страдают от шарнирного замка (\textit{gimbal lock}), компактны
-(4 параметра против 9) и численно стабильны при нормализации~\cite{kuipers1999}.
-
-\subsection{Интегрирование кватерниона}
-
-Кинематическое уравнение связывает производную кватерниона с угловой
-скоростью $\bm{\omega} = (\omega_x, \omega_y, \omega_z)^\top$ в
-системе координат тела~\cite{mahony2008}:
+ 
+Кватернионы предпочтительнее матриц вращения и углов Эйлера: они не страдают
+от шарнирного замка (\textit{gimbal lock}), компактны (4~параметра против~9)
+и численно стабильны при нормализации~\cite{kuipers1999}.
+ 
+\subsection{Кватернионное интегрирование гироскопа}
+ 
+Кинематическое уравнение связывает производную кватерниона с угловой скоростью
+$\bm{\omega} = (\omega_x,\,\omega_y,\,\omega_z)^\top$ в системе координат
+тела~\cite{mahony2008}:
 \begin{equation}
-    \dot{\mathbf{q}} = \frac{1}{2}\,\mathbf{q} \otimes
+    \dot{\mathbf{q}} = \tfrac{1}{2}\,\mathbf{q} \otimes
     \begin{pmatrix} 0 \\ \bm{\omega} \end{pmatrix}.
     \label{eq:qdot}
 \end{equation}
-
-Для численного интегрирования на шаге $\Delta t$ применяется точная
-формула через ось-угол~\cite{titterton2004}:
+ 
+Для численного интегрирования на шаге $\Delta t$ применяется точная формула
+через ось-угол~\cite{titterton2004}:
 \begin{equation}
     \theta = \|\bm{\omega}\| \cdot \Delta t, \qquad
-    \Delta\mathbf{q} = \left(\cos\frac{\theta}{2},\;
-    \frac{\bm{\omega}}{\|\bm{\omega}\|}\sin\frac{\theta}{2}\right).
+    \Delta\mathbf{q} = \Bigl(\cos\tfrac{\theta}{2},\;
+    \tfrac{\bm{\omega}}{\|\bm{\omega}\|}\sin\tfrac{\theta}{2}\Bigr).
     \label{eq:dq}
 \end{equation}
-
-Обновление кватерниона и нормализация:
+ 
+Обновление кватерниона с нормализацией:
 \begin{equation}
     \mathbf{q} \leftarrow \frac{\mathbf{q} \otimes \Delta\mathbf{q}}
     {\|\mathbf{q} \otimes \Delta\mathbf{q}\|}.
     \label{eq:qupdate}
 \end{equation}
-
+ 
 \subsection{Матрица поворота из кватерниона}
-
-Для перевода векторов из системы координат тела в мировую используется
+ 
+Для перевода вектора ускорения из системы координат тела в мировую используется
 матрица вращения $\mathbf{R} \in SO(3)$~\cite{kuipers1999}:
 \begin{equation}
     \mathbf{R} =
     \begin{pmatrix}
-        1 - 2(q_y^2 + q_z^2) & 2(q_x q_y - q_w q_z) & 2(q_x q_z + q_w q_y) \\
-        2(q_x q_y + q_w q_z) & 1 - 2(q_x^2 + q_z^2) & 2(q_y q_z - q_w q_x) \\
-        2(q_x q_z - q_w q_y) & 2(q_y q_z + q_w q_x) & 1 - 2(q_x^2 + q_y^2)
+        1{-}2(q_y^2{+}q_z^2) & 2(q_xq_y{-}q_wq_z) & 2(q_xq_z{+}q_wq_y) \\
+        2(q_xq_y{+}q_wq_z) & 1{-}2(q_x^2{+}q_z^2) & 2(q_yq_z{-}q_wq_x) \\
+        2(q_xq_z{-}q_wq_y) & 2(q_yq_z{+}q_wq_x) & 1{-}2(q_x^2{+}q_y^2)
     \end{pmatrix}.
     \label{eq:rot}
 \end{equation}
-
+ 
 \subsection{Углы Эйлера (конвенция ZYX)}
-
-Из кватерниона вычисляются углы крена $\phi$, тангажа $\theta$ и
-рыскания $\psi$~\cite{titterton2004}:
+ 
+Из кватерниона вычисляются углы крена $\phi$, тангажа $\vartheta$ и рыскания
+$\psi$~\cite{titterton2004}:
 \begin{align}
-    \phi   &= \operatorname{atan2}\!\bigl(2(q_w q_x + q_y q_z),\;
-               1 - 2(q_x^2 + q_y^2)\bigr), \label{eq:roll} \\
-    \theta &= \arcsin\!\bigl(2(q_w q_y - q_z q_x)\bigr), \label{eq:pitch} \\
-    \psi   &= \operatorname{atan2}\!\bigl(2(q_w q_z + q_x q_y),\;
-               1 - 2(q_y^2 + q_z^2)\bigr). \label{eq:yaw}
+    \phi      &= \operatorname{atan2}\!\bigl(2(q_wq_x+q_yq_z),\;
+                  1-2(q_x^2+q_y^2)\bigr), \label{eq:roll}\\
+    \vartheta &= \arcsin\!\bigl(2(q_wq_y-q_zq_x)\bigr), \label{eq:pitch}\\
+    \psi      &= \operatorname{atan2}\!\bigl(2(q_wq_z+q_xq_y),\;
+                  1-2(q_y^2+q_z^2)\bigr). \label{eq:yaw}
 \end{align}
-
+ 
 \subsection{Двойное интегрирование (скорость и позиция)}
-
-Вектор ускорения переводится из системы координат тела в мировую
-и из него вычитается гравитация~\cite{groves2013}:
+ 
+Ускорение переводится из системы тела в мировую, из него вычитается
+гравитация~\cite{groves2013}:
 \begin{equation}
-    \mathbf{a}_\text{world} = \mathbf{R}\,\mathbf{a}_\text{body} -
-    \mathbf{g}_\text{world}, \quad
-    \mathbf{g}_\text{world} = (0,\; 0,\; -9{,}81)^\top \text{ [м/с}^2\text{]}.
+    \mathbf{a}_\mathrm{world} = \mathbf{R}\,\mathbf{a}_\mathrm{body}
+    - \mathbf{g}, \quad
+    \mathbf{g} = (0,\;0,\;{-}9{,}81)^\top \;\text{[м/с}^2\text{]}.
     \label{eq:aworld}
 \end{equation}
-
-Последовательным интегрированием методом Эйлера первого порядка
-вычисляются скорость и позиция~\cite{woodman2007}:
+ 
+Интегрирование методом Эйлера первого порядка:
 \begin{align}
-    \mathbf{v}(t + \Delta t) &= \mathbf{v}(t) +
-    \mathbf{a}_\text{world}(t) \cdot \Delta t, \label{eq:vel} \\
-    \mathbf{p}(t + \Delta t) &= \mathbf{p}(t) +
-    \mathbf{v}(t) \cdot \Delta t. \label{eq:pos}
+    \mathbf{v}(t{+}\Delta t) &= \mathbf{v}(t) +
+        \mathbf{a}_\mathrm{world}(t)\cdot\Delta t, \label{eq:vel}\\
+    \mathbf{p}(t{+}\Delta t) &= \mathbf{p}(t) +
+        \mathbf{v}(t)\cdot\Delta t. \label{eq:pos}
 \end{align}
-
+ 
 \subsection{Метод ZUPT}
-
-Метод ZUPT (\textit{Zero Velocity Update})~--- классический способ
-частичной коррекции INS в моменты покоя платформы~\cite{skog2010}.
-Если норма угловой скорости опускается ниже порогового значения,
-скорость мягко гасится:
+ 
+ZUPT (\textit{Zero Velocity Update})~--- классический способ частичной
+коррекции INS в моменты покоя~\cite{skog2010}. Если норма угловой скорости
+опускается ниже порогового значения $\omega_\mathrm{th}=0{,}015$~рад/с,
+скорость мягко гасится с коэффициентом $\alpha=0{,}85$:
 \begin{equation}
-    \text{если } \|\bm{\omega}\| < \omega_\text{th}:
-    \quad \mathbf{v} \leftarrow \mathbf{v} \cdot \alpha_\text{damp},
+    \text{если}\ \|\bm{\omega}\| < \omega_\mathrm{th}:\quad
+    \mathbf{v} \leftarrow \mathbf{v}\cdot\alpha.
     \label{eq:zupt}
 \end{equation}
-где $\omega_\text{th} = 0{,}015$ рад/с~--- порог обнаружения покоя,
-$\alpha_\text{damp} = 0{,}85$~--- коэффициент затухания. Дополнительно
-при норме мирового ускорения ниже~$0{,}3$~м/с$^2$ ускорение
-обнуляется полностью, что устраняет интегрирование шумового сигнала
-акселерометра в статике.
-
+Дополнительно, если компонента мирового ускорения по модулю меньше
+$0{,}3$~м/с$^2$, она обнуляется полностью, что устраняет интегрирование
+шумового сигнала акселерометра в статике.
+ 
 \newpage
-
+ 
 % ─────────────────────────────────────────────────────────────────────────────
-\section{Реализация алгоритмов}
+\section{Реализация навигационного алгоритма}
 % ─────────────────────────────────────────────────────────────────────────────
-
-\subsection{Функция интегрирования IMU}
-
-Навигационный алгоритм сосредоточен в функции
-\texttt{integrate\_imu()} файла \texttt{imu\_visualizer.cpp}.
-Она вызывается из потока визуализации для каждого вычитанного пакета.
-
-Первый блок выполняет калибровку сырых отсчётов в соответствии
-с формулой~\eqref{eq:calib}:
-
+ 
+\subsection{Функция \texttt{integrate\_imu()}}
+ 
+Весь навигационный алгоритм сосредоточен в функции \texttt{integrate\_imu()}
+файла \texttt{imu\_visualizer.cpp}. Она вызывается из потока визуализации для
+каждого пакета, извлечённого из очереди. Шаг интегрирования $\Delta t$
+вычисляется как разность временны'х меток двух последовательных пакетов.
+ 
+\textbf{Блок 1.} Калибровка сырых отсчётов по формуле~\eqref{eq:calib}:
+ 
 \begin{lstlisting}[caption={Калибровка сырых показаний}]
-double ax = (raw.xacc  - Calib::AX_BIAS)  * Calib::ACCEL_SCALE;
-double ay = (raw.yacc  - Calib::AY_BIAS)  * Calib::ACCEL_SCALE;
-double az = (raw.zacc  - Calib::AZ_BIAS)  * Calib::ACCEL_SCALE;
-double gx = (raw.xgyro - Calib::GX_BIAS)  * Calib::GYRO_SCALE;
-double gy = (raw.ygyro - Calib::GY_BIAS)  * Calib::GYRO_SCALE;
-double gz = (raw.zgyro - Calib::GZ_BIAS)  * Calib::GYRO_SCALE;
+double ax = (raw.xacc  - Calib::AX_BIAS) * Calib::ACCEL_SCALE;
+double ay = (raw.yacc  - Calib::AY_BIAS) * Calib::ACCEL_SCALE;
+double az = (raw.zacc  - Calib::AZ_BIAS) * Calib::ACCEL_SCALE;
+double gx = (raw.xgyro - Calib::GX_BIAS) * Calib::GYRO_SCALE;
+double gy = (raw.ygyro - Calib::GY_BIAS) * Calib::GYRO_SCALE;
+double gz = (raw.zgyro - Calib::GZ_BIAS) * Calib::GYRO_SCALE;
 \end{lstlisting}
-
-Второй блок реализует кватернионное интегрирование по формулам
-\eqref{eq:dq}--\eqref{eq:qupdate}:
-
-\begin{lstlisting}[caption={Кватернионное интегрирование гироскопа (ось-угол)}]
+ 
+\textbf{Блок 2.} Кватернионное интегрирование через ось-угол по
+формулам~\eqref{eq:dq}--\eqref{eq:qupdate}:
+ 
+\begin{lstlisting}[caption={Кватернионное интегрирование гироскопа}]
 double theta = std::sqrt(gx*gx + gy*gy + gz*gz) * dt;
 if (theta > 1e-10) {
     double norm_w = std::sqrt(gx*gx + gy*gy + gz*gz);
-    double s  = std::sin(theta * 0.5) / norm_w;
-    double c  = std::cos(theta * 0.5);
-    double dqw = c, dqx = gx*s, dqy = gy*s, dqz = gz*s;
-
+    double s   = std::sin(theta * 0.5) / norm_w;
+    double c   = std::cos(theta * 0.5);
+    double dqw = c,    dqx = gx*s, dqy = gy*s, dqz = gz*s;
+ 
     // q_new = q (x) dq
     double qw = n.qw*dqw - n.qx*dqx - n.qy*dqy - n.qz*dqz;
     double qx = n.qw*dqx + n.qx*dqw + n.qy*dqz - n.qz*dqy;
     double qy = n.qw*dqy - n.qx*dqz + n.qy*dqw + n.qz*dqx;
     double qz = n.qw*dqz + n.qx*dqy - n.qy*dqx + n.qz*dqw;
-
+ 
     double norm = std::sqrt(qw*qw + qx*qx + qy*qy + qz*qz);
-    n.qw = qw/norm; n.qx = qx/norm;
-    n.qy = qy/norm; n.qz = qz/norm;
+    n.qw=qw/norm; n.qx=qx/norm; n.qy=qy/norm; n.qz=qz/norm;
 }
 \end{lstlisting}
-
-Третий блок вычисляет матрицу поворота по формуле~\eqref{eq:rot},
-переводит ускорение в мировую систему координат, вычитает гравитацию
-и применяет ZUPT:
-
-\begin{lstlisting}[caption={Мировое ускорение и ZUPT}]
-// Матрица поворота из кватерниона (строки r00..r22)
+ 
+\textbf{Блок 3.} Перевод ускорения в мировую систему координат,
+вычитание гравитации и применение ZUPT:
+ 
+\begin{lstlisting}[caption={Мировое ускорение, компенсация гравитации и ZUPT}]
+// Матрица поворота (строки r00..r22) из кватерниона
 double ax_w = r00*ax + r01*ay + r02*az;
 double ay_w = r10*ax + r11*ay + r12*az;
 double az_w = r20*ax + r21*ay + r22*az;
-az_w -= (-9.81);   // вычитаем гравитацию
-
-// ZUPT
+az_w -= (-9.81);         // вычитаем гравитацию
+ 
+// ZUPT: гироскоп в покое -> мягко гасим скорость
 double gyro_norm = std::sqrt(gx*gx + gy*gy + gz*gz);
 if (gyro_norm < Calib::ZUPT_GYRO_THRESH) {
     n.vx *= 0.85; n.vy *= 0.85; n.vz *= 0.85;
@@ -598,41 +542,41 @@ if (gyro_norm < Calib::ZUPT_GYRO_THRESH) {
     if (std::abs(az_w) < 0.3) az_w = 0;
 }
 // Двойное интегрирование
-n.vx += ax_w * dt; n.vy += ay_w * dt; n.vz += az_w * dt;
-n.px += n.vx * dt; n.py += n.vy * dt; n.pz += n.vz * dt;
+n.vx += ax_w*dt; n.vy += ay_w*dt; n.vz += az_w*dt;
+n.px += n.vx*dt; n.py += n.vy*dt; n.pz += n.vz*dt;
 \end{lstlisting}
-
+ 
 \subsection{Вычисление углов Эйлера}
-
-Завершает функцию вычисление углов Эйлера по формулам
-\eqref{eq:roll}--\eqref{eq:yaw} с переводом в градусы. Зажим
-аргумента \texttt{asin} в интервал $[-1, 1]$ предотвращает исключения
-при численном выходе за границу из-за накопленной погрешности:
-
-\begin{lstlisting}[caption={Углы Эйлера из кватерниона (конвенция ZYX)}]
+ 
+Завершает функцию вычисление углов Эйлера по
+формулам~\eqref{eq:roll}--\eqref{eq:yaw}. Аргумент \texttt{asin}
+зажимается в интервал $[-1,1]$ для защиты от накопленной численной
+погрешности:
+ 
+\begin{lstlisting}[caption={Углы Эйлера из кватерниона (ZYX)}]
 const double R2D = 180.0 / M_PI;
 n.roll  = std::atan2(2*(qw*qx + qy*qz),
-                     1-2*(qx*qx + qy*qy)) * R2D;
+                     1 - 2*(qx*qx + qy*qy)) * R2D;
 double sp = std::max(-1.0, std::min(1.0, 2*(qw*qy - qz*qx)));
 n.pitch = std::asin(sp) * R2D;
 n.yaw   = std::atan2(2*(qw*qz + qx*qy),
-                     1-2*(qy*qy + qz*qz)) * R2D;
+                     1 - 2*(qy*qy + qz*qz)) * R2D;
 \end{lstlisting}
-
+ 
 \newpage
-
+ 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Реализация визуализации}
 % ─────────────────────────────────────────────────────────────────────────────
-
-\subsection{Шейдеры OpenGL 3.3}
-
+ 
+\subsection{Шейдеры OpenGL~3.3}
+ 
 Визуализатор использует две пары GLSL-шейдеров. Первая
-(\texttt{VERT3D} / \texttt{FRAG3D}) предназначена для рендеринга
-3D-модели полётного контроллера с диффузным освещением по
-модели Ламберта:
-
-\begin{lstlisting}[language={},caption={Вершинный шейдер 3D-модели}]
+(\texttt{VERT3D}/\texttt{FRAG3D}) применяется для рендеринга 3D-модели
+полётного контроллера с диффузным освещением по модели Ламберта:
+ 
+\begin{lstlisting}[language={},caption={Вершинный и фрагментный шейдеры 3D-модели}]
+// VERT3D
 #version 330 core
 layout(location=0) in vec3 aPos;
 layout(location=1) in vec3 aColor;
@@ -640,14 +584,13 @@ layout(location=2) in vec3 aNormal;
 out vec3 vColor; out vec3 vNormal; out vec3 vPos;
 uniform mat4 uMVP; uniform mat4 uModel;
 void main(){
-    vPos    = vec3(uModel * vec4(aPos,1));
+    vPos    = vec3(uModel * vec4(aPos, 1));
     vNormal = mat3(transpose(inverse(uModel))) * aNormal;
     vColor  = aColor;
-    gl_Position = uMVP * vec4(aPos,1);
+    gl_Position = uMVP * vec4(aPos, 1);
 }
-\end{lstlisting}
-
-\begin{lstlisting}[language={},caption={Фрагментный шейдер с освещением Ламберта}]
+ 
+// FRAG3D
 #version 330 core
 in vec3 vColor; in vec3 vNormal; in vec3 vPos;
 out vec4 outColor;
@@ -657,320 +600,325 @@ void main(){
     outColor = vec4(vColor * (0.35 + 0.65*d), uAlpha);
 }
 \end{lstlisting}
-
-Вторая пара (\texttt{VERT\_FLAT} / \texttt{FRAG\_FLAT}) используется
-для отрисовки всех линейных примитивов без освещения: сетки, мировых
-осей, траектории и HUD-панелей.
-
-\subsection{Геометрия модели полётного контроллера}
-
-3D-модель FC строится процедурно из параллелепипедов. Функция
-\texttt{push\_box()} генерирует шесть граней прямоугольника с
-различными оттенками для имитации объёма. Вспомогательная
-\texttt{push\_arrow()} строит цилиндрические стрелки осей:
-
-\begin{lstlisting}[caption={Сборка процедурной модели FC}]
-static std::vector<V3> build_fc()
-{
+ 
+Вторая пара (\texttt{VERT\_FLAT}/\texttt{FRAG\_FLAT}) используется для
+отрисовки всех линейных примитивов без освещения: координатной сетки,
+мировых осей, траектории и HUD-графиков.
+ 
+\subsection{Процедурная модель полётного контроллера}
+ 
+3D-модель FC строится процедурно из параллелепипедов функцией
+\texttt{build\_fc()}. Вспомогательная \texttt{push\_box()} генерирует
+шесть граней куба с различными коэффициентами яркости для имитации объёма;
+\texttt{push\_arrow()} добавляет три цветных стрелки осей (X~--- красная,
+Y~--- зелёная, Z~--- синяя):
+ 
+\begin{lstlisting}[caption={Процедурная сборка модели FC}]
+static std::vector<V3> build_fc() {
     std::vector<V3> v;
     // Корпус -- тёмно-серый прямоугольник
-    push_box(v, 0,0,0,   0.8f,0.8f,0.14f, 0.13f,0.14f,0.19f);
-    // Полоска "нос" (направление Y+)
-    push_box(v, 0,0.37f,0.08f, 0.7f,0.06f,0.04f, 0.95f,0.95f,0.95f);
-    // Рёбра для объёма
-    push_box(v, 0.37f,0,0.08f, 0.04f,0.8f,0.04f, 0.22f,0.22f,0.28f);
-    push_box(v,-0.37f,0,0.08f, 0.04f,0.8f,0.04f, 0.22f,0.22f,0.28f);
-    // Оси: X=красный, Y=зелёный, Z=синий
-    push_arrow(v,0,0,0.1f, 1,0,0, 0.7f, 0.95f,0.10f,0.10f);
-    push_arrow(v,0,0,0.1f, 0,1,0, 0.7f, 0.10f,0.92f,0.10f);
-    push_arrow(v,0,0,0.07f,0,0,1, 0.7f, 0.15f,0.42f,0.98f);
+    push_box(v,  0,     0,    0,    0.8f,0.8f,0.14f, 0.13f,0.14f,0.19f);
+    // Белая полоска "нос" (направление Y+)
+    push_box(v,  0,  0.37f, 0.08f, 0.7f,0.06f,0.04f, 0.95f,0.95f,0.95f);
+    // Боковые рёбра
+    push_box(v,  0.37f, 0,  0.08f, 0.04f,0.8f,0.04f, 0.22f,0.22f,0.28f);
+    push_box(v, -0.37f, 0,  0.08f, 0.04f,0.8f,0.04f, 0.22f,0.22f,0.28f);
+    // Стрелки осей
+    push_arrow(v, 0,0,0.1f,  1,0,0, 0.7f, 0.95f,0.10f,0.10f); // X
+    push_arrow(v, 0,0,0.1f,  0,1,0, 0.7f, 0.10f,0.92f,0.10f); // Y
+    push_arrow(v, 0,0,0.07f, 0,0,1, 0.7f, 0.15f,0.42f,0.98f); // Z
     return v;
 }
 \end{lstlisting}
-
-\subsection{Кольцевой буфер для HUD-графиков}
-
-Для отображения временных рядов в нижней панели используется структура
-\texttt{RingBuf} на основе \texttt{std::deque}, хранящая последние
-$N = 300$ значений с автоматическим вытеснением устаревших:
-
-\begin{lstlisting}[caption={Кольцевой буфер для временных рядов}]
-struct RingBuf {
-    std::deque<float> d;
-    int maxN;
-    explicit RingBuf(int n=300): maxN(n){}
-    void push(float v){
-        d.push_back(v);
-        if((int)d.size()>maxN) d.pop_front();
-    }
-};
-\end{lstlisting}
-
-Визуализатор поддерживает 12 независимых буферов: по три для
-акселерометра, гироскопа, углов Эйлера и скорости.
-
+ 
 \subsection{Главный цикл рендера}
-
+ 
 Функция \texttt{run\_visualizer()} инициализирует контекст GLFW/GLEW,
-компилирует шейдеры, загружает геометрию в видеопамять и запускает
-главный цикл. Схема каждого кадра:
+компилирует шейдеры, загружает геометрию в видеопамять и запускает главный
+цикл. Схема каждого кадра:
 \begin{enumerate}[leftmargin=2cm]
     \item Обработать события ввода (мышь, клавиши).
     \item Вычитать из \texttt{SharedBuffer} \textit{все} накопившиеся
-    пакеты, вызвать для каждого \texttt{integrate\_imu()}, добавить
-    точку траектории и обновить кольцевые буферы.
-    \item Обновить матрицы орбитальной камеры, следующей за FC.
+          пакеты, для каждого вызвать \texttt{integrate\_imu()}, добавить
+          точку траектории и обновить кольцевые буферы.
+    \item Обновить матрицы орбитальной камеры, следящей за FC.
     \item Отрисовать \textbf{3D-сцену} (верхние 72\% экрана):
-    сетку, мировые оси, траекторию с затуханием цвета, модель FC.
-    \item Отрисовать \textbf{2D HUD} (нижние 30\% экрана): четыре
-    панели с графиками акселерометра, гироскопа, углов Эйлера
-    и скорости.
+          сетку, мировые оси, траекторию с цветовым затуханием, модель FC.
+    \item Отрисовать \textbf{HUD-панель} (нижние 30\% экрана):
+          четыре графика временных рядов.
 \end{enumerate}
-
-Матрица модели FC формируется из текущей позиции и кватерниона
-ориентации с помощью GLM:
-
+ 
+Матрица модели FC формируется из текущей позиции и кватерниона ориентации с
+помощью GLM:
+ 
 \begin{lstlisting}[caption={Матрица модели из позиции и кватерниона}]
 glm::mat4 fc_pos = glm::translate(glm::mat4(1),
-    glm::vec3((float)nav.px,(float)nav.py,(float)nav.pz));
-glm::quat q((float)nav.qw,(float)nav.qx,
-            (float)nav.qy,(float)nav.qz);
+    glm::vec3((float)nav.px, (float)nav.py, (float)nav.pz));
+glm::quat  q((float)nav.qw, (float)nav.qx,
+             (float)nav.qy, (float)nav.qz);
 glm::mat4 fc_model = fc_pos * glm::mat4_cast(q);
 glm::mat4 fc_mvp   = vp * fc_model;
 \end{lstlisting}
-
-Траектория отрисовывается как набор отрезков с градиентом: старые
-точки темнее, новые ярче:
-
-\begin{lstlisting}[caption={Траектория с затуханием цвета}]
+ 
+Траектория отрисовывается как набор отрезков с цветовым градиентом: старые
+точки темнее, новые~--- ярче:
+ 
+\begin{lstlisting}[caption={Траектория с цветовым затуханием}]
 float fade_step = 1.0f / buf.trail.size();
-for(int i = 0; i < (int)buf.trail.size()-1; i++){
+for (int i = 0; i < (int)buf.trail.size()-1; i++) {
     float alpha = (float)i * fade_step;
     float cr = 0.1f + 0.7f * alpha;  // красный: 0.1 -> 0.8
     float cg = 0.5f + 0.4f * alpha;  // зелёный: 0.5 -> 0.9
     float cb = 0.9f;                  // синий: константа
-    // добавить отрезок trail[i]..trail[i+1]
+    // ... добавить отрезок trail[i] -> trail[i+1]
 }
 \end{lstlisting}
-
-\subsection{Компоновка экрана}
-
-Экран разделён на две области вызовами \texttt{glViewport()}:
-
+ 
+\subsection{HUD-панель графиков}
+ 
+Нижняя панель содержит четыре независимых графика на основе скользящего
+буфера \texttt{RingBuf} (300~последних значений). Каждый график отображает
+три сигнала (по осям X, Y, Z) красным, зелёным и синим цветами:
+ 
 \begin{table}[H]
-    \centering
-    \caption{Компоновка окна визуализатора ($1400 \times 860$ пикс.)}
-    \label{tab:layout}
-    \begin{tabularx}{\textwidth}{|
-        >{\centering\arraybackslash}p{3.5cm}|
-        >{\centering\arraybackslash}p{2.5cm}|
-        X|}
-        \hline
-        \textbf{Область} & \textbf{Высота} & \textbf{Содержимое} \\
-        \hline
-        Верхняя (3D-сцена) & 72\% &
-            Модель FC, траектория, мировые оси, сетка \\
-        \hline
-        Нижняя (HUD) & 30\% &
-            4 панели с графиками временных рядов \\
-        \hline
-    \end{tabularx}
+\centering
+\caption{Содержимое HUD-панелей}
+\label{tab:hud}
+\begin{tabularx}{\textwidth}{|>{\centering\arraybackslash}p{3cm}|
+                               >{\centering\arraybackslash}p{3cm}|
+                               X|}
+\hline
+\textbf{Панель} & \textbf{Диапазон} & \textbf{Сигналы} \\
+\hline
+Акселерометр & $\pm15$~м/с$^2$ & $a_x$ (кр.), $a_y$ (зел.), $a_z$ (синий) \\
+\hline
+Гироскоп     & $\pm0{,}15$~рад/с & $\omega_x$, $\omega_y$, $\omega_z$ \\
+\hline
+Углы Эйлера  & $\pm180\degree$   & крен, тангаж, рыскание \\
+\hline
+Скорость     & $\pm2$~м/с        & $v_x$, $v_y$, $v_z$ \\
+\hline
+\end{tabularx}
 \end{table}
-
+ 
 \newpage
-
+ 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Инструкция по установке и запуску}
 % ─────────────────────────────────────────────────────────────────────────────
-
+ 
 \subsection{Установка зависимостей}
-
-Все системные зависимости доступны в репозитории Ubuntu:
-
-\begin{lstlisting}[language=bash,caption={Установка системных зависимостей}]
+ 
+\begin{lstlisting}[language=bash,caption={Установка системных зависимостей (Ubuntu)}]
 sudo apt update
 sudo apt install build-essential cmake git \
     libglfw3-dev libglew-dev libglm-dev libgl1-mesa-dev
 \end{lstlisting}
-
-Библиотека MAVLink~--- заголовочная, клонируется в каталог проекта:
-
+ 
+Библиотека MAVLink является заголовочной и клонируется напрямую в каталог
+проекта:
+ 
 \begin{lstlisting}[language=bash,caption={Клонирование MAVLink}]
 cd pixhawk_imu_visualizer
 git clone https://github.com/mavlink/c_library_v2.git
 \end{lstlisting}
-
+ 
 \subsection{Сборка проекта}
-
+ 
 \begin{lstlisting}[language=bash,caption={Сборка через CMake}]
 mkdir build && cd build
 cmake ..
 make -j$(nproc)
 \end{lstlisting}
-
-При успешной сборке в каталоге \texttt{build/} появляется исполняемый
-файл \texttt{pixhawk\_imu\_reader}.
-
-\subsection{Настройка прав доступа к порту}
-
-Для обращения к последовательному порту без \texttt{sudo}:
-
-\begin{lstlisting}[language=bash,caption={Права на последовательный порт}]
+ 
+При успешной сборке в каталоге \texttt{build/} появляется исполняемый файл
+\texttt{pixhawk\_imu\_reader}.
+ 
+\subsection{Настройка прав и запуск}
+ 
+\begin{lstlisting}[language=bash,caption={Права на порт и запуск}]
+# Добавить пользователя в группу dialout (необходима перезагрузка)
 sudo usermod -a -G dialout $USER
-# Перелогиниться, или временно:
+# Или временно:
 sudo chmod 666 /dev/ttyACM0
-\end{lstlisting}
-
-\subsection{Запуск}
-
-Pixhawk подключается к компьютеру по USB и определяется системой
-как \texttt{/dev/ttyACM0}~\cite{px4_docs}.
-
-\begin{lstlisting}[language=bash,caption={Запуск приложения}]
+ 
 cd build
 ./pixhawk_imu_reader
 \end{lstlisting}
-
-Окно визуализации открывается немедленно. Для завершения~---
-Ctrl+C в терминале.
-
+ 
+Окно визуализации открывается немедленно. Для завершения~--- Ctrl+C в
+терминале.
+ 
 \subsection{Управление в окне визуализации}
-
+ 
 \begin{table}[H]
-    \centering
-    \caption{Управление в окне визуализации}
-    \label{tab:controls}
-    \begin{tabularx}{\textwidth}{|l|X|}
-        \hline
-        \textbf{Действие} & \textbf{Эффект} \\
-        \hline
-        ЛКМ + перетаскивание & Вращение камеры вокруг объекта \\
-        \hline
-        Колесо мыши & Приближение / отдаление (0{,}5~--- 30 м) \\
-        \hline
-        Клавиша \textbf{R} & Сброс позиции и траектории в $(0,0,0)$ \\
-        \hline
-        \textbf{Ctrl+C} & Завершение программы \\
-        \hline
-    \end{tabularx}
+\centering
+\caption{Управление в окне визуализации}
+\label{tab:controls}
+\begin{tabularx}{\textwidth}{|l|X|}
+\hline
+\textbf{Действие} & \textbf{Эффект} \\
+\hline
+ЛКМ + перетаскивание & Вращение камеры вокруг объекта \\
+\hline
+Колесо мыши          & Приближение / отдаление (0{,}5~---~30~м) \\
+\hline
+Клавиша \textbf{R}   & Сброс позиции и траектории в $(0,\,0,\,0)$ \\
+\hline
+\textbf{Ctrl+C}      & Завершение программы \\
+\hline
+\end{tabularx}
 \end{table}
-
+ 
 \newpage
-
+ 
 % ─────────────────────────────────────────────────────────────────────────────
-\section{Результаты и анализ}
+\section{Результаты работы}
 % ─────────────────────────────────────────────────────────────────────────────
+ 
+\subsection{Внешний вид программы}
+ 
+На рисунке~\ref{fig:main} представлен общий вид окна визуализатора в
+реальном времени. Верхняя область содержит 3D-сцену с
+моделью полётного контроллера на фоне координатной сетки и мировых осей;
+нижняя --- четыре графика датчиков.
+ 
+\begin{figure}[H]
+    \centering
 
-\subsection{Результаты измерения ориентации}
-
-В ходе тестирования подтверждена корректная работа алгоритма
-кватернионного интегрирования. При вращении полётного контроллера
-по всем трём осям трёхмерная модель воспроизводила движения с высокой
-точностью. Углы Эйлера, вычисленные из кватерниона по
-формулам~\eqref{eq:roll}--\eqref{eq:yaw}, соответствовали физическим
-поворотам устройства. На HUD-панели гироскопа кривые угловых скоростей
-чётко отображали начало и конец вращения, при покое сходясь к нулю
---- что подтверждает корректность подобранных смещений~\eqref{eq:biases}.
-
+    \includegraphics[width=\linewidth]{figures/screen_main}
+    
+    \caption{Главное окно визуализатора: 3D-сцена и HUD-панель}
+    \label{fig:main}
+\end{figure}
+ 
+На рисунке~\ref{fig:rotate} показано состояние визуализатора при вращении
+полётного контроллера: 3D-модель следует за реальной ориентацией устройства,
+а кривые гироскопа на HUD-панели фиксируют угловые скорости по каждой из осей.
+ 
+\begin{figure}[H]
+    \centering
+   
+    \includegraphics[width=\linewidth]{figures/screen_rotate}
+    
+    \caption{Визуализатор при вращении устройства: реакция HUD-графиков гироскопа}
+    \label{fig:rotate}
+\end{figure}
+ 
+На рисунке~\ref{fig:hud} приведён укрупнённый вид HUD-панели. Нулевые линии
+в каждом графике выделены серым. Видно, что в статике (покой платформы) кривые
+гироскопа сходятся к нулю~--- это подтверждает корректность подобранных
+смещений~\eqref{eq:biases}.
+ 
+\begin{figure}[H]
+    \centering
+    
+    \includegraphics[width=\linewidth]{figures/screen_hud}
+    
+    \caption{Укрупнённый вид HUD-панели: акселерометр, гироскоп, углы Эйлера, скорость}
+    \label{fig:hud}
+\end{figure}
+ 
+\subsection{Результаты оценки ориентации}
+ 
+В ходе тестирования подтверждена корректная работа алгоритма кватернионного
+интегрирования. При вращении полётного контроллера по всем трём осям
+3D-модель точно воспроизводила движения устройства. Углы Эйлера, вычисленные
+по формулам~\eqref{eq:roll}--\eqref{eq:yaw}, соответствовали физическим
+поворотам.
+ 
 \subsection{Результаты оценки позиции}
-
-Алгоритм двойного интегрирования ускорения показал
-неудовлетворительные результаты в части оценки реальных координат.
-Ключевая проблема~--- \textbf{дрейф позиции}: уже через 5--10~секунд
-движения накопленная ошибка составляла метры, не соответствующие
-реальному перемещению. Механизм ZUPT снизил скорость дрейфа в
-состоянии покоя, однако не устранил его полностью из-за ненулевого
-шума акселерометра порядка $10^{-3}$--$10^{-2}$~м/с$^2$.
-
+ 
+Алгоритм двойного интегрирования ускорения показал неудовлетворительные
+результаты при оценке абсолютных координат. Ключевая проблема~---
+\textbf{дрейф позиции}: уже через 5--10~с накопленная ошибка достигала
+нескольких метров. Механизм ZUPT снизил скорость нарастания дрейфа в
+состоянии покоя, однако не устранил его полностью из-за ненулевого шума
+акселерометра порядка $10^{-3}$--$10^{-2}$~м/с$^2$.
+ 
 \subsection{Анализ причин дрейфа}
-
+ 
 Пусть истинное ускорение $a(t)$ и измеренное $\hat{a}(t)$ связаны:
 \begin{equation}
     \hat{a}(t) = a(t) + b + \eta(t),
     \label{eq:noise}
 \end{equation}
-где $b$~--- постоянное смещение после калибровки, $\eta(t)$~---
-случайный шум. Ошибка позиции после двойного интегрирования:
+где $b$~--- остаточное смещение после калибровки, $\eta(t)$~--- случайный
+шум. Ошибка позиции после двойного интегрирования за время $T$:
 \begin{equation}
-    \delta p(T) = \frac{1}{2}\,b\,T^2 + \int_0^T\!\!(T - t)\,\eta(t)\,dt.
+    \delta p(T) = \tfrac{1}{2}\,b\,T^2 +
+    \int_0^T\!(T-t)\,\eta(t)\,dt.
     \label{eq:drift}
 \end{equation}
-
-Первое слагаемое растёт \textit{квадратично} по времени даже при
-малом остаточном смещении~\cite{groves2013}. За 10~секунд это даёт
-ошибку позиции порядка единиц метров~\cite{woodman2007}.
-
-\subsection{Методы устранения дрейфа}
-
-Полноценная инерциальная навигация невозможна без внешних корректирующих
-сенсоров~\cite{groves2013}. Возможные направления развития системы:
+ 
+Первое слагаемое растёт \textit{квадратично} по времени даже при малом
+остаточном смещении~\cite{groves2013}. За 10~с это даёт ошибку порядка
+нескольких метров~\cite{woodman2007}.
+ 
+\subsection{Возможные направления развития}
+ 
+Полноценная инерциальная навигация без внешних корректирующих источников
+принципиально невозможна~\cite{groves2013}. Среди возможных улучшений:
 \begin{enumerate}[leftmargin=2cm]
     \item \textbf{Фильтр Калмана с GPS-коррекцией}~\cite{groves2013}~---
-    классический подход для авиационных INS. GPS обеспечивает
-    абсолютную позицию с частотой 1--10~Гц; IMU~--- высокочастотное
-    обновление ориентации на 100--1000~Гц.
-    \item \textbf{Фильтр Маджвика}~\cite{madgwick2011}~---
-    градиентный алгоритм слияния гироскопа, акселерометра и
-    магнитометра. Существенно улучшает оценку ориентации, но не
-    решает проблему позиции.
-    \item \textbf{Нелинейный дополняющий фильтр на SO(3)}~\cite{mahony2008}~---
-    альтернативный подход к оценке ориентации.
-    \item \textbf{Оптический поток}~\cite{px4_docs}~---
-    оценка скорости относительно поверхности по видеопотоку;
-    применяется в системах без GPS.
+          классический подход для авиационных INS.
+    \item \textbf{Фильтр Маджвика}~\cite{madgwick2011}~--- градиентный
+          алгоритм слияния данных гироскопа, акселерометра и магнитометра.
+    \item \textbf{Нелинейный дополняющий фильтр на SO(3)}~\cite{mahony2008}.
     \item \textbf{ZUPT с фильтром Калмана}~\cite{skog2010}~---
-    расширенное применение метода нулевой скорости в рамках
-    оптимального оценщика состояния.
+          расширенное применение метода нулевой скорости.
 \end{enumerate}
-
+ 
 \newpage
-
+ 
 % ─────────────────────────────────────────────────────────────────────────────
 \section*{Заключение}
 \addcontentsline{toc}{section}{Заключение}
 % ─────────────────────────────────────────────────────────────────────────────
-
-В ходе выполнения данной работы была разработана система визуализации
+ 
+В ходе выполнения курсовой работы разработана система визуализации
 инерциальной навигации на основе полётного контроллера Pixhawk.
 Реализованы следующие компоненты:
 \begin{itemize}[leftmargin=2cm]
-    \item модуль приёма и парсинга сообщений \texttt{RAW\_IMU} протокола
-    MAVLink~\cite{mavlink_docs} с записью данных в CSV;
+    \item автономный модуль первичного считывания \texttt{RAW\_IMU} с записью
+          данных в CSV для анализа и подбора калибровочных коэффициентов;
+    \item многопоточная архитектура C++14 с потокобезопасным
+          \texttt{SharedBuffer} на основе \texttt{std::mutex} и
+          \texttt{std::atomic};
     \item алгоритм калибровки сырых показаний с экспериментально
-    определёнными смещениями нуля;
+          определёнными смещениями нуля~\eqref{eq:biases};
     \item точное кватернионное интегрирование угловой скорости через
-    ось-угол~\cite{kuipers1999} с нормализацией на каждом шаге;
-    \item вычисление матрицы вращения и углов Эйлера из кватерниона;
-    \item алгоритм двойного интегрирования ускорения~\cite{groves2013};
+          ось-угол~\cite{kuipers1999} с нормализацией на каждом шаге;
+    \item вычисление матрицы вращения $\mathbf{R}\in SO(3)$ и углов Эйлера
+          из кватерниона;
+    \item двойное интегрирование ускорения для оценки позиции~\cite{groves2013};
     \item механизм ZUPT~\cite{skog2010} для частичной компенсации дрейфа;
-    \item многопоточная архитектура C++14 с потокобезопасным буфером;
-    \item OpenGL~3.3-визуализация с GLSL-шейдерами, процедурной
-    3D-моделью FC, траекторией с цветовым затуханием и HUD-панелью
-    с четырьмя графиками датчиков~\cite{glfw_docs}.
+    \item OpenGL~3.3-визуализация: процедурная 3D-модель FC, координатная
+          сетка, мировые оси, траектория с цветовым затуханием, HUD-панель
+          с четырьмя графиками~\cite{glfw_docs}.
 \end{itemize}
-
-Алгоритм оценки ориентации показал высокое качество. Алгоритм оценки
-позиции продемонстрировал принципиальную проблему накопления дрейфа,
-характерную для МЭМС-датчиков~\cite{titterton2004,woodman2007}: ошибка
-нарастает квадратично по времени. Получение пригодных для практики
-координат возможно лишь при совместной обработке данных IMU с
-корректирующими сенсорами в рамках фильтра Калмана или аналогичного
-оптимального оценщика~\cite{groves2013}.
-
+ 
+Алгоритм оценки ориентации показал высокое качество: 3D-модель точно
+воспроизводила реальные повороты устройства. Алгоритм оценки позиции
+продемонстрировал принципиальное ограничение МЭМС-датчиков~\cite{titterton2004}:
+ошибка нарастает квадратично по времени~\eqref{eq:drift}, и получение
+практически пригодных координат требует слияния данных IMU с корректирующими
+сенсорами в рамках фильтра Калмана~\cite{groves2013}.
+ 
 \newpage
-
+ 
 % ─────────────────────────────────────────────────────────────────────────────
 \section*{Список использованных источников}
 \addcontentsline{toc}{section}{Список использованных источников}
 % ─────────────────────────────────────────────────────────────────────────────
-
+ 
 \begin{thebibliography}{99}
-
+ 
 \bibitem{titterton2004}
     Titterton~D., Weston~J.
     \textit{Strapdown Inertial Navigation Technology}.
     2nd~ed.~--- IET, 2004.~--- 558~p.
-
+ 
 \bibitem{woodman2007}
     Woodman~O.\,J.
     \textit{An Introduction to Inertial Navigation}.
@@ -978,68 +926,68 @@ Ctrl+C в терминале.
     University of Cambridge, 2007.~--- 37~p.~---
     URL: \url{https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-696.pdf}
     (дата обр.~01.03.2024).
-
+ 
 \bibitem{kuipers1999}
     Kuipers~J.\,B.
     \textit{Quaternions and Rotation Sequences}.~---
     Princeton University Press, 1999.~--- 398~p.
-
+ 
 \bibitem{mahony2008}
     Mahony~R., Hamel~T., Pflimlin~J.-M.
     Nonlinear Complementary Filters on the Special Orthogonal Group~//
     \textit{IEEE Transactions on Automatic Control}.~---
     2008.~--- Vol.~53, No.~5.~--- P.~1203--1218.~---
-    DOI: 10.1109/TAC.2008.923738.
-
+    DOI:~10.1109/TAC.2008.923738.
+ 
 \bibitem{madgwick2011}
     Madgwick~S.\,O.\,H., Harrison~A.\,J.\,L., Vaidyanathan~R.
     Estimation of IMU and MARG orientation using a gradient descent
-    algorithm~// \textit{IEEE International Conference on Rehabilitation
-    Robotics (ICORR)}.~--- 2011.~--- P.~1--7.~---
-    DOI: 10.1109/ICORR.2011.5975346.
-
+    algorithm~//
+    \textit{IEEE International Conference on Rehabilitation Robotics
+    (ICORR)}.~--- 2011.~--- P.~1--7.~---
+    DOI:~10.1109/ICORR.2011.5975346.
+ 
 \bibitem{groves2013}
     Groves~P.\,D.
     \textit{Principles of GNSS, Inertial, and Multisensor Integrated
     Navigation Systems}.
     2nd~ed.~--- Artech House, 2013.~--- 776~p.
-
+ 
 \bibitem{skog2010}
     Skog~I., Handel~P.
-    In-Car Positioning and Navigation Technologies~---
-    A Survey~//
+    In-Car Positioning and Navigation Technologies~--- A Survey~//
     \textit{IEEE Transactions on Intelligent Transportation Systems}.~---
     2009.~--- Vol.~10, No.~1.~--- P.~4--21.~---
-    DOI: 10.1109/TITS.2008.2011712.
-
+    DOI:~10.1109/TITS.2008.2011712.
+ 
 \bibitem{mavlink_proto}
     Meier~L. et al.
     MAVLink: A Lightweight Message Marshalling Library for the
     DroneCode Ecosystem.~---
     URL: \url{https://github.com/mavlink/mavlink}
     (дата обр.~01.03.2024).
-
+ 
 \bibitem{mavlink_docs}
     MAVLink Developer Guide: Common Messages.~---
     URL: \url{https://mavlink.io/en/messages/common.html}
     (дата обр.~01.03.2024).
-
+ 
 \bibitem{px4_docs}
     PX4 Autopilot User Guide.~---
     URL: \url{https://docs.px4.io/main/en/}
     (дата обр.~05.03.2024).
-
+ 
 \bibitem{glfw_docs}
     GLFW~--- An OpenGL library. Documentation.~---
     URL: \url{https://www.glfw.org/docs/latest/}
     (дата обр.~05.03.2024).
-
+ 
 \bibitem{posix_termios}
     The Open Group. The Single UNIX Specification, Version~4.
-    \textit{termios.h~--- define values for termios}.~---
+    \textit{termios.h --- define values for termios}.~---
     URL: \url{https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/termios.h.html}
     (дата обр.~01.03.2024).
-
+ 
 \end{thebibliography}
-
+ 
 \end{document}
