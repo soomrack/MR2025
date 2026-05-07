@@ -1,0 +1,138 @@
+% !TEX root = ../main.tex
+
+\documentclass[../main.tex]{subfiles}
+
+\graphicspath{{\subfix{../images/}}}
+
+\begin{document}
+
+\subsection{Калибровка датчиков}
+
+Сырые показания МЭМС-датчиков содержат постоянное смещение нуля (bias),
+обусловленное технологическими особенностями изготовления
+кристалла~\cite{titterton2004}. Смещения определялись экспериментально по
+данным CSV-файла в состоянии покоя. Перевод в физические единицы выполняется
+линейным масштабированием:
+\begin{equation}
+    a_i = \bigl(\tilde{a}_i - b_{a,i}\bigr) \cdot S_a, \quad
+    \omega_i = \bigl(\tilde{\omega}_i - b_{\omega,i}\bigr) \cdot S_\omega,
+    \label{eq:calib}
+\end{equation}
+где $\tilde{a}_i$, $\tilde{\omega}_i$~--- сырые целочисленные отсчёты;
+$b_{a,i}$, $b_{\omega,i}$~--- смещения нуля;
+$S_a = 9{,}81/3050$ [м/с$^2$/отсчёт],
+$S_\omega = 0{,}001$ [рад/с/отсчёт].
+ 
+Экспериментально определённые смещения, вынесенные в пространство имён
+\texttt{Calib} в файле \texttt{imu\_shared.h}:
+\begin{equation}
+    \mathbf{b}_a = (31,\; 24,\; 0)^\top, \quad
+    \mathbf{b}_\omega = (-7,\; 1{,}5,\; 3)^\top.
+    \label{eq:biases}
+\end{equation}
+
+
+\subsection{Представление ориентации кватернионами}
+
+Ориентация тела в пространстве описывается единичным
+кватернионом~\cite{kuipers1999}:
+\begin{equation}
+    \mathbf{q} = q_w + q_x\,\mathbf{i} + q_y\,\mathbf{j} + q_z\,\mathbf{k},
+    \quad \|\mathbf{q}\| = 1.
+    \label{eq:quat}
+\end{equation}
+ 
+Кватернионы предпочтительнее матриц вращения и углов Эйлера: они не страдают
+от шарнирного замка (\textit{gimbal lock}), компактны (4~параметра против~9)
+и численно стабильны при нормализации~\cite{kuipers1999}.
+
+
+\subsection{Кватернионное интегрирование гироскопа}
+ 
+Кинематическое уравнение связывает производную кватерниона с угловой скоростью
+$\bm{\omega} = (\omega_x,\,\omega_y,\,\omega_z)^\top$ в системе координат
+тела~\cite{mahony2008}:
+\begin{equation}
+    \dot{\mathbf{q}} = \tfrac{1}{2}\,\mathbf{q} \otimes
+    \begin{pmatrix} 0 \\ \bm{\omega} \end{pmatrix}.
+    \label{eq:qdot}
+\end{equation}
+ 
+Для численного интегрирования на шаге $\Delta t$ применяется точная формула
+через ось-угол~\cite{titterton2004}:
+\begin{equation}
+    \theta = \|\bm{\omega}\| \cdot \Delta t, \qquad
+    \Delta\mathbf{q} = \Bigl(\cos\tfrac{\theta}{2},\;
+    \tfrac{\bm{\omega}}{\|\bm{\omega}\|}\sin\tfrac{\theta}{2}\Bigr).
+    \label{eq:dq}
+\end{equation}
+ 
+Обновление кватерниона с нормализацией:
+\begin{equation}
+    \mathbf{q} \leftarrow \frac{\mathbf{q} \otimes \Delta\mathbf{q}}
+    {\|\mathbf{q} \otimes \Delta\mathbf{q}\|}.
+    \label{eq:qupdate}
+\end{equation}
+ 
+\subsection{Матрица поворота из кватерниона}
+ 
+Для перевода вектора ускорения из системы координат тела в мировую используется
+матрица вращения $\mathbf{R} \in SO(3)$~\cite{kuipers1999}:
+\begin{equation}
+    \mathbf{R} =
+    \begin{pmatrix}
+        1{-}2(q_y^2{+}q_z^2) & 2(q_xq_y{-}q_wq_z) & 2(q_xq_z{+}q_wq_y) \\
+        2(q_xq_y{+}q_wq_z) & 1{-}2(q_x^2{+}q_z^2) & 2(q_yq_z{-}q_wq_x) \\
+        2(q_xq_z{-}q_wq_y) & 2(q_yq_z{+}q_wq_x) & 1{-}2(q_x^2{+}q_y^2)
+    \end{pmatrix}.
+    \label{eq:rot}
+\end{equation}
+ 
+\subsection{Углы Эйлера (конвенция ZYX)}
+ 
+Из кватерниона вычисляются углы крена $\phi$, тангажа $\vartheta$ и рыскания
+$\psi$~\cite{titterton2004}:
+\begin{align}
+    \phi      &= \operatorname{atan2}\!\bigl(2(q_wq_x+q_yq_z),\;
+                  1-2(q_x^2+q_y^2)\bigr), \label{eq:roll}\\
+    \vartheta &= \arcsin\!\bigl(2(q_wq_y-q_zq_x)\bigr), \label{eq:pitch}\\
+    \psi      &= \operatorname{atan2}\!\bigl(2(q_wq_z+q_xq_y),\;
+                  1-2(q_y^2+q_z^2)\bigr). \label{eq:yaw}
+\end{align}
+ 
+\subsection{Двойное интегрирование (скорость и позиция)}
+ 
+Ускорение переводится из системы тела в мировую, из него вычитается
+гравитация~\cite{groves2013}:
+\begin{equation}
+    \mathbf{a}_\mathrm{world} = \mathbf{R}\,\mathbf{a}_\mathrm{body}
+    - \mathbf{g}, \quad
+    \mathbf{g} = (0,\;0,\;{-}9{,}81)^\top \;\text{[м/с}^2\text{]}.
+    \label{eq:aworld}
+\end{equation}
+ 
+Интегрирование методом Эйлера первого порядка:
+\begin{align}
+    \mathbf{v}(t{+}\Delta t) &= \mathbf{v}(t) +
+        \mathbf{a}_\mathrm{world}(t)\cdot\Delta t, \label{eq:vel}\\
+    \mathbf{p}(t{+}\Delta t) &= \mathbf{p}(t) +
+        \mathbf{v}(t)\cdot\Delta t. \label{eq:pos}
+\end{align}
+ 
+\subsection{Метод ZUPT}
+ 
+ZUPT (\textit{Zero Velocity Update})~--- классический способ частичной
+коррекции в моменты покоя~\cite{skog2010}. Если норма угловой скорости
+опускается ниже порогового значения $\omega_\mathrm{th}=0{,}015$~рад/с,
+скорость мягко гасится с коэффициентом $\alpha=0{,}85$:
+\begin{equation}
+    \text{если}\ \|\bm{\omega}\| < \omega_\mathrm{th}:\quad
+    \mathbf{v} \leftarrow \mathbf{v}\cdot\alpha.
+    \label{eq:zupt}
+\end{equation}
+Дополнительно, если компонента мирового ускорения по модулю меньше
+$0{,}3$~м/с$^2$, она обнуляется полностью, что устраняет интегрирование
+шумового сигнала акселерометра в статике.
+
+	
+\end{document}

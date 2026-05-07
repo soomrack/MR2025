@@ -1,0 +1,115 @@
+% !TEX root = ../main.tex
+
+\documentclass[../main.tex]{subfiles}
+
+\graphicspath{{\subfix{../images/}}}
+
+\begin{document}
+	
+\subsection{Общая структура системы визуализации}
+
+На основе опыта, полученного при реализации модуля чтения, была
+разработана полноценная система \textbf{Pixhawk IMU Visualizer}~---
+многопоточное приложение на C++. Два параллельных потока взаимодействуют
+через потокобезопасный разделяемый буфер (\texttt{SharedBuffer}):
+ 
+\textit{Главный поток} (\texttt{pixhawk\_imu\_reader.cpp}) устанавливает
+соединение с Pixhawk по UART, непрерывно парсит входящий байтовый поток
+и при получении пакета \texttt{RAW\_IMU} помещает данные в очередь, а также
+дублирует их в CSV-файл.
+ 
+\textit{Поток визуализации} (\texttt{imu\_visualizer.cpp}) извлекает пакеты
+из очереди, запускает алгоритм инерциальной навигации и обновляет 3D-сцену на
+каждом кадре.
+
+
+\subsection{Структура файлов проекта}
+
+\begin{table}[H]
+\centering
+\caption{Файлы проекта}
+\label{tab:files}
+\begin{tabularx}{\textwidth}{|l|X|}
+\hline
+\textbf{Файл} & \textbf{Назначение} \\
+\hline
+\texttt{imu\_shared.h}            & Общие структуры данных: \texttt{RawIMU},
+                                    \texttt{NavState}, \texttt{SharedBuffer},
+                                    константы калибровки \\
+\hline
+\texttt{imu\_visualizer.h}        & Объявление функции \texttt{run\_visualizer()} \\
+\hline
+\texttt{imu\_visualizer.cpp}      & Навигационный алгоритм, GLSL-шейдеры,
+                                    геометрия модели и OpenGL-рендер \\
+\hline
+\texttt{pixhawk\_imu\_reader.cpp} & MAVLink-ридер, запуск потока визуализации \\
+\hline
+\texttt{raw\_data.cpp}            & Модуль первичного считывания \\
+\hline
+\texttt{CMakeLists.txt}           & Система сборки CMake \\
+\hline
+\texttt{c\_library\_v2/}          & Заголовочная библиотека MAVLink~C~\cite{mavlink_docs} \\
+\hline
+\end{tabularx}
+\end{table}
+
+
+\subsection{Разделяемые структуры данных $(\texttt{imu\_shared.h})$}
+
+Вся общая информация инкапсулирована в трёх структурах. Структура
+\texttt{RawIMU} хранит одно необработанное измерение:
+ 
+\begin{lstlisting}[caption={Структуры RawIMU и NavState}]
+struct RawIMU {
+    double  timestamp;
+    int16_t xacc,  yacc,  zacc;   // acceleration (LSB)
+    int16_t xgyro, ygyro, zgyro;  // gyroscope (LSB)
+    int16_t xmag,  ymag,  zmag;   // magnetometer (LSB)
+};
+
+struct NavState {
+    double qw=1, qx=0, qy=0, qz=0; // quaternion orientation
+    double wx=0, wy=0, wz=0;        // angular velocity (rad/s)
+    double vx=0, vy=0, vz=0;        // velocity (m/s)
+    double px=0, py=0, pz=0;        // position (m)
+    double roll=0, pitch=0, yaw=0;  // Euler angles (deg)
+    double ax=0, ay=0, az=0;       // acceleration (m/s^2)
+};
+\end{lstlisting}
+ 
+Структура \texttt{SharedBuffer} объединяет всё межпоточное взаимодействие.
+Каждое поле защищено отдельным мьютексом, что позволяет потокам работать
+параллельно без глобальной блокировки. Флаг \texttt{running} объявлен
+как \texttt{std::atomic<bool>}:
+ 
+\begin{lstlisting}[caption={Потокобезопасный разделяемый буфер}]
+struct SharedBuffer {
+    std::mutex           mtx;
+    std::deque<RawIMU>   queue;
+    static const int     MAX_QUEUE = 500;
+    std::atomic<bool>    running{true};
+
+    std::mutex           nav_mtx;
+    NavState             nav;
+
+    std::mutex           trail_mtx;
+    std::deque<std::array<float,3>> trail;
+    static const int     MAX_TRAIL = 2000;
+
+    void push(const RawIMU& r) {
+        std::lock_guard<std::mutex> lk(mtx);
+        if ((int)queue.size() < MAX_QUEUE) queue.push_back(r);
+    }
+
+    bool pop(RawIMU& out) {
+        std::lock_guard<std::mutex> lk(mtx);
+        if (queue.empty()) return false;
+        out = queue.front();
+        queue.pop_front();
+        return true;
+    }
+};
+\end{lstlisting}
+
+	
+\end{document}

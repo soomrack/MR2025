@@ -1,0 +1,52 @@
+% !TEX root = ../main.tex
+
+\documentclass[../main.tex]{subfiles}
+
+\graphicspath{{\subfix{../images/}}}
+
+\begin{document}
+
+\subsection{Используемые библиотеки}
+
+\begin{table}[H]
+\centering
+\caption{Внешние зависимости проекта}
+\label{tab:deps}
+\begin{tabularx}{\textwidth}{|l|l|X|}
+\hline
+\textbf{Библиотека} & \textbf{Версия} & \textbf{Роль в проекте} \\
+\hline
+MAVLink \texttt{c\_library\_v2}~\cite{mavlink_docs} & 2.0
+    & Парсинг телеметрии, декодирование \texttt{RAW\_IMU} \\
+\hline
+GLFW3~\cite{glfw_docs} & $\geq$3.3
+    & Создание окна OpenGL, ввод мыши и клавиатуры \\
+\hline
+GLEW & $\geq$2.1
+    & Загрузка расширений OpenGL~3.3 \\
+\hline
+GLM  & $\geq$0.9.9
+    & Матричная и кватернионная математика \\
+\hline
+pthreads & POSIX
+    & Межпоточная синхронизация (\texttt{std::thread}, \texttt{std::mutex}) \\
+\hline
+\end{tabularx}
+\end{table}
+
+Библиотека MAVLink является заголовочной~--- она полностью состоит из
+\texttt{.h}-файлов и не требует компиляции~\cite{mavlink_proto}.
+Остальные зависимости установливаются из apt-репозиториев.
+
+\subsection{Конфигурация CMake}
+
+Сборочная система использует CMake версии не ниже~3.10 и настроена на
+стандарт C++14. Зависимости ищутся через \texttt{find\_package} и
+\texttt{PkgConfig}; проект компилируется с флагами \texttt{-O2 -Wall -Wextra}.
+CMake ищет GLFW тремя способами последовательно: через \texttt{find\_package},
+через \texttt{PkgConfig} и, наконец, вручную через \texttt{find\_path} /
+\texttt{find\_library}~--- это обеспечивает совместимость с различными
+дистрибутивами GNU Linux.
+
+	
+\end{document}

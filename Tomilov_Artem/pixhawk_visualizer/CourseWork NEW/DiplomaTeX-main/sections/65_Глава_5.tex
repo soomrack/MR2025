@@ -1,0 +1,89 @@
+% !TEX root = ../main.tex
+
+\documentclass[../main.tex]{subfiles}
+
+\graphicspath{{\subfix{../images/}}}
+
+\begin{document}
+
+\subsection{Функция \texttt{integrate\_imu()}}
+
+Весь навигационный алгоритм сосредоточен в функции \texttt{integrate\_imu()}
+файла \texttt{imu\_visualizer.cpp}. Она вызывается из потока визуализации для
+каждого пакета, извлечённого из очереди. Шаг интегрирования $\Delta t$
+вычисляется как разность временны'х меток двух последовательных пакетов.
+ 
+\textbf{Блок 1.} Калибровка сырых отсчётов по формуле~\eqref{eq:calib}:
+ 
+\begin{lstlisting}[caption={Калибровка сырых показаний}]
+double ax = (raw.xacc  - Calib::AX_BIAS) * Calib::ACCEL_SCALE;
+double ay = (raw.yacc  - Calib::AY_BIAS) * Calib::ACCEL_SCALE;
+double az = (raw.zacc  - Calib::AZ_BIAS) * Calib::ACCEL_SCALE;
+double gx = (raw.xgyro - Calib::GX_BIAS) * Calib::GYRO_SCALE;
+double gy = (raw.ygyro - Calib::GY_BIAS) * Calib::GYRO_SCALE;
+double gz = (raw.zgyro - Calib::GZ_BIAS) * Calib::GYRO_SCALE;
+\end{lstlisting}
+ 
+\textbf{Блок 2.} Кватернионное интегрирование через ось-угол по
+формулам~\eqref{eq:dq}--\eqref{eq:qupdate}:
+ 
+\begin{lstlisting}[caption={Кватернионное интегрирование гироскопа}]
+double theta = std::sqrt(gx*gx + gy*gy + gz*gz) * dt;
+if (theta > 1e-10) {
+    double norm_w = std::sqrt(gx*gx + gy*gy + gz*gz);
+    double s   = std::sin(theta * 0.5) / norm_w;
+    double c   = std::cos(theta * 0.5);
+    double dqw = c,    dqx = gx*s, dqy = gy*s, dqz = gz*s;
+ 
+    // q_new = q (x) dq
+    double qw = n.qw*dqw - n.qx*dqx - n.qy*dqy - n.qz*dqz;
+    double qx = n.qw*dqx + n.qx*dqw + n.qy*dqz - n.qz*dqy;
+    double qy = n.qw*dqy - n.qx*dqz + n.qy*dqw + n.qz*dqx;
+    double qz = n.qw*dqz + n.qx*dqy - n.qy*dqx + n.qz*dqw;
+ 
+    double norm = std::sqrt(qw*qw + qx*qx + qy*qy + qz*qz);
+    n.qw=qw/norm; n.qx=qx/norm; n.qy=qy/norm; n.qz=qz/norm;
+}
+\end{lstlisting}
+ 
+\textbf{Блок 3.} Перевод ускорения в мировую систему координат,
+вычитание гравитации и применение ZUPT:
+ 
+\begin{lstlisting}[caption={Мировое ускорение, компенсация гравитации и ZUPT}]
+// Матрица поворота (строки r00..r22) из кватерниона
+double ax_w = r00*ax + r01*ay + r02*az;
+double ay_w = r10*ax + r11*ay + r12*az;
+double az_w = r20*ax + r21*ay + r22*az;
+az_w -= (-9.81);         // вычитаем гравитацию
+ 
+// ZUPT: гироскоп в покое -> мягко гасим скорость
+double gyro_norm = std::sqrt(gx*gx + gy*gy + gz*gz);
+if (gyro_norm < Calib::ZUPT_GYRO_THRESH) {
+    n.vx *= 0.85; n.vy *= 0.85; n.vz *= 0.85;
+    if (std::abs(ax_w) < 0.3) ax_w = 0;
+    if (std::abs(ay_w) < 0.3) ay_w = 0;
+    if (std::abs(az_w) < 0.3) az_w = 0;
+}
+// Двойное интегрирование
+n.vx += ax_w*dt; n.vy += ay_w*dt; n.vz += az_w*dt;
+n.px += n.vx*dt; n.py += n.vy*dt; n.pz += n.vz*dt;
+\end{lstlisting}
+ 
+\subsection{Вычисление углов Эйлера}
+ 
+Завершает функцию вычисление углов Эйлера по
+формулам~\eqref{eq:roll}--\eqref{eq:yaw}. Аргумент \texttt{asin}
+зажимается в интервал $[-1,1]$ для защиты от накопленной численной
+погрешности:
+ 
+\begin{lstlisting}[caption={Углы Эйлера из кватерниона (ZYX)}]
+const double R2D = 180.0 / M_PI;
+n.roll  = std::atan2(2*(qw*qx + qy*qz),
+                     1 - 2*(qx*qx + qy*qy)) * R2D;
+double sp = std::max(-1.0, std::min(1.0, 2*(qw*qy - qz*qx)));
+n.pitch = std::asin(sp) * R2D;
+n.yaw   = std::atan2(2*(qw*qz + qx*qy),
+                     1 - 2*(qy*qy + qz*qz)) * R2D;
+\end{lstlisting}
+	
+\end{document}

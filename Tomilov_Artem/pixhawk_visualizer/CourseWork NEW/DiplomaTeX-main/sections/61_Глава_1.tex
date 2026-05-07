@@ -1,0 +1,92 @@
+% !TEX root = ../main.tex
+
+\documentclass[../main.tex]{subfiles}
+
+\graphicspath{{\subfix{../images/}}}
+
+\begin{document}
+
+\subsection{Протокол MAVLink и сообщение RAW\_IMU}
+
+MAVLink (\textit{Micro Air Vehicle Link})~--- лёгкий бинарный протокол
+сериализации для беспилотных систем, разработанный Лоренцем Майером
+в 2009~году~\cite{mavlink_docs}. Протокол широко используется в экосистемах
+PX4 и ArduPilot~\cite{px4_docs}. Для получения сырых показаний датчиков
+применяется сообщение \texttt{RAW\_IMU} (идентификатор~27 в диалекте
+\texttt{common}), содержащее девять целочисленных полей в единицах внутренней
+шкалы датчика (LSB~--- \textit{Least Significant Bit}):
+
+
+\begin{table}[H]
+\centering
+\caption{Поля сообщения MAVLink \texttt{RAW\_IMU}}
+\label{tab:rawimu}
+\begin{tabularx}{\textwidth}{|>{\centering\arraybackslash}p{4.5cm}|
+                               >{\centering\arraybackslash}p{3cm}|
+                               >{\centering\arraybackslash}X|}
+\hline
+\textbf{Поле} & \textbf{Датчик} & \textbf{Описание} \\
+\hline
+\texttt{xacc, yacc, zacc}   & Акселерометр & Ускорение по осям X, Y, Z (LSB) \\
+\hline
+\texttt{xgyro, ygyro, zgyro}& Гироскоп     & Угловая скорость по осям (LSB) \\
+\hline
+\texttt{xmag, ymag, zmag}   & Магнитометр  & Магнитное поле по осям (LSB) \\
+\hline
+\end{tabularx}
+\end{table}
+
+
+\subsection{Модуль первичного считывания данных}	
+
+На первом этапе работы был написан автономный модуль 
+\texttt{raw\_data.cpp}, позволивший проверить
+корректность соединения с Pixhawk и собрать сырые данные для анализа и
+подбора калибровочных коэффициентов. Взаимодействие реализовано через
+последовательный порт \texttt{/dev/ttyACM0} на скорости 115\,200~бод.
+Инициализация порта выполнена через POSIX-интерфейс
+\texttt{termios}~\cite{posix_termios}: 8~бит данных, без паритета, один
+стоп-бит, без аппаратного управления потоком, таймаут~1~с.
+ 
+\begin{lstlisting}[caption={Настройка последовательного порта через termios}]
+int setup_serial_port(const char* port, int baudrate) {
+    int fd = open(port, O_RDWR | O_NOCTTY);
+    struct termios tty;
+    memset(&tty, 0, sizeof(tty));
+    tcgetattr(fd, &tty);
+    cfsetospeed(&tty, baudrate);
+    cfsetispeed(&tty, baudrate);
+    tty.c_cflag |= (CLOCAL | CREAD);
+    tty.c_cflag &= ~CSIZE;
+    tty.c_cflag |= CS8;
+    tty.c_cflag &= ~(PARENB | CSTOPB | CRTSCTS);
+    tty.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
+    tty.c_iflag &= ~(IXON | IXOFF | IXANY);
+    tty.c_oflag &= ~OPOST;
+    tty.c_cc[VMIN]  = 0;
+    tty.c_cc[VTIME] = 10;
+    tcsetattr(fd, TCSANOW, &tty);
+    return fd;
+}
+\end{lstlisting}
+ 
+MAVLink-парсер реализован в виде конечного автомата.
+
+\texttt{mavlink\_parse\_char()} возвращает ненулевое значение только
+при получении полного валидного пакета с проверкой CRC-16~\cite{mavlink_proto}.
+Каждый принятый пакет \texttt{RAW\_IMU} записывается в CSV-файл с меткой
+времени с точностью до микросекунды~(\texttt{gettimeofday()}); принудительный
+сброс буфера выполняется каждые 50~пакетов.
+
+
+\subsection{Результаты первичного считывания}
+ 
+Сообщения \texttt{RAW\_IMU} стабильно поступали с частотой порядка
+100~Гц, что соответствует штатной конфигурации IMU на
+Pixhawk~\cite{px4_docs}. Сырые данные акселерометра в покое показали
+устойчивое значение по оси~Z (проекция силы тяжести), а гироскоп~---
+дрейф нуля, подлежащий компенсации на следующем этапе.
+
+
+\end{document}
+
