@@ -1,0 +1,237 @@
+#define _WINSOCK_DEPRECATED_NO_WARNINGS 
+#define _CRT_SECURE_NO_WARNINGS         
+
+#include <WinSock2.h> 
+#include <windows.h>  
+#include <iostream>   
+#include <string>     
+#include <vector>     
+#include <thread>     
+#include <mutex>      
+#include <sstream>    
+#include <stdexcept>  
+#include <cstdint>    
+#include <ctime>      
+#include <chrono>     
+
+#pragma comment(lib, "Ws2_32.lib") 
+
+// ============================================================
+// ПРОТОКОЛ СООБЩЕНИЙ (Должен совпадать с сервером на малинке)
+// ============================================================
+enum class MessageType : uint32_t {
+    Text = 1,
+    Connect = 2,
+    Disconnect = 3,
+    LogRequest = 4,
+    LogResponse = 5
+};
+
+struct MessageHeader {
+    uint32_t type;
+    uint32_t size;
+};
+
+// Глобальные переменные
+SOCKET clientSocket = INVALID_SOCKET;
+bool connected = false;
+bool running = true;
+std::mutex coutMutex;
+std::string username;
+
+// ============================================================
+// УТИЛИТЫ
+// ============================================================
+
+void setupConsole() {
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+}
+
+void initWinSock() {
+    WSADATA wsa;
+    WSAStartup(MAKEWORD(2, 2), &wsa);
+}
+
+std::string getCurrentTime() {
+    time_t now = time(0);
+    struct tm timeinfo;
+    localtime_s(&timeinfo, &now);
+    char buffer[80];
+    strftime(buffer, sizeof(buffer), "%H:%M:%S", &timeinfo);
+    return std::string(buffer);
+}
+
+std::string replaceEmoji(std::string text) {
+    std::vector<std::pair<std::string, std::string>> emojis = {
+        {":fire:", u8"🔥"}, {":smile:", u8"😄"}, {":sad:", u8"😢"}, {":robot:", u8"🤖"}, {":ok:", u8"👌"}
+    };
+    for (auto& e : emojis) {
+        size_t pos;
+        while ((pos = text.find(e.first)) != std::string::npos)
+            text.replace(pos, e.first.length(), e.second);
+    }
+    return text;
+}
+
+// ============================================================
+// СЕТЕВОЙ ОБМЕН
+// ============================================================
+
+void sendAll(const char* data, int size) {
+    int sent = 0;
+    while (sent < size) {
+        int res = send(clientSocket, data + sent, size - sent, 0);
+        if (res <= 0) throw std::runtime_error("send failed");
+        sent += res;
+    }
+}
+
+void recvAll(char* data, int size) {
+    int received = 0;
+    while (received < size) {
+        int res = recv(clientSocket, data + received, size - received, 0);
+        if (res <= 0) throw std::runtime_error("recv failed");
+        received += res;
+    }
+}
+
+// ============================================================
+// ЛОГИКА КЛИЕНТА
+// ============================================================
+
+void receiveLoop() {
+    try {
+        while (connected) {
+            MessageHeader header{};
+            recvAll((char*)&header, sizeof(header));
+
+            std::vector<char> data(header.size);
+            if (header.size > 0) recvAll(data.data(), header.size);
+            std::string text(data.begin(), data.end());
+
+            std::lock_guard<std::mutex> lock(coutMutex);
+            if (header.type == static_cast<uint32_t>(MessageType::LogResponse)) {
+                std::cout << "\n\033[36m[SERVER LOGS]:\033[0m\n" << text << "\n> ";
+            }
+            else {
+                std::cout << "\n" << text << "\n> ";
+            }
+        }
+    }
+    catch (...) {
+        std::lock_guard<std::mutex> lock(coutMutex);
+        if (connected) std::cout << "\n[!] Connection lost.\n> ";
+        connected = false;
+    }
+}
+
+bool connectToServer(const std::string& ip, int port) {
+    if (connected) {
+        std::cout << "Already connected!\n";
+        return false;
+    }
+
+    clientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    addr.sin_addr.s_addr = inet_addr(ip.c_str());
+
+    if (connect(clientSocket, (sockaddr*)&addr, sizeof(addr)) == 0) {
+        connected = true;
+        try {
+            // Пакет авторизации (Connect)
+            MessageHeader header{ static_cast<uint32_t>(MessageType::Connect), (uint32_t)username.size() };
+            sendAll((char*)&header, sizeof(header));
+            sendAll(username.data(), (int)username.size());
+
+            std::thread(receiveLoop).detach();
+            std::cout << "Successfully connected to " << ip << " as '" << username << "'\n";
+            return true;
+        }
+        catch (...) {
+            closesocket(clientSocket);
+            connected = false;
+        }
+    }
+    std::cout << "Could not connect to " << ip << ". Check if server is running.\n";
+    return false;
+}
+
+void sendMessage(const std::string& input) {
+    std::string timeStr = getCurrentTime();
+    std::string processed = replaceEmoji(input);
+    std::string fullMsg = "[" + username + " " + timeStr + "] " + processed;
+
+    MessageHeader header{ static_cast<uint32_t>(MessageType::Text), (uint32_t)fullMsg.size() };
+    sendAll((char*)&header, sizeof(header));
+    sendAll(fullMsg.data(), (int)fullMsg.size());
+}
+
+// ============================================================
+// ГЛАВНЫЙ ЦИКЛ
+// ============================================================
+
+void printHelp() {
+    std::cout << "\n--- Available Commands ---\n"
+        << "/connect [IP] [PORT] - Connect to server\n"
+        << "/logs [type]         - Request logs (all, server, board)\n"
+        << "/exit                - Close program\n"
+        << "Any text             - Send chat message\n"
+        << "--------------------------\n";
+}
+
+int main() {
+    setupConsole();
+    initWinSock();
+
+    std::cout << "=== Robot Bridge Client ===\n";
+    std::cout << "Enter your nickname: ";
+    std::getline(std::cin, username);
+    if (username.empty()) username = "Student_Ira";
+
+    printHelp();
+
+    std::string input;
+    while (running) {
+        std::cout << "> ";
+        std::getline(std::cin, input);
+        if (input.empty()) continue;
+
+        if (input.rfind("/connect", 0) == 0) {
+            std::stringstream ss(input);
+            std::string cmd, ip; int port;
+            if (ss >> cmd >> ip >> port) connectToServer(ip, port);
+            else std::cout << "Usage: /connect 192.168.x.x 54000\n";
+        }
+        else if (input == "/exit" || input == "/quit") {
+            if (connected) {
+                MessageHeader h{ (uint32_t)MessageType::Disconnect, 0 };
+                send(clientSocket, (char*)&h, sizeof(h), 0);
+            }
+            running = false;
+        }
+        else if (input.rfind("/logs", 0) == 0) {
+            if (!connected) { std::cout << "Connect first!\n"; continue; }
+
+            std::string type = (input.length() > 6) ? input.substr(6) : "all";
+            MessageHeader h{ static_cast<uint32_t>(MessageType::LogRequest), (uint32_t)type.size() };
+            sendAll((char*)&h, sizeof(h));
+            sendAll(type.data(), (int)type.size());
+        }
+        else if (input == "/help") {
+            printHelp();
+        }
+        else {
+            if (connected) {
+                try { sendMessage(input); }
+                catch (...) { connected = false; }
+            }
+            else std::cout << "Not connected. Use /connect [IP] [PORT]\n";
+        }
+    }
+
+    WSACleanup();
+    return 0;
+}
