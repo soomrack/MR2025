@@ -1,0 +1,291 @@
+#define _WINSOCK_DEPRECATED_NO_WARNINGS // Запрещаем компилятору ругаться на старые функции (например, inet_addr)
+#define _CRT_SECURE_NO_WARNINGS         // Отключаем ошибки безопасности Microsoft для стандартных функций Си (типа localtime)
+
+#include <WinSock2.h> // Главная библиотека для работы с сетевыми сокетами в Windows
+#include <windows.h>  // Системные функции Windows (консоль, работа с памятью, API)
+#include <iostream>   // Поток ввода-вывода (cout, cin)
+#include <string>     // Класс для удобной работы со строками
+#include <vector>     // Контейнер "динамический массив" (используем для буфера данных)
+#include <thread>     // Библиотека для создания параллельных потоков (чтобы слушать сервер и писать одновременно)
+#include <mutex>      // Объект для синхронизации потоков (предотвращает перемешивание текста в консоли)
+#include <sstream>    // Строковый поток (нужен для удобного парсинга команд из строки)
+#include <stdexcept>  // Стандартные исключения (для обработки критических ошибок)
+#include <cstdint>    // Типы данных с фиксированным размером (uint32_t), важны для сетевых стандартов
+#include <ctime>      // Функции для работы с системным временем
+#include <chrono>     // Функции для точных пауз (используется в спаме)
+
+#pragma comment(lib, "Ws2_32.lib") // Указываем линковщику принудительно подключить системную библиотеку сетевых служб
+
+// ============================================================
+// ПРОТОКОЛ СООБЩЕНИЙ
+// ============================================================
+
+// Перечисление типов пакетов, которые понимает наш сервер на Raspberry Pi
+enum class MessageType : uint32_t {
+    Text = 1,        // Обычное сообщение для чата
+    Connect = 2,     // Пакет регистрации (отправляем свой ник при входе)
+    Disconnect = 3,  // Уведомление сервера о закрытии клиента
+    LogRequest = 4,  // Команда "Дай мне логи"
+    LogResponse = 5  // Ответ от сервера с текстом логов
+};
+
+// Заголовок сообщения — это "паспорт" пакета, всегда ровно 8 байт
+struct MessageHeader {
+    uint32_t type;   // Числовой код типа сообщения (из enum выше)
+    uint32_t size;   // Сколько байт полезной информации (текста) идет следом
+};
+
+// Глобальные переменные (доступны из любой функции)
+SOCKET clientSocket = INVALID_SOCKET; // Дескриптор сокета нашего соединения (изначально пустой)
+bool connected = false;               // Флаг: установлена ли связь с сервером
+bool running = true;                  // Флаг: работает ли программа клиента в целом
+std::mutex coutMutex;                 // "Замок" для консоли, чтобы потоки не перебивали друг друга при выводе
+std::string username;                 // Переменная для хранения имени текущего пользователя
+
+// ============================================================
+// УТИЛИТЫ (Вспомогательные функции)
+// ============================================================
+
+// Настройка консоли на поддержку русского языка и Эмодзи (UTF-8)
+void setupConsole() {
+    SetConsoleOutputCP(CP_UTF8); // Устанавливаем кодировку вывода в UTF-8
+    SetConsoleCP(CP_UTF8);       // Устанавливаем кодировку ввода в UTF-8
+}
+
+// Процедура включения сетевого драйвера Windows
+void initWinSock() {
+    WSADATA wsa;                     // Структура для системной информации о WinSock
+    WSAStartup(MAKEWORD(2, 2), &wsa); // Запуск WinSock версии 2.2
+}
+
+// Процедура выключения сети перед выходом
+void cleanupWinSock() {
+    WSACleanup(); // Освобождаем ресурсы сетевой подсистемы
+}
+
+// Функция получения текущего времени в текстовом формате ЧЧ:ММ:СС
+std::string getCurrentTime() {
+    time_t now = time(0);               // Берем текущее время в секундах
+    struct tm timeinfo;                 // Структура для хранения разобранного времени
+    localtime_s(&timeinfo, &now);       // Превращаем секунды в часы/минуты (безопасная версия для Windows)
+    char buffer[80];                    // Временный буфер для текста
+    strftime(buffer, sizeof(buffer), "%H:%M:%S", &timeinfo); // Записываем время в буфер по формату
+    return std::string(buffer);         // Возвращаем результат как объект строки
+}
+
+// Функция поиска текстовых кодов и их замены на символы Эмодзи
+std::string replaceEmoji(std::string text) {
+    // Список пар: что ищем и на что меняем
+    std::vector<std::pair<std::string, std::string>> emojis = {
+        {":fire:", u8"🔥"}, {":smile:", u8"😄"}, {":sad:", u8"😢"}, {":heart:", u8"❤️"}, {":ok:", u8"👌"}
+    };
+    for (auto& e : emojis) { // Для каждой пары в списке...
+        size_t pos;          // Переменная для хранения позиции найденного текста
+        while ((pos = text.find(e.first)) != std::string::npos) // Пока находим код (например :fire:)...
+            text.replace(pos, e.first.length(), e.second);      // Заменяем его на картинку
+    }
+    return text; // Возвращаем уже "красивый" текст
+}
+
+// ============================================================
+// СЕТЕВОЙ ОБМЕН (Низкий уровень)
+// ============================================================
+
+// Функция гарантированной отправки (отправляет данные до последнего байта)
+void sendAll(const char* data, int size) {
+    int sent = 0; // Счетчик уже ушедших байт
+    while (sent < size) { // Пока не отправили всё...
+        int res = send(clientSocket, data + sent, size - sent, 0); // Системный вызов отправки
+        if (res <= 0) throw std::runtime_error("send failed");     // Если ошибка — прерываемся
+        sent += res; // Считаем, сколько отправилось в этой итерации
+    }
+}
+
+// Функция гарантированного приема (ждет, пока не придет весь пакет целиком)
+void recvAll(char* data, int size) {
+    int received = 0; // Счетчик полученных байт
+    while (received < size) { // Пока не получили нужный объем...
+        int res = recv(clientSocket, data + received, size - received, 0); // Системный вызов приема
+        if (res <= 0) throw std::runtime_error("recv failed");             // Если сервер отключился — ошибка
+        received += res; // Добавляем полученное к общему счетчику
+    }
+}
+
+// ============================================================
+// ЛОГИКА КЛИЕНТА
+// ============================================================
+
+// Функция ввода имени с проверками
+std::string getUsername() {
+    std::string name; // Буфер для имени
+    while (true) {    // Цикл до победного ввода
+        std::cout << "Enter your name (3-20 characters): ";
+        std::getline(std::cin, name); // Читаем строку целиком (включая пробелы)
+        size_t first = name.find_first_not_of(" \t"); // Ищем первый символ, который не пробел
+        size_t last = name.find_last_not_of(" \t");   // Ищем последний символ текста
+        if (first == std::string::npos) { // Если в строке только пробелы
+            std::cout << "Name cannot be empty!\n";
+            continue;
+        }
+        name = name.substr(first, last - first + 1); // Обрезаем пробелы по краям
+        if (name.length() >= 3 && name.length() <= 20) return name; // Если длина ОК — возвращаем
+        std::cout << "Invalid length!\n"; // Иначе ругаемся и идем на новый круг
+    }
+}
+
+// ФОНОВЫЙ ПОТОК: Слушает сервер, пока мы в сети
+void receiveLoop() {
+    try {
+        while (connected) { // Пока есть связь...
+            MessageHeader header{}; // Создаем пустую структуру заголовка
+            recvAll((char*)&header, sizeof(header)); // Читаем из сети сначала 8 байт заголовка
+
+            std::vector<char> data(header.size); // Создаем массив байт под размер сообщения
+            if (header.size > 0) recvAll(data.data(), header.size); // Читаем само сообщение
+            std::string text(data.begin(), data.end()); // Переводим байты в строку C++
+
+            std::lock_guard<std::mutex> lock(coutMutex); // Блокируем консоль, чтобы вывод не перемешался
+            if (header.type == static_cast<uint32_t>(MessageType::LogResponse)) { // Если это логи...
+                std::cout << "\n[SERVER LOGS]:\n" << text << "\n> "; // Выводим с особым заголовком
+            }
+            else { // Если обычный чат...
+                std::cout << "\n" << text << "\n> "; // Просто выводим текст
+            }
+        }
+    }
+    catch (...) { // Если произошла сетевая ошибка (сервер упал)
+        std::lock_guard<std::mutex> lock(coutMutex); // Запираем консоль
+        if (connected) std::cout << "\nConnection lost.\n> "; // Сообщаем о потере связи
+        connected = false; // Снимаем флаг подключения
+    }
+}
+
+// Функция установки соединения
+bool connectToServer(const std::string& ip, int port) {
+    username = getUsername(); // Спрашиваем имя перед входом
+    clientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP); // Создаем TCP-сокет
+
+    sockaddr_in addr{}; // Структура для хранения сетевого адреса
+    addr.sin_family = AF_INET;           // Работаем через IPv4
+    addr.sin_port = htons(port);         // Конвертируем порт в сетевой порядок байт (Big-Endian)
+    addr.sin_addr.s_addr = inet_addr(ip.c_str()); // Переводим строковый IP в числовой формат
+
+    if (connect(clientSocket, (sockaddr*)&addr, sizeof(addr)) == 0) { // Пытаемся подключиться к серверу
+        connected = true; // Ставим флаг успеха
+        try {
+            // Сразу шлем пакет регистрации (Connect) со своим именем
+            MessageHeader header{ static_cast<uint32_t>(MessageType::Connect), (uint32_t)username.size() };
+            sendAll((char*)&header, sizeof(header)); // Шлем 8 байт "паспорта"
+            sendAll(username.data(), (int)username.size()); // Шлем само имя
+
+            std::thread(receiveLoop).detach(); // Запускаем фоновый поток приема и "отпускаем" его
+            std::cout << "Connected as '" << username << "'\n"; // Радуем пользователя
+            return true; // Готово
+        }
+        catch (...) { // Если упали на отправке имени
+            closesocket(clientSocket); // Закрываем сокет
+            connected = false;         // Отменяем статус подключения
+        }
+    }
+    std::cout << "Failed to connect to " << ip << "\n"; // Если сервер не ответил
+    return false;
+}
+
+// Функция отправки простого текста в чат
+void sendMessage(const std::string& input) {
+    std::string timeStr = getCurrentTime(); // Получаем время
+    std::string processed = replaceEmoji(input); // Заменяем смайлы
+    // Собираем полную строку сообщения: [Ник Время] Текст
+    std::string fullMsg = "[" + username + " " + timeStr + "] " + processed;
+
+    // Собираем пакет и отправляем
+    MessageHeader header{ static_cast<uint32_t>(MessageType::Text), (uint32_t)fullMsg.size() };
+    sendAll((char*)&header, sizeof(header));       // Заголовок
+    sendAll(fullMsg.data(), (int)fullMsg.size());  // Сообщение
+}
+
+// Функция автоматической отправки множества сообщений
+void spam(const std::string& input) {
+    std::stringstream ss(input); // Создаем поток из строки команды (например "/spam 10 привет")
+    std::string cmd;             // Сюда попадет "/spam"
+    int count;                   // Сюда попадет число
+    ss >> cmd >> count;          // Извлекаем команду и число
+    std::string msg;             // Сюда попадет всё остальное
+    std::getline(ss, msg);       // Считываем остаток строки (текст спама)
+    if (!msg.empty() && msg[0] == ' ') msg = msg.substr(1); // Удаляем лишний пробел после числа
+
+    for (int i = 0; i < count && connected; ++i) { // Цикл на нужное количество раз
+        sendMessage(msg + " #" + std::to_string(i + 1)); // Отправляем сообщение с номером
+        std::this_thread::sleep_for(std::chrono::milliseconds(200)); // Ждем 0.2 сек (чтобы сервер не забанил)
+    }
+}
+
+// ============================================================
+// ОСНОВНОЙ ЦИКЛ ОБРАБОТКИ СОБЫТИЙ
+// ============================================================
+
+void runClientEventLoop() {
+    std::string input; // Буфер для ввода пользователя
+    while (running) {  // Пока программа не закрыта...
+        std::cout << "> "; // Рисуем приглашение к вводу
+        std::getline(std::cin, input); // Ждем нажатия Enter
+        if (input.empty()) continue;   // Если ввели пустоту — игнорируем
+
+        // Обработка команды подключения
+        if (input.rfind("/connect", 0) == 0) {
+            std::stringstream ss(input);
+            std::string cmd, ip; int port;
+            ss >> cmd >> ip >> port; // Вытаскиваем из строки адрес и порт
+            connectToServer(ip, port); // Зовем функцию подключения
+        }
+        // Обработка выхода
+        else if (input == "/exit" || input == "/quit") {
+            if (connected) { // Если мы в сети — вежливо прощаемся с сервером
+                MessageHeader h{ (uint32_t)MessageType::Disconnect, 0 };
+                send(clientSocket, (char*)&h, sizeof(h), 0); // Шлем пакет отключения
+            }
+            running = false; // Останавливаем главный цикл
+        }
+        // Команда спама
+        else if (input.rfind("/spam", 0) == 0) {
+            if (connected) spam(input); // Если в сети — спамим
+            else std::cout << "Connect first!\n"; // Иначе напоминаем про логин
+        }
+        // Огромный блок команд ЛОГОВ
+        else if (input.rfind("/logs", 0) == 0) {
+            if (!connected) { std::cout << "Connect first!\n"; continue; }
+
+            std::string req; // Строка запроса, которую поймет сервер на Python/C++ на Разбе
+            if (input == "/logs all") req = "ALL";
+            else if (input == "/logs server") req = "SERVER";
+            else if (input == "/logs board") req = "BOARD";
+            else if (input == "/logs sensor") req = "SENSOR";
+            else if (input == "/logs warnings") req = "WARNINGS";
+            else if (input.rfind("/logs last ", 0) == 0) req = "LAST " + input.substr(11);
+            else {
+                std::cout << "Unknown logs command.\n"; // Если написали ерунду
+                continue;
+            }
+
+            // Формируем пакет типа LogRequest (4)
+            MessageHeader h{ static_cast<uint32_t>(MessageType::LogRequest), (uint32_t)req.size() };
+            sendAll((char*)&h, sizeof(h));           // Шлем заголовок
+            sendAll(req.data(), (int)req.size());    // Шлем тип логов
+        }
+        // Если это не команда — значит это просто сообщение в чат
+        else {
+            if (connected) sendMessage(input); // Отправляем в сеть
+            else std::cout << "Not connected.\n"; // Или просим подключиться
+        }
+    }
+}
+
+// ГЛАВНАЯ ФУНКЦИЯ ПРОГРАММЫ
+int main() {
+    setupConsole();    // 1. Настраиваем шрифты
+    initWinSock();     // 2. Включаем драйвер сети
+    std::cout << "Hardware Monitor Client Started. Type /help for commands.\n";
+    runClientEventLoop(); // 3. Запускаем бесконечный цикл общения
+    cleanupWinSock();  // 4. Выключаем сеть перед закрытием
+    return 0;          // Конец
+}
