@@ -1,0 +1,65 @@
+const int lineSensorPin = A0;   // Пин, куда подключен датчик линии
+String inputString = "";         // Строка для хранения входящих букв от пользователя
+bool stringComplete = false;      // Флаг завершения приема строки
+unsigned long lastMillis = 0;    // Таймер, чтобы не спамить в порт слишком часто
+
+void setup() {
+  // Скорость 9600, жестко привязанная к серверу Raspberry Pi
+  Serial.begin(9600);
+  
+  // Настраиваем пин A0 как вход для чтения данных
+  pinMode(lineSensorPin, INPUT);
+  
+  inputString.reserve(200); 
+}
+
+void loop() {
+  unsigned long currentMillis = millis();
+  
+  // Каждые 500 миллисекунд (полсекунды) опрашиваем датчик и обновляем лог
+  if (currentMillis - lastMillis >= 500) {
+    lastMillis = currentMillis;
+    
+    // Считываем значение с датчика линии (0 - белый, 1023 - черный, или наоборот)
+    int sensorValue = analogRead(lineSensorPin);
+    
+    // Формируем красивую строку для отправки в Raspberry Pi
+    Serial.print("Line Sensor (A0): ");
+    Serial.print(sensorValue);
+    
+    // Если пользователь до этого ввел какие-то буквы, добавим их в этот же лог
+    if (inputString.length() > 0) {
+      Serial.print(" | User Input: ");
+      Serial.print(inputString);
+    }
+    
+    // Заканчиваем строку (перенос \n), чтобы малинка поняла, что пакет завершен
+    Serial.println();
+  }
+
+  // Если ты ввела строку в Serial Monitor и нажала Enter
+  if (stringComplete) {
+    // Очищаем строку ввода для следующих букв
+    inputString = "";
+    stringComplete = false;
+  }
+}
+
+/*
+  Прерывание: срабатывает автоматически, когда ты вводишь буквы в порт Ардуино
+*/
+void serialEvent() {
+  while (Serial.available()) {
+    char inChar = (char)Serial.read();
+    
+    // Если это не символ переноса строки, добавляем букву в нашу переменную
+    if (inChar != '\n' && inChar != '\r') {
+      inputString += inChar;
+    }
+    
+    // Если нажат Enter (\n), поднимаем флаг готовности
+    if (inChar == '\n') {
+      stringComplete = true;
+    }
+  }
+}
