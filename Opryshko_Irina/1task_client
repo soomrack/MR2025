@@ -1,113 +1,504 @@
-#define _WINSOCK_DEPRECATED_NO_WARNINGS //вызов функции винсок  
-#define _CRT_SECURE_NO_WARNINGS
-
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+#include <WinSock2.h>
+#include <windows.h>
+#include <ws2tcpip.h>  //
 #include <iostream>
-#include <winsock2.h> //сетевые функции
-#include <string> //удобная работа со строками
+#include <thread>
+#include <string>
+#include <vector>
+#include <map>
+#include <atomic>
+#include <algorithm>
+#include <sstream>
+#include <sstream>
 
-#pragma comment(lib, "ws2_32.lib") // во врмя сборки программы использовать файл вс2_32
+#pragma comment(lib, "Ws2_32.lib")
 
-int main() {
-    std::cout << "=== TCP Message Client ===\n";
+//=========================================================================================
+// НАСТРОЙКИ
+//=========================================================================================
 
-    // 1. Инициализация Winsock
-    WSADATA wsaData; //пробуждение сети, структура всдата с названием всадата. бланк для сетевой системы 
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) { // начало работы с вса с версией винсок 2 2, при поомщи указателя говорим какую структуру использовать
-        std::cerr << "Failed to initialize Winsock. Error: " << WSAGetLastError() << std::endl;
-        return 1;
+const int SERVER_PORT = 54000;
+
+//=========================================================================================
+// ПРОТОКОЛ (СОВМЕСТИМ С СЕРВЕРОМ)
+//=========================================================================================
+
+enum class MessageType : uint32_t // создаем список именованных констант-сокращений, каждое значение занимает 32 бита
+{
+    Text = 1,
+    Connect = 2,
+    Disconnect = 3,
+    ServerInfo = 4
+};
+
+struct MessageHeader // заголовок обертка сообщения
+{
+    MessageType type; // 4 байта под то ЧТО прислали текст, подключение
+    uint32_t size; // какого размера само сообщ
+};
+
+//=========================================================================================
+// ГЛОБАЛЬНОЕ СОСТОЯНИЕ
+//=========================================================================================
+
+std::atomic<bool> running{ true }; // для многопоточности, пока тру инфа передаетс корректно
+HANDLE consoleHandle = GetStdHandle(STD_OUTPUT_HANDLE); // доступ вывода ч-л в консоль и управление этим. для изменения цвета
+
+std::vector<std::string> clientList; //динамический список имен для вошедших/вышедших пользов с сервера, указываем что буудт храниться именно строки-имена
+std::string adminName;//сравниваем пользователя с админом и если да красим в жетый
+
+std::map<std::string, WORD> clientColors; //цветовой справочник. принцип ключ-значение. имя - цвет
+
+WORD availableColors[] = { 9, 10, 11, 12, 13, 14 }; // палитра из 6 цветов
+int colorIndex = 0; // значение цвета 1 пользователя
+
+//=========================================================================================
+// UTF-8 НАСТРОЙКА КОНСОЛИ
+//=========================================================================================
+
+void setupConsole()
+{
+    SetConsoleOutputCP(CP_UTF8);//кодирование текста в эмодзи символы для ввода-вывода
+    SetConsoleCP(CP_UTF8);
+}
+
+//=========================================================================================
+// ЭМОДЗИ
+//=========================================================================================
+
+std::string replaceEmoji(std::string text)
+{
+    std::vector<std::pair<std::string, std::string>> emojis =
+    {
+        {":fire:",  u8"🔥"},
+        {":smile:", u8"😄"},
+        {":sad:",   u8"😢"},
+        {":heart:", u8"❤️"},
+        {":ok:",    u8"👌"}
+    };
+
+    for (auto& e : emojis)
+    {
+        size_t pos;
+        while ((pos = text.find(e.first)) != std::string::npos)
+            text.replace(pos, e.first.length(), e.second);
     }
 
-    // 2. Создание сокета
-    SOCKET clientSocket = socket(AF_INET, SOCK_STREAM, 0); //сокет - дескриптор, функция сокет с 3 параметрами, семейство адресов, тсп-протокол, 
-    if (clientSocket == INVALID_SOCKET) {
-        std::cerr << "Failed to create socket. Error: " << WSAGetLastError() << std::endl;
-        WSACleanup(); //прекращение работы с вса
-        return 1;
+    return text;
+}
+
+//=========================================================================================
+// ЦВЕТА
+//=========================================================================================
+
+void setColor(WORD color)
+{
+    SetConsoleTextAttribute(consoleHandle, color);
+}
+
+void resetColor()
+{
+    SetConsoleTextAttribute(consoleHandle, 7);
+}
+
+//=========================================================================================
+// РАБОТА СО СПИСКОМ КЛИЕНТОВ
+//=========================================================================================
+
+void parseClientList(const std::string& message)
+{
+    clientList.clear();
+    adminName.clear();
+
+    std::istringstream iss(message);//превращает строку в файл-ввод с клавы, что позволяет пачковать инфу
+    std::string line; //читать текст пострчно
+
+    // Пропускаем заголовок
+    std::getline(iss, line); // "=== CLIENT LIST ==="
+
+    while (std::getline(iss, line))
+    {
+        if (line.empty()) continue;
+
+        size_t adminPos = line.find(" [ADMIN]"); //проверка на адмиа
+        if (adminPos != std::string::npos)
+        {
+            std::string name = line.substr(0, adminPos);
+            clientList.push_back(name);
+            adminName = name;
+
+            if (clientColors.find(name) == clientColors.end())
+            {
+                clientColors[name] = availableColors[colorIndex % 6];
+                colorIndex++;
+            }
+        }
+        else
+        {
+            clientList.push_back(line);//добавляем имя в резиновый списрк
+
+            if (clientColors.find(line) == clientColors.end())
+            {
+                clientColors[line] = availableColors[colorIndex % 6];
+                colorIndex++;
+            }
+        }
+    }
+}
+
+void addClient(const std::string& name)
+{
+    if (std::find(clientList.begin(), clientList.end(), name) == clientList.end()) //ищем имя в списке, если есть не пропускаем, если нет то даем цвет
+    {
+        clientList.push_back(name);
+
+        if (clientColors.find(name) == clientColors.end())
+        {
+            clientColors[name] = availableColors[colorIndex % 6]; //если имен больше 6 то цвета заново
+            colorIndex++;
+        }
+    }
+}
+
+void removeClient(const std::string& name)//удаление имени клиента
+{
+    clientList.erase(std::remove(clientList.begin(), clientList.end(), name), clientList.end());//Он проходит по списку и, если находит name, он перетаскивает все следующие за ним элементы «вперед», затирая удаляемое имя.
+}
+
+void printClients()
+{
+    std::cout << "\n--- Connected clients (" << clientList.size() << ") ---\n";
+
+    for (const auto& name : clientList)
+    {
+        if (name == adminName)
+            setColor(14); // Желтый для админа
+        else
+            setColor(clientColors[name]);
+
+        std::cout << name;
+
+        if (name == adminName)
+            std::cout << " [ADMIN]";
+
+        std::cout << std::endl;
     }
 
-    // 3. Настройка адреса сервера
-    sockaddr_in serverAddr;
-    serverAddr.sin_family = AF_INET;
-    serverAddr.sin_port = htons(8052);  // Порт сервера
+    resetColor();
+}
 
-    // Ввод IP-адреса сервера
-    std::string serverIP;
-    std::cout << "Enter server IP address (default: 127.0.0.1 for localhost): ";
-    std::getline(std::cin, serverIP);
+//=========================================================================================
+// СЕТЕВЫЕ ФУНКЦИИ
+//=========================================================================================
 
-    if (serverIP.empty()) {
-        serverIP = "192.168.43.14";
+void sendAll(SOCKET sock, const char* data, int size)//гарант отправки всего соо
+{
+    int total = 0;//создаем счетчик уже отправленных сообщ
+
+    while (total < size)
+    {
+        int sent = send(sock, data + total, size - total, 0);
+        if (sent <= 0) throw std::runtime_error("Send error");
+        total += sent;
+    }
+}
+
+void recvAll(SOCKET sock, char* data, int size)//гарант приема всего соо
+{
+    int total = 0;
+
+    while (total < size)
+    {
+        int received = recv(sock, data + total, size - total, 0);
+        if (received <= 0) throw std::runtime_error("Recv error");
+        total += received;
+    }
+}
+
+//=========================================================================================
+// АНАЛИЗ СООБЩЕНИЙ СЕРВЕРА
+//=========================================================================================
+
+void analyzeServerMessage(const std::string& message)
+{
+    // Проверяем, является ли сообщение списком клиентов
+    if (message.find("=== CLIENT LIST ===") != std::string::npos)
+    {
+        parseClientList(message);
+        return;
+    }
+    // 1. ПРОВЕРКА: Кто-то зашел в чат? (Ищем фразу " connecte
+    if (message.find(" connected ***") != std::string::npos)
+    {
+        // Находим, где начинается имя. Оно идет сразу после первых звезд и пробела "*** "
+        // .find("*** ") дает позицию первой звезды, +4 байта — это пропуск самих звезд и пробела
+        size_t start = message.find("*** ") + 4;
+
+        // Находим, где заканчивается имя (перед словом " connected")
+        size_t end = message.find(" connected ***");
+
+        // Если обе метки найдены успешно
+        if (start != std::string::npos && end != std::string::npos)
+        {
+            // Вырезаем кусок строки (подстроку) от start до end
+            // Формула: (позиция начала, сколько символов взять)
+            std::string name = message.substr(start, end - start);
+
+            // Добавляем очищенное имя в наш локальный список клиентов
+            addClient(name);
+        }
     }
 
-    serverAddr.sin_addr.s_addr = inet_addr(serverIP.c_str()); //внутри структуры сервераддр найди пункт (вложенную структуру) в адресе с названием числом адреса и присвой значение ип, но в виде машинного кода
+    // 2. ПРОВЕРКА: Кто-то вышел сам?
+    else if (message.find(" disconnected ***") != std::string::npos)
+    {
+        size_t start = message.find("*** ") + 4;
+        size_t end = message.find(" disconnected ***");
 
-    // 4. Подключение к серверу
-    std::cout << "Connecting to server " << serverIP << ":8052...\n";
-
-    if (connect(clientSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) { //функция коннект с 3 аргументами хендл сокета, передача структуры со всей инфой об адресе, указываем сколько байт выделено под адрес, чтобы не считать лишнего
-        std::cerr << "Connection failed. Error: " << WSAGetLastError() << std::endl; // функц возвращает результат подключ и сравниваем с сокет еррор
-        std::cerr << "Make sure:\n";
-        std::cerr << "1. Server is running\n";
-        std::cerr << "2. Correct IP address\n";
-        std::cerr << "3. Firewall allows connections on port 8052\n";
-        closesocket(clientSocket);
-        WSACleanup();
-        return 1;
+        if (start != std::string::npos && end != std::string::npos)
+        {
+            std::string name = message.substr(start, end - start);
+            // Вычеркиваем человека из списка участников
+            removeClient(name);
+        }
     }
 
-    std::cout << "Connected to server successfully!\n\n";
+    // 3. ПРОВЕРКА: Появился новый админ?
+    else if (message.find(" is now admin ***") != std::string::npos)
+    {
+        size_t start = message.find("*** ") + 4;
+        size_t end = message.find(" is now admin ***");
 
-    // 5. Получение приветственного сообщения
-    char buffer[1024];
-    memset(buffer, 0, sizeof(buffer)); //функция кот заполн память определенными символами, 3 арг: весь буффер заполнили 0 
-   // recv(clientSocket, buffer, sizeof(buffer), 0); //функция принятия данных из сокета в буффер 
-    //std::cout << "Server: " << buffer;
+        if (start != std::string::npos && end != std::string::npos)
+        {
+            // Сохраняем имя админа в специальную глобальную переменную
+            adminName = message.substr(start, end - start);
+        }
+    }
 
-    // 6. Основной цикл отправки сообщений
-    std::string userInput; // переменная с большим хранилищем, влезет сообщение больше 1024
-    
+    // 4. ПРОВЕРКА Кого-то кикнули?
+    else if (message.find(" was kicked ***") != std::string::npos)
+    {
+        size_t start = message.find("*** ") + 4;
+        size_t end = message.find(" was kicked ***");
 
-    while (true) {
-        // Ввод сообщения
-        std::cout << "You: ";
-        std::getline(std::cin, userInput);
-        userInput += ".";
-        userInput += "/n";
+        if (start != std::string::npos && end != std::string::npos)
+        {
+            std::string name = message.substr(start, end - start);
+            // Раз его выгнали, тоже удаляем из списка
+            removeClient(name);
+        }
+    }
 
-        // Отправка сообщения серверу
-        send(clientSocket, userInput.c_str(), userInput.length(), 0); //отправляет через клиент сокет сообщение в формате с, точно знаем количество передаваемых символов
+//=========================================================================================
+// ПРИЁМ СООБЩЕНИЙ
+//=========================================================================================
 
-        // Проверка на команду выхода
-        if (userInput == "quit" || userInput == "exit") {
-            std::cout << "Disconnecting from server...\n";
-            break;
+// Функция, которая бесконечно слушает сервер в отдельном потоке
+    void receiveLoop(SOCKET socket)
+    {
+        // Используем try-catch, чтобы программа не вылетала при резком обрыве связи
+        try
+        {
+            // Пока работает флаг running (программа не закрыта)
+            while (running)
+            {
+                // ШАГ 1: Получаем заголовок сообщения (8 байт)
+                // Мы должны сначала узнать: что это за тип и какой длины текст?
+                MessageHeader header;
+                recvAll(socket, (char*)&header, sizeof(header));
+
+                // ШАГ 2: Создаем "корзину" (буфер) нужного размера под входящий текст
+                // Вектор автоматически выделит столько памяти, сколько указал сервер в header.size
+                std::vector<char> buffer(header.size);
+
+                // Получаем само тело сообщения (текст)
+                recvAll(socket, buffer.data(), header.size);
+
+                // ШАГ 3: Превращаем набор байтов из буфера в удобную строку C++
+                std::string message(buffer.begin(), buffer.end());
+
+                // Заменяем текстовые коды вроде :fire: на реальные эмодзи 🔥
+                message = replaceEmoji(message);
+
+                // ШАГ 4: Анализ типа сообщения
+                // Если сервер пометил сообщение как "Системная информация"
+                if (header.type == MessageType::ServerInfo)
+                {
+                    // Вызываем функцию, которая ищет в тексте слова "connected" или "admin"
+                    analyzeServerMessage(message);
+                }
+
+                // ШАГ 5: Логика раскраски текста
+                // Обычно сообщения приходят в формате "Имя: Текст"
+                size_t pos = message.find(":");
+                if (pos != std::string::npos) // Если в строке есть двоеточие (это чье-то сообщение)
+                {
+                    // Вырезаем имя отправителя (всё, что ДО двоеточия)
+                    std::string sender = message.substr(0, pos);
+
+                    // Если имя админа длинное, например "Dmitry [ADMIN]", 
+                    // ищем только само имя "Dmitry" для правильного поиска цвета
+                    size_t adminPos = sender.find(" [ADMIN]");
+                    if (adminPos != std::string::npos)
+                        sender = sender.substr(0, adminPos);
+
+                    // Выбираем цвет:
+                    if (sender == adminName)
+                        setColor(14); // Желтый, если пишет админ
+                    else if (clientColors.find(sender) != clientColors.end())
+                        setColor(clientColors[sender]); // Персональный цвет пользователя из словаря
+                    else
+                        setColor(11); // Голубой, если это кто-то незнакомый
+                }
+                else
+                {
+                    // Если двоеточия нет, значит это просто системное уведомление от сервера
+                    setColor(11); // Красим в голубой
+                }
+
+                // ШАГ 6: Вывод итогового сообщения на экран
+                std::cout << message << std::endl;
+
+                // Сбрасываем цвет на стандартный белый, чтобы не "красить" ввод пользователя
+                resetColor();
+            }
+        }
+        catch (...) // Если случилась любая ошибка (например, сервер выключился)
+        {
+            std::cout << "\nDisconnected from server.\n";
+            running = false; // Останавливаем цикл и уведомляем главный поток о выходе
+        }
+    }
+
+//=========================================================================================
+// ЛОКАЛЬНЫЕ КОМАНДЫ
+//=========================================================================================
+
+void showHelp()
+{
+    std::cout << "\nAvailable commands:\n";
+    std::cout << "/help     - show commands\n";
+    std::cout << "/clients  - show client list\n";
+    std::cout << "/admin    - show admin\n";
+    std::cout << "/clear    - clear screen\n";
+    std::cout << "/exit     - exit chat\n\n";
+}
+
+//=========================================================================================
+// MAIN
+//=========================================================================================
+int main()
+{
+    // tру Если внутри что-то сломается, 
+    // программа не вылетит, а перейдет в блок catch в самом низу.
+    try
+    {
+        // 1. Настраиваем кодировку UTF-8 (чтобы видеть эмодзи)
+        setupConsole();
+
+        // 2. Инициализируем библиотеку Winsock (сетевой движок Windows)
+        WSADATA wsa;
+        WSAStartup(MAKEWORD(2, 2), &wsa);
+
+        // 3. Запрашиваем IP-адрес сервера
+        std::string serverIP;
+        std::cout << "Enter server IP: ";
+        std::cin >> serverIP;
+        std::cin.ignore(); // Очищаем буфер после ввода IP, чтобы std::getline работал корректно
+
+        // 4. Создаем сокет
+        SOCKET sock = socket(AF_INET, SOCK_STREAM, 0);
+
+        // 5. Заполняем адресную карточку сервера (IP + Порт)
+        sockaddr_in serverAddr{};
+        serverAddr.sin_family = AF_INET;
+        serverAddr.sin_port = htons(SERVER_PORT); // Переводим порт в сетевой формат
+        serverAddr.sin_addr.s_addr = inet_addr(serverIP.c_str());
+
+        // 6. Пытаемся подключиться к серверу
+        if (connect(sock, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR)
+        {
+            std::cout << "Failed to connect to server\n";
+            return 1; // Завершаем программу, если сервер недоступен
         }
 
-        // Получение ответа от сервера
-        memset(buffer, 0, sizeof(buffer)); //очищаем буффер
-        int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0); //создаем переменную в которую запис то что услышали от сервера
+        // 7. Вводим имя пользователя и отправляем серверу первый пакет (Connect)
+        std::string username;
+        std::cout << "Enter your name: ";
+        std::getline(std::cin, username);
 
-        if (bytesReceived > 0) {
-            std::cout << "Server: " << buffer;
-            memset(buffer, 0, sizeof(buffer)); //очищаем буффер
-         
+        MessageHeader header;
+        header.type = MessageType::Connect;
+        header.size = username.size();
+
+        sendAll(sock, (char*)&header, sizeof(header)); // Шлем "визитку"
+        sendAll(sock, username.c_str(), header.size); // Шлем само имя
+
+        // 8. ЗАПУСК ВТОРОГО ПОТОКА (Слушателя)
+        // Теперь функция receiveLoop работает сама по себе параллельно основному циклу
+        std::thread receiver(receiveLoop, sock);
+
+        // 9. ГЛАВНЫЙ ЦИКЛ (Твой ввод текста)
+        while (running)
+        {
+            std::string text;
+            std::getline(std::cin, text); // Программа замирает здесь, пока ты не нажмешь Enter
+
+            // --- Блок локальных команд (не шлем их на сервер) ---
+            if (text == "/help")
+            {
+                showHelp();
+                continue; // Возвращаемся в начало цикла
+            }
+            if (text == "/clients")
+            {
+                printClients();
+                continue;
+            }
+            if (text == "/admin")
+            {
+                if (!adminName.empty())
+                    std::cout << "Admin: " << adminName << std::endl;
+                else
+                    std::cout << "No admin assigned yet\n";
+                continue;
+            }
+            if (text == "/clear")
+            {
+                system("cls"); // Очистка экрана консоли
+                continue;
+            }
+            if (text == "/exit")
+            {
+                running = false; // Выключаем программу
+                break;
+            }
+
+            // --- Блок отправки обычного сообщения ---
+            text = replaceEmoji(text); // Меняем :fire: на 🔥 перед отправкой
+
+            header.type = MessageType::Text;
+            header.size = text.size();
+
+            sendAll(sock, (char*)&header, sizeof(header)); // Шлем заголовок
+            sendAll(sock, text.c_str(), header.size);      // Шлем текст
         }
-        else if (bytesReceived == 0) {
-            std::cout << "Server closed the connection.\n";
-            break;
-        }
-        else {
-            std::cerr << "Receive error.\n";
-            break;
-        }
+
+        // 10. ЗАВЕРШЕНИЕ РАБОТЫ
+        closesocket(sock); // Закрываем соединение
+        WSACleanup();      // Выключаем сетевой движок
+
+        // Ждем, пока второй поток (слушатель) тоже закончит работу
+        if (receiver.joinable())
+            receiver.join();
     }
-
-    // 7. Завершение работы
-    closesocket(clientSocket);
-    WSACleanup();
-
-    std::cout << "\nClient stopped. Press Enter to exit...\n";
-    std::cin.get();
+    catch (const std::exception& e)
+    {
+        // Если где-то в коде сработал throw (ошибка сети), мы окажемся здесь
+        std::cout << "Error: " << e.what() << std::endl;
+    }
 
     return 0;
 }
