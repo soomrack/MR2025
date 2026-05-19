@@ -7,3 +7,6 @@
 [submodule "Repman_Georgiy/LineFollower"]
 	path = Repman_Georgiy/LineFollower
 	url = https://github.com/repmanga/Line-Follower.git
+[submodule "Kovalev_Pavel/projectile_game"]
+	path = Kovalev_Pavel/projectile_game
+	url = https://github.com/kovalev2p/projectile_game.git
