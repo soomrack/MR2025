@@ -6,16 +6,68 @@
 
 \begin{document}
 
-\subsection{Используемые библиотеки}
+\subsection{Установка зависимостей}
+ 
+\begin{lstlisting}[language=bash,caption={Установка системных зависимостей}]
+sudo apt update
+sudo apt install build-essential cmake git \
+    libglfw3-dev libglew-dev libglm-dev libgl1-mesa-dev
+\end{lstlisting}
+ 
+Библиотека MAVLink является заголовочной и клонируется напрямую в каталог
+проекта:
+ 
+\begin{lstlisting}[language=bash,caption={Клонирование MAVLink}]
+cd pixhawk_imu_visualizer
+git clone https://github.com/mavlink/c_library_v2.git
+\end{lstlisting}
+ 
+\subsection{Сборка проекта}
+ 
+\begin{lstlisting}[language=bash,caption={Сборка через CMake}]
+mkdir build && cd build
+cmake ..
+make -j$(nproc)
+\end{lstlisting}
+ 
+При успешной сборке в каталоге \texttt{build/} появляется исполняемый файл
+\texttt{pixhawk\_imu\_reader}.
+ 
+\subsection{Настройка прав и запуск}
+ 
+\begin{lstlisting}[language=bash,caption={Права на порт и запуск}]
+sudo usermod -a -G dialout $USER
 
-
-Библиотека MAVLink является заголовочной~--- она полностью состоит из
-\texttt{.h}-файлов и не требует компиляции~\cite{mavlink_proto}.
-Остальные зависимости установливаются из apt-репозиториев.
-
-\subsection{Конфигурация CMake}
-
-
-
+sudo chmod 666 /dev/ttyACM0
+ 
+cd build
+./pixhawk_imu_reader
+\end{lstlisting}
+ 
+Окно визуализации открывается немедленно. Для завершения~--- Ctrl+C в
+терминале.
+ 
+\subsection{Управление в окне визуализации}
+ 
+\begin{table}[H]
+\centering
+\caption{Управление в окне визуализации}
+\label{tab:controls}
+\begin{tabularx}{\textwidth}{|l|X|}
+\hline
+\textbf{Действие} & \textbf{Эффект} \\
+\hline
+ЛКМ + перетаскивание & Вращение камеры вокруг объекта \\
+\hline
+Колесо мыши          & Приближение / отдаление (0{,}5~---~30~м) \\
+\hline
+Клавиша \textbf{R}   & Сброс позиции и траектории в $(0,\,0,\,0)$ \\
+\hline
+\textbf{Ctrl+C}      & Завершение программы \\
+\hline
+\end{tabularx}
+\end{table}
+ 
+\newpage
 	
 \end{document}

@@ -105,7 +105,7 @@
 	% Для выравнивания подписей к длинным таблицам
 	\newcommand\firstcaption[1]{\captionsetup[table]{format=plain,labelsep=newline,justification=centerlast,textfont=normalfont, format=diploma}\caption{#1}}
 	\newcommand\followingcaption[1]{\captionsetup[table]{format=plain,labelsep=newline,justification=raggedleft,textfont=normalfont, format=diploma}\caption[]{#1}}
-	\captionsetup[figure]{labelsep = period, font={small,{stretch=1.2}},belowskip=-36pt}
+	\captionsetup[figure]{labelsep = period, font={small,{stretch=1.2}},belowskip=6pt}
 	\captionsetup[lstlisting]{labelsep = period}
 %	\setlength{\abovecaptionskip}{0pt} 
 %	\setlength{\belowcaptionskip}{0pt} 
@@ -197,7 +197,6 @@ hyperref=false,
 language=auto,
 autolang=other,
 citestyle=gost-numeric,
-defernumbers=true,
 bibstyle=gost-numeric, % Стиль с нумерацией
 ]{biblatex}
 
