@@ -1,0 +1,131 @@
+% !TEX root = ../main.tex
+\documentclass[../main.tex]{subfiles}
+\graphicspath{{\subfix{../images/}}}
+
+\begin{document}
+
+\subsection{Общая структура приложения}
+
+Приложение имеет три основных состояния, определяемых перечислением \texttt{GameState}:
+\begin{itemize}
+	\item \texttt{MENU} — отображение меню выбора уровня, ожидание ввода пользователя.
+	\item \texttt{PLAYING} — активный игровой процесс: обновление физики, снарядов, событий уровня, отрисовка.
+	\item \texttt{LEVEL\_COMPLETED} и \texttt{GAME\_OVER}~— состояния, из которых возможен только возврат в меню.
+\end{itemize}
+
+Главный цикл (файл \texttt{main.cpp}) на каждом кадре выполняет:
+\begin{enumerate}
+	\item Обработку ввода (в зависимости от состояния).
+	\item Обновление игровой логики (\texttt{update\_level}, \texttt{update\_projectiles}, движение игрока).
+	\item Отрисовку через \texttt{render\_scene}.
+\end{enumerate}
+
+Также используется глобальная переменная \texttt{debug\_mode}, которая влияет на отображение дополнительной информации (хитбоксы, FPS, координаты) и видимость отладочных уровней в меню.
+
+\subsection{Объектная модель}
+
+Разработаны следующие основные сущности.
+
+\textbf{Игрок (struct Player)}:
+\begin{lstlisting}[caption={Структура Player из game.h}]
+struct Player {
+	Vector2 pos;
+	float speed;
+	float width, height;
+	int health;
+	bool immortal;
+	float invincible_until;
+	int hit_count;
+	bool hit(int damage);
+};
+\end{lstlisting}
+
+Метод \texttt{hit(int damage)} уменьшает здоровье, если не включён режим бессмертия, и возвращает \texttt{true}, если здоровье стало $\le 0$ (игрок погиб). Неуязвимость реализуется через сравнение \texttt{invincible\_until} с текущим временем уровня.
+
+\textbf{Снаряд (struct Projectile)}:
+\begin{lstlisting}[caption={Структура Projectile из game.h}]
+struct Projectile {
+	Vector2 pos;
+	Vector2 vel;
+	float r;
+};
+\end{lstlisting}
+
+Все снаряды хранятся в \texttt{std::vector<Projectile>}. Такое решение обеспечивает эффективное добавление/удаление и обход элементов.
+
+\textbf{Событие атаки (AttackEvent)}:
+\begin{lstlisting}[caption={Структура AttackEvent из game.h}]
+struct AttackEvent {
+	float time;
+	std::function<void(float dt, std::vector<Projectile>&, Player&)> action;
+};
+\end{lstlisting}
+
+Поле \texttt{time} — абсолютное время уровня (в секундах), когда должно произойти событие. \texttt{action} — функция, которая получает сдвиг времени \texttt{dt} (для точного позиционирования пуль), список снарядов и ссылку на игрока. Использование \texttt{std::function} позволяет передавать лямбда-выражения и именованные функции, что даёт большую гибкость.
+
+\subsection{Система управления игроком}
+
+Функция \texttt{move\_player\_wasd(Player\& player)} обрабатывает ввод с клавиатуры. Алгоритм:
+\begin{enumerate}
+	\item Получить вектор направления от нажатых клавиш (WASD или стрелки).
+	\item Нормализовать вектор, если он не нулевой (чтобы скорость по диагонали не была выше, чем по осям).
+	\item Обновить позицию: \texttt{pos += move * speed * dt}.
+	\item Ограничить позицию границами мира $[0, \text{WORLD\_SIZE}]$.
+\end{enumerate}
+
+Нормализация выполняется с помощью \texttt{Vector2Normalize()} из Raylib. Это стандартный приём для обеспечения равномерной скорости во всех направлениях.
+
+\subsection{Система снарядов и коллизий}
+
+Обновление снарядов происходит в функции \texttt{update\_projectiles}:
+\begin{enumerate}
+	\item Для каждого снаряда обновляется позиция на основе вектора скорости: \texttt{pos += vel * dt}.
+	\item Проверка столкновения с игроком с помощью функции \\ \texttt{circle\_rect\_collision}.
+	\item При столкновении — увеличение счётчика попаданий и перемещение снаряда за границы мира (помечается на удаление).
+	\item Удаление снарядов, вышедших за пределы $[0, \text{WORLD\_SIZE}]$ по любой оси (используется \texttt{std::remove\_if}).
+	\item Если есть попадания и неуязвимость прошла (\texttt{invincible\_until < level\_time}), вызывается \texttt{player.hit(1)} и устанавливается \texttt{invincible\_until = level\_time + 0.5f}.
+	\item Если игрок погиб, состояние игры переключается в \texttt{GAME\_OVER}.
+\end{enumerate}
+
+Функция проверки столкновения \texttt{circle\_rect\_collision} реализует алгоритм «круг–прямоугольник» через вычисление ближайшей точки прямоугольника к центру круга, что даёт точный результат.
+
+\subsection{Система событий и планировщик атак}
+
+Управление уровнями централизовано в функции \texttt{update\_level}. Для уровней <<Beginning>> и <<Way>> используется событийная модель:
+\begin{itemize}
+	\item Статический вектор \texttt{events} хранит все \texttt{AttackEvent} для текущего уровня.
+	\item Статическая переменная \texttt{next\_event} — индекс следующего необработанного события.
+	\item При сбросе уровня (\texttt{reset\_level == true}) вызывается функция инициализации (\texttt{level\_beginning\_init} или \texttt{level\_way\_init}), которая заполняет \texttt{events} и сортирует их по времени.
+	\item В каждом кадре, пока \texttt{next\_event < events.size()} и \texttt{level\_time >= events[next\_event].time}, событие выполняется (с передачей \texttt{dt = level\_time - events[next\_event].time}), и \texttt{next\_event} увеличивается.
+	\item Уровень считается пройденным, когда все события обработаны и вектор \texttt{projectiles} пуст.
+\end{itemize}
+
+Для удобства создания типовых паттернов атак реализованы вспомогательные функции:
+\begin{itemize}
+	\item \texttt{add\_beam\_events} — создаёт последовательность пуль (луч) из одной точки.
+	\item \texttt{spawn\_bullet\_line} — создаёт линию пуль (одновременно).
+	\item \texttt{spawn\_circular\_burst} — круговой залп из центра.
+	\item \texttt{add\_beam\_burst} — множество лучей из центра (взрыв лучами).
+	\item \texttt{add\_fan\_attack} — веер из нескольких лучей.
+	\item \texttt{spawn\_targeted\_bullet} — прицельный снаряд.
+\end{itemize}
+
+Эти функции вызываются внутри \texttt{level\_beginning\_init} и \texttt{level\_way\_init}, что делает описание уровней компактным и наглядным.
+
+\subsection{Рендеринг и преобразование координат}
+
+Отрисовка выполняется в файле \texttt{render.cpp}. Поскольку игровой мир имеет фиксированный размер \texttt{WORLD\_SIZE} (1024 пикселя), а окно может быть произвольного размера, необходимо преобразование мировых координат в экранные с сохранением пропорций.
+
+Функция \texttt{world\_to\_screen(Vector2 world\_pos, int screen\_w, int screen\_h)}:
+\begin{enumerate}
+	\item Вычисляет масштаб: \texttt{scale\_x = screen\_w / WORLD\_SIZE}, \texttt{scale\_y = screen\_h / WORLD\_SIZE}, выбирает минимальный \texttt{scale}.
+	\item Размер игровой области: \texttt{view\_w = WORLD\_SIZE * scale}, \texttt{view\_h = WORLD\_SIZE * scale}.
+	\item Смещение для центрирования: \texttt{offset\_x = (screen\_w - view\_w) / 2}, \texttt{offset\_y = (screen\_h - view\_h) / 2} (прижато к правому нижнему углу для удобства отображения информации).
+	\item Возвращает экранные координаты: \texttt{(offset\_x + world\_pos.x * scale, offset\_y + world\_pos.y * scale)}.
+\end{enumerate}
+
+Для отрисовки спрайта игрока используется \texttt{DrawTexturePro}, которая принимает исходный прямоугольник текстуры и целевой прямоугольник на экране. Размер целевого прямоугольника вычисляется через \texttt{world\_to\_screen(player.width)} и \\ \texttt{world\_to\_screen(player.height)}. Это позволяет спрайту масштабироваться вместе с окном.
+
+Хитбокс игрока (прямоугольник) отображается только в режиме отладки. Для этого используется \texttt{DrawRectangleLinesEx} с координатами, полученными преобразованием из мировых в экранные.
+
+\end{document}
