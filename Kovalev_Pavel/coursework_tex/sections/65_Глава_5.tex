@@ -29,7 +29,7 @@
 
 \subsection{Получение исходного кода}
 
-Исходный код проекта размещён в открытом репозитории GitHub. Для клонирования выполните:
+Исходный код проекта размещён в открытом репозитории GitHub \cite{repo}. Для клонирования необходимо выполнить:
 
 \begin{lstlisting}[language=bash, caption={Клонирование репозитория}]
 	git clone https://github.com/kovalev2p/projectile_game.git --recurse-submodules && cd projectile_game
@@ -45,7 +45,7 @@
 
 \subsection{Сборка с использованием Premake}\label{subsec:premake}
 
-Проект использует Premake для генерации Makefile-ов. Файл \texttt{premake5.lua} настроен таким образом, что при первом запуске автоматически загружает архив Raylib с GitHub, распаковывает его в папку \texttt{external/} и компилирует статическую библиотеку.
+Проект использует Premake для генерации Makefile-ов. Файл \texttt{premake5.lua} настроен таким образом, что при первом запуске автоматически загружает архив Raylib с GitHub, распаковывает его в папку \texttt{external/} и компилирует статическую библиотеку \cite{premake_docs}. 
 
 Для сборки необходимо выполнить следующие команды:
 

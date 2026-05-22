@@ -83,7 +83,7 @@ struct AttackEvent {
 	\item Проверка столкновения с игроком с помощью функции \\ \texttt{circle\_rect\_collision}.
 	\item При столкновении — увеличение счётчика попаданий и перемещение снаряда за границы мира (помечается на удаление).
 	\item Удаление снарядов, вышедших за пределы $[0, \text{WORLD\_SIZE}]$ по любой оси (используется \texttt{std::remove\_if}).
-	\item Если есть попадания и неуязвимость прошла (\texttt{invincible\_until < level\_time}), вызывается \texttt{player.hit(1)} и устанавливается \texttt{invincible\_until = level\_time + 0.5f}.
+	\item Если есть попадания и неуязвимость прошла (\texttt{invincible\_until < level\_time}), вызывается \texttt{player.hit(1)} и устанавливается \texttt{invincible\_until = level\_time + 0.5f}. Это обычная механика для подобных игр \cite{terraria_wiki_inv_frame}\cite{calamity_wiki_inv_frame}.
 	\item Если игрок погиб, состояние игры переключается в \texttt{GAME\_OVER}.
 \end{enumerate}
 
