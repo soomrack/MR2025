@@ -229,6 +229,13 @@ bibstyle=gost-numeric, % Стиль с нумерацией
 % БД источников
 \addbibresource{bibliography.bib}
 
+% формат дат по-русски
+\DefineBibliographyStrings{russian}{
+	urlseen = {дата обращения},
+}
+\DeclareFieldFormat{urldate}{%
+	(дата обращения \iffieldundef{urlyear}{}{\twodigits{\thefield{urlday}}.\twodigits{\thefield{urlmonth}}.\thefield{urlyear}})
+}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
