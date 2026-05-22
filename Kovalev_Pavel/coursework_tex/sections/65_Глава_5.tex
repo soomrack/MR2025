@@ -1,0 +1,116 @@
+% !TEX root = ../main.tex
+\documentclass[../main.tex]{subfiles}
+\graphicspath{{\subfix{../images/}}}
+
+\begin{document}
+
+\subsection{Требования к системе}
+
+Для сборки и запуска игры необходимо следующее программное обеспечение:
+
+\begin{itemize}
+	\item Операционная система: Linux (Debian-based). Возможна сборка на других платформах, но программа ориентирована для Linux.
+	\item Компилятор: GCC 10 или новее (поддержка C++20).
+	\item Система сборки: Premake5.
+	\item Библиотеки: Raylib (версия 4.0 или новее), а также системные зависимости: OpenGL, GLFW, X11.
+	\item Рекомендуемый редактор: VSCode (с расширениями C/C++).
+\end{itemize}
+
+\subsection{Установка зависимостей}\label{install_dependencies}
+
+Перед сборкой необходимо установить компилятор, утилиты сборки и библиотеку Raylib. В дистрибутивах на основе Debian/Ubuntu это делается командами:
+
+\begin{lstlisting}[language=bash, caption={Установка системных зависимостей}]
+	sudo apt update
+	sudo apt install build-essential git
+	sudo apt install libx11-dev libasound2-dev libxrandr-dev libxi-dev libgl1-mesa-dev libglu1-mesa-dev libxcursor-dev libxinerama-dev
+\end{lstlisting}
+%	sudo apt install libglfw3-dev libglew-dev libglm-dev libgl1-mesa-dev
+
+\subsection{Получение исходного кода}
+
+Исходный код проекта размещён в открытом репозитории GitHub \cite{repo}. Для клонирования необходимо выполнить:
+
+\begin{lstlisting}[language=bash, caption={Клонирование репозитория}]
+	git clone https://github.com/kovalev2p/projectile_game.git --recurse-submodules && cd projectile_game
+\end{lstlisting}
+
+Структура проекта соответствует шаблону \texttt{raylib-quickstart}:
+\begin{itemize}
+	\item \texttt{src/} — исходные файлы (main.cpp, game.cpp, render.cpp и заголовочные файлы);
+	\item \texttt{build/} — каталог, содержащий \texttt{premake5.lua} и скрипты сборки;
+	\item \texttt{external/} — автоматически создаётся при сборке, содержит загруженную Raylib;
+	\item \texttt{bin/} — выходные файлы после компиляции.
+\end{itemize}
+
+\subsection{Сборка с использованием Premake}\label{subsec:premake}
+
+Проект использует Premake для генерации Makefile-ов. Файл \texttt{premake5.lua} настроен таким образом, что при первом запуске автоматически загружает архив Raylib с GitHub, распаковывает его в папку \texttt{external/} и компилирует статическую библиотеку \cite{premake_docs}. 
+
+Для сборки необходимо выполнить следующие команды:
+
+\begin{lstlisting}[language=bash, caption={Сборка через Premake}]
+	cd build
+	./premake5 gmake
+	cd ..
+	make
+\end{lstlisting}
+
+% При необходимости можно указать конкретную конфигурацию: отладочная или оптимизированная сборка.
+% \begin{lstlisting}[language=bash]
+% 	make config=debug
+% 	make config=release
+% \end{lstlisting}
+
+После успешной компиляции исполняемый файл появится в каталоге \texttt{bin/}:
+
+\subsection{Запуск игры}
+
+Для запуска необходимо перейти в каталог \texttt{bin/Release/} (или \texttt{bin/Debug/}) и запустить исполняемый файл программы.
+
+\subsection{Управление в игре}
+
+В таблице~\ref{tab:controls_game} приведены основные клавиши управления.
+
+\begin{table}[H]
+	\centering
+	\caption{Управление в игре}
+	\label{tab:controls_game}
+	\begin{tabularx}{\textwidth}{|l|X|}
+		\hline
+		\textbf{Клавиша(и)} & \textbf{Действие} \\
+		\hline
+		W / Up & Движение вверх \\
+		\hline
+		S / Down & Движение вниз \\
+		\hline
+		A / Left & Движение влево \\
+		\hline
+		D / Right & Движение вправо \\
+		\hline
+		Enter / Space & Выбор уровня в меню / начало игры \\
+		\hline
+		Escape & Выход из игры (в меню) / возврат в меню (в игре) \\
+		\hline
+		F3 & Включение/выключение режима отладки \\
+		\hline
+	\end{tabularx}
+\end{table}
+
+В режиме отладки на экран выводятся дополнительная информация (FPS, координаты игрока, счётчик попаданий, текущее время уровня) и хитбоксы. Также в меню становятся доступными тестовые уровни.
+
+\subsection{Возможные проблемы и их решение}
+
+\begin{itemize}
+	\item \textbf{Ошибка «X11/Xlib.h not found»}: Premake проверяет наличие заголовочных файлов X11. Если они отсутствуют, сборка прерывается с сообщением об ошибке. Решение: установить пакет \texttt{libx11-dev} (и сопутствующие) как указано в разделе \ref{install_dependencies}
+	
+	\item \textbf{Raylib не скачивается автоматически}: Проверьте подключение к интернету. При медленном соединении можно скачать архив вручную с GitHub (\url{https://github.com/raysan5/raylib/archive/refs/heads/master.zip}) и поместить его в папку \texttt{external/} перед запуском Premake.
+	
+	\item \textbf{Ошибка компиляции из-за стандарта C++20}: Убедитесь, что компилятор поддерживает C++20 (GCC 10+ или Clang 12+).
+	
+	\item \textbf{Низкая производительность}: Отключите режим отладки (F3) и закройте фоновые приложения. Для слабых видеокарт можно уменьшить размер окна или изменить версию OpenGL на более раннюю.
+	
+	\item \textbf{Пути к ресурсам}: Игра ожидает текстуру \texttt{wabbit\_alpha.png} в каталоге \texttt{resources/}. Убедитесь, что этот файл присутствует и находится в рабочем каталоге при запуске. Premake при сборке копирует ресурсы в папку \texttt{bin/}.
+\end{itemize}
+
+\end{document}
