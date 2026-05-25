@@ -1,0 +1,70 @@
+#include <Servo.h> 
+
+Servo motor_left;
+Servo motor_right;
+
+const int mot_pin_left = 11;   // Твои пины на Mega 2560
+const int mot_pin_right = 8;   
+
+// Настройки ШИМ для регуляторов
+const int PWM_STOP = 1000;     // Полный стоп (для обычных ESC)
+const int PWM_RUN = 1150;      // Безопасная скорость для теста (можно повысить до 1500-1800)
+
+// Переменные для Сторожевого Таймера (Watchdog)
+unsigned long last_communication_time = 0; // Время получения последнего байта
+const unsigned long TIMEOUT_MS = 500;      // Таймаут по тех. заданию (500 мс)
+
+bool is_safe = true; // Флаг безопасности (по умолчанию робот стоит)
+
+void setup() 
+{
+  Serial.begin(9600); // Инициализация связи с C++ (убедись, что в С++ такая же скорость)
+  
+  // Инициализация моторов
+  motor_left.attach(mot_pin_left, 1000, 2000); 
+  motor_right.attach(mot_pin_right, 1000, 2000); 
+
+  // Защитный арминг при запуске платы
+  motor_left.writeMicroseconds(PWM_STOP);
+  motor_right.writeMicroseconds(PWM_STOP);
+  delay(3000); // Ждем, пока Hobbywing и BLHeli пропищат готовность
+  
+  last_communication_time = millis(); // Сбрасываем таймер перед стартом
+} 
+
+void loop() 
+{
+  // 1. Проверяем, пришли ли данные от OpenCV приложения
+  if (Serial.available() > 0) {
+    char gesture = Serial.read(); // Считываем один символ команды
+    
+    // Как только пришел ЛЮБОЙ байт — обновляем время связи (сбрасываем таймаут)
+    last_communication_time = millis();
+    
+    if (gesture == 'F') {         // 'H' - Hand (Ладонь)
+      is_safe = false;            // Снимаем блокировку, едем
+    } 
+    else if (gesture == 'H') {    // 'F' - Fist (Кулак)
+      is_safe = true;             // Включаем блокировку, стоп
+    }
+  }
+
+  // 2. Проверка программного сторожевого таймера (Watchdog)
+  // Проверяем, сколько времени прошло с последней посылки данных
+  if (millis() - last_communication_time > TIMEOUT_MS) {
+    // Если С++ приложение зависло или вылетело, и прошло больше 500 мс:
+    is_safe = true; // Принудительно уходим в безопасное состояние
+  }
+
+  // 3. Управление моторами на основе флага безопасности
+  if (is_safe) {
+    // Безопасное состояние «STOP»
+    motor_left.writeMicroseconds(PWM_STOP);
+    motor_right.writeMicroseconds(PWM_STOP);
+  } else {
+    // Вращение моторов при фиксации ладони
+    motor_left.writeMicroseconds(PWM_RUN);
+    motor_right.writeMicroseconds(PWM_RUN);
+  }
+}
+
