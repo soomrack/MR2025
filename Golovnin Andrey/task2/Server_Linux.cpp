@@ -13,6 +13,8 @@
 #include <fstream>
 #include <limits>
 #include <csignal>
+#include <iomanip>
+#include <memory>
 
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -21,14 +23,20 @@
 #include <netinet/in.h>
 #include <errno.h>
 
+
+
 constexpr int    PORT                 = 54000;
 constexpr int    MONITOR_INTERVAL_SEC = 10;
 constexpr double CPU_TEMP_LIMIT       = 70.0;
 constexpr int    RAM_LIMIT_PERCENT    = 80;
+constexpr size_t LOG_BUFFER_MAX       = 1000;  // максимум строк в памяти
+
 
 struct Client {
     int         socket;
     std::string id;
+    // shared_ptr — чтобы mutex можно было копировать вместе со структурой
+    std::shared_ptr<std::mutex> sendMu{std::make_shared<std::mutex>()};
 };
 
 std::vector<Client> clients;
@@ -37,8 +45,10 @@ std::mutex          clientsMutex;
 std::atomic<bool> serverRunning{true};
 int               serverSock = -1;
 
-std::mutex    logMutex;
-std::ofstream logFile;
+std::mutex               logMutex;
+std::ofstream            logFile;
+std::vector<std::string> logBuffer;      // лог в памяти
+std::mutex               logBufferMutex;
 
 std::string timestamp() {
     time_t now = time(nullptr);
@@ -50,11 +60,20 @@ std::string timestamp() {
 }
 
 void logEvent(const std::string& text) {
-    std::lock_guard<std::mutex> lock(logMutex);
     std::string line = "[" + timestamp() + "] " + text;
-    std::cout << line << "\n";
-    if (logFile.is_open())
-        logFile << line << "\n" << std::flush;
+
+    {
+        std::lock_guard<std::mutex> lock(logMutex);
+        std::cout << line << "\n";
+        if (logFile.is_open())
+            logFile << line << "\n" << std::flush;
+    }
+    {
+        std::lock_guard<std::mutex> lock(logBufferMutex);
+        logBuffer.push_back(line);
+        if (logBuffer.size() > LOG_BUFFER_MAX)
+            logBuffer.erase(logBuffer.begin());
+    }
 }
 
 void sendAll(int sock, const char* data, int size) {
@@ -63,6 +82,15 @@ void sendAll(int sock, const char* data, int size) {
         int n = send(sock, data + sent, size - sent, 0);
         if (n <= 0) throw std::runtime_error("send failed");
         sent += n;
+    }
+}
+
+void recvAll(int sock, char* data, int size) {
+    int got = 0;
+    while (got < size) {
+        int n = recv(sock, data + got, size - got, 0);
+        if (n <= 0) throw std::runtime_error("connection closed");
+        got += n;
     }
 }
 
@@ -75,21 +103,24 @@ std::string peerAddr(int sock) {
     return "unknown";
 }
 
-
-// BROADCAST  (protocol: uint32_t length + message bytes)
-void broadcast(const std::string& msg) {
+// Отправить одному клиенту — блокируем его личный mutex
+void sendMsg(int sock, std::mutex& mu, const std::string& msg) {
+    std::lock_guard<std::mutex> lock(mu);
     uint32_t len = static_cast<uint32_t>(msg.size());
+    sendAll(sock, reinterpret_cast<const char*>(&len), sizeof(len));
+    sendAll(sock, msg.data(), static_cast<int>(len));
+}
+
+// Разослать всем
+void broadcast(const std::string& msg) {
     std::lock_guard<std::mutex> lock(clientsMutex);
     for (auto& c : clients) {
         try {
-            sendAll(c.socket, reinterpret_cast<const char*>(&len), sizeof(len));
-            sendAll(c.socket, msg.data(), static_cast<int>(len));
+            sendMsg(c.socket, *c.sendMu, msg);
         } catch (...) {}
     }
 }
 
-
-// METRICS
 double cpuTemp() {
     std::ifstream f("/sys/class/thermal/thermal_zone0/temp");
     if (!f) return -1.0;
@@ -111,32 +142,99 @@ RamInfo ramUsage() {
     long used = total - avail;
     int  pct  = total ? static_cast<int>((used * 100) / total) : 0;
     std::ostringstream s;
-    s << pct << "% (" << used / 1024 << " MB / " << total / 1024 << " MB)";
+    s << pct << "% (" << used/1024 << " MB / " << total/1024 << " MB)";
     return {pct, s.str()};
 }
 
 std::string uptime() {
     std::ifstream f("/proc/uptime");
     double sec; f >> sec;
-    int h = static_cast<int>(sec) / 3600;
-    int m = (static_cast<int>(sec) % 3600) / 60;
-    int s = static_cast<int>(sec) % 60;
+    int h = (int)sec/3600, m = ((int)sec%3600)/60, s = (int)sec%60;
     std::ostringstream o;
     o << h << "h " << m << "m " << s << "s";
     return o.str();
+}
+
+// Читает все строки из файла лога (под logMutex)
+static std::vector<std::string> readLogFile() {
+    std::vector<std::string> lines;
+    std::lock_guard<std::mutex> lock(logMutex);
+    std::ifstream f("server.log");
+    std::string line;
+    while (std::getline(f, line))
+        lines.push_back(line);
+    return lines;
+}
+
+std::string processLogCommand(const std::string& cmd) {
+    std::vector<std::string> result;
+
+    if (cmd == "LOG ALL") {
+        // Полная история — читаем файл
+        result = readLogFile();
+    }
+    else if (cmd == "LOG WARNINGS") {
+        // Полная история предупреждений — читаем файл, фильтруем
+        for (auto& line : readLogFile())
+            if (line.find("[WARNING]") != std::string::npos)
+                result.push_back(line);
+    }
+    else if (cmd.rfind("LOG LAST ", 0) == 0) {
+        // Свежие данные — читаем из буфера, они гарантированно там есть
+        try {
+            int    minutes = std::stoi(cmd.substr(9));
+            time_t now     = time(nullptr);
+
+            std::lock_guard<std::mutex> lock(logBufferMutex);
+            for (auto& line : logBuffer) {
+                std::tm tm{};
+                std::istringstream ss(line.substr(1, 19));
+                ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
+                if (difftime(now, mktime(&tm)) <= minutes * 60)
+                    result.push_back(line);
+            }
+        } catch (...) {
+            return "[ERROR] usage: LOG LAST <minutes>\n";
+        }
+    }
+    else {
+        return "[ERROR] commands: LOG ALL | LOG WARNINGS | LOG LAST <min>\n";
+    }
+
+    if (result.empty())
+        return "(no entries)\n";
+
+    std::ostringstream out;
+    for (auto& line : result) out << line << "\n";
+    return out.str();
 }
 
 void handleClient(int sock) {
     std::string id = peerAddr(sock);
     logEvent("Connected: " + id);
 
-    // Passive: just hold the connection open.
-    // Metrics are pushed by monitorLoop via broadcast().
-    char dummy[64];
-    while (serverRunning) {
-        int r = recv(sock, dummy, sizeof(dummy), 0);
-        if (r <= 0) break;   // clean disconnect or error
+    // Захватываем sendMu до входа в цикл — пока клиент ещё в векторе
+    std::shared_ptr<std::mutex> sendMu;
+    {
+        std::lock_guard<std::mutex> lock(clientsMutex);
+        for (auto& c : clients)
+            if (c.socket == sock) { sendMu = c.sendMu; break; }
     }
+
+    try {
+        while (serverRunning) {
+            // Читаем команду: [uint32_t len][bytes]
+            uint32_t len = 0;
+            recvAll(sock, reinterpret_cast<char*>(&len), sizeof(len));
+            if (len == 0 || len > 65536) break;
+
+            std::string cmd(len, '\0');
+            recvAll(sock, cmd.data(), static_cast<int>(len));
+
+            // Отвечаем тем же протоколом
+            sendMsg(sock, *sendMu, processLogCommand(cmd));
+        }
+    } catch (...) {}  // disconnect или ошибка — идём на очистку
 
     {
         std::lock_guard<std::mutex> lock(clientsMutex);
@@ -159,17 +257,15 @@ void monitorLoop() {
         line << "CPU: " << cpu << " C | RAM: " << ram.str << " | Uptime: " << up;
 
         logEvent(line.str());
-        broadcast(line.str());
+        broadcast("[MONITOR] " + line.str());
 
         if (cpu > CPU_TEMP_LIMIT) {
             std::string w = "[WARNING] CPU TEMP HIGH (" + std::to_string(cpu) + " C)";
-            logEvent(w);
-            broadcast(w);
+            logEvent(w); broadcast(w);
         }
         if (ram.percent > RAM_LIMIT_PERCENT) {
             std::string w = "[WARNING] RAM HIGH (" + std::to_string(ram.percent) + "%)";
-            logEvent(w);
-            broadcast(w);
+            logEvent(w); broadcast(w);
         }
 
         std::this_thread::sleep_for(std::chrono::seconds(MONITOR_INTERVAL_SEC));
@@ -178,7 +274,6 @@ void monitorLoop() {
 
 void acceptLoop() {
     fcntl(serverSock, F_SETFL, O_NONBLOCK);
-
     while (serverRunning) {
         int client = accept(serverSock, nullptr, nullptr);
         if (client < 0) {
@@ -188,15 +283,14 @@ void acceptLoop() {
             }
             break;
         }
-
         {
             std::lock_guard<std::mutex> lock(clientsMutex);
             clients.push_back({client, peerAddr(client)});
         }
-
         std::thread(handleClient, client).detach();
     }
 }
+
 
 void onSignal(int) {
     serverRunning = false;
@@ -211,7 +305,6 @@ int main() {
     logEvent("=== Server started ===");
 
     serverSock = socket(AF_INET, SOCK_STREAM, 0);
-
     int opt = 1;
     setsockopt(serverSock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
