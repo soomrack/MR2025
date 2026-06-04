@@ -1,89 +1,227 @@
+#define _CRT_SECURE_NO_WARNINGS
+#pragma execution_character_set("utf-8") 
 #pragma comment(lib, "ws2_32.lib")
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iostream>
-#include <cstring>
+#include <vector>
+#include <string>
+#include <thread>
+#include <mutex>
+#include <windows.h>
+#include <clocale>
+
 using namespace std;
 
-int main() {
+vector<SOCKET> connected_clients;
+mutex clients_mutex;
+
+void setupConsoleEncoding() {
+    SetConsoleOutputCP(65001);
+    SetConsoleCP(65001);
+}
+
+bool initializeWinsock() {
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        cout << "WSAStartup failed" << endl;
-        system("pause");
-        return 1;
+        cout << "[ERROR] WSAStartup failed" << endl;
+        return false;
     }
+    cout << "[INFO] Winsock initialized" << endl;
+    return true;
+}
 
+SOCKET createServerSocket() {
     SOCKET server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd == INVALID_SOCKET) {
-        cout << "Socket creation failed" << endl;
-        WSACleanup();
-        system("pause");
-        return 1;
+        cout << "[ERROR] Socket creation failed: " << WSAGetLastError() << endl;
+        return INVALID_SOCKET;
     }
+    cout << "[INFO] Server socket created" << endl;
+    return server_fd;
+}
 
+bool bindSocket(SOCKET server_fd, int port) {
     sockaddr_in server_addr = {};
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    server_addr.sin_port = htons(8080);
+    server_addr.sin_port = htons(port);
 
     if (bind(server_fd, (sockaddr*)&server_addr, sizeof(server_addr)) == SOCKET_ERROR) {
-        cout << "Bind failed" << endl;
-        closesocket(server_fd);
-        WSACleanup();
-        system("pause");
-        return 1;
+        cout << "[ERROR] Bind failed: " << WSAGetLastError() << endl;
+        return false;
     }
+    cout << "[INFO] Socket bound to port " << port << endl;
+    return true;
+}
 
-    if (listen(server_fd, 1) == SOCKET_ERROR) {
-        cout << "Listen failed" << endl;
-        closesocket(server_fd);
-        WSACleanup();
-        system("pause");
-        return 1;
+bool startListening(SOCKET server_fd) {
+    if (listen(server_fd, SOMAXCONN) == SOCKET_ERROR) {
+        cout << "[ERROR] Listen failed: " << WSAGetLastError() << endl;
+        return false;
     }
+    cout << "[INFO] Server is listening..." << endl;
+    return true;
+}
 
-    cout << "==================================" << endl;
-    cout << "Server is listening on port 8080..." << endl;
-    cout << "Waiting for client connection..." << endl;
-    cout << "==================================" << endl;
-
-    SOCKET client_fd = accept(server_fd, nullptr, nullptr);
-    if (client_fd == INVALID_SOCKET) {
-        cout << "Accept failed" << endl;
-        closesocket(server_fd);
-        WSACleanup();
-        system("pause");
-        return 1;
+void broadcastMessage(SOCKET sender_socket, const string& message) {
+    lock_guard<mutex> lock(clients_mutex);
+    for (SOCKET client : connected_clients) {
+        if (client != sender_socket && client != INVALID_SOCKET) {
+            send(client, message.c_str(), static_cast<int>(message.length()), 0);
+        }
     }
+}
 
-    cout << "Client connected successfully!" << endl;
-
+void handleClient(SOCKET client_fd) {
     char buffer[1024] = {};
-    int bytes_received = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
 
-    if (bytes_received > 0) {
-        buffer[bytes_received] = '\0';
-        cout << "\n**********************************" << endl;
-        cout << "RECEIVED MESSAGE:" << endl;
-        cout << "**********************************" << endl;
-        cout << buffer << endl;
-        cout << "**********************************" << endl;
-        cout << "Bytes received: " << bytes_received << endl;
+    while (true) {
+        int bytes_received = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+
+        if (bytes_received > 0) {
+            buffer[bytes_received] = '\0';
+            string message = buffer;
+            string formatted_message = "[Client]: " + message + "\n";
+            cout << formatted_message;
+            broadcastMessage(client_fd, formatted_message);
+        }
+        else if (bytes_received == 0) {
+            cout << "[INFO] Client disconnected" << endl;
+            break;
+        }
+        else {
+            cout << "[ERROR] Receive failed: " << WSAGetLastError() << endl;
+            break;
+        }
     }
-    else if (bytes_received == 0) {
-        cout << "Client closed connection" << endl;
-    }
-    else {
-        cout << "Receive failed" << endl;
+
+    lock_guard<mutex> lock(clients_mutex);
+    for (auto it = connected_clients.begin(); it != connected_clients.end(); ++it) {
+        if (*it == client_fd) {
+            connected_clients.erase(it);
+            break;
+        }
     }
 
     closesocket(client_fd);
+}
+
+void acceptConnections(SOCKET server_fd) {
+    while (true) {
+        SOCKET client_fd = accept(server_fd, nullptr, nullptr);
+
+        if (client_fd == INVALID_SOCKET) {
+            cout << "[ERROR] Accept failed: " << WSAGetLastError() << endl;
+            continue;
+        }
+
+        cout << "[INFO] New client connected!" << endl;
+
+        lock_guard<mutex> lock(clients_mutex);
+        connected_clients.push_back(client_fd);
+
+        thread client_thread(handleClient, client_fd);
+        client_thread.detach();
+    }
+}
+
+void cleanupResources(SOCKET server_fd) {
+    lock_guard<mutex> lock(clients_mutex);
+    for (SOCKET client : connected_clients) {
+        closesocket(client);
+    }
+    connected_clients.clear();
     closesocket(server_fd);
     WSACleanup();
+    cout << "[INFO] Server shutdown complete" << endl;
+}
 
-    cout << "\n==================================" << endl;
-    cout << "Server finished." << endl;
-    cout << "Press any key to exit..." << endl;
-    system("pause");  
+void displayWelcomeMessage() {
+    cout << "==================================================" << endl;
+    cout << "       ПОЧТИ МЕСЕНДЖЕР МАКС, ТОЛЬКО ЛУЧШЕ         " << endl;
+    cout << "==================================================" << endl;
+}
+
+void displayReadyMessage() {
+    cout << "========================================" << endl;
+    cout << "    СЕРВЕР ГОТОВ И ЖДЕТ УЧАСТНИКОВ...   " << endl;
+    cout << "========================================" << endl;
+}
+
+void runServerLoop() {
+    while (true) {
+        this_thread::sleep_for(chrono::seconds(1));
+    }
+}
+
+void cleanupOnWinsockError() {
+    WSACleanup();
+    system("pause");
+}
+
+void cleanupOnSocketError(SOCKET server_fd) {
+    closesocket(server_fd);
+    WSACleanup();
+    system("pause");
+}
+
+void cleanupOnBindError(SOCKET server_fd) {
+    closesocket(server_fd);
+    WSACleanup();
+    system("pause");
+}
+
+void cleanupOnListenError(SOCKET server_fd) {
+    closesocket(server_fd);
+    WSACleanup();
+    system("pause");
+}
+
+SOCKET initializeServerSocket() {
+    SOCKET server_fd = INVALID_SOCKET;
+
+    if (!initializeWinsock()) {
+        cleanupOnWinsockError();
+        return INVALID_SOCKET;
+    }
+
+    server_fd = createServerSocket();
+    if (server_fd == INVALID_SOCKET) {
+        cleanupOnWinsockError();
+        return INVALID_SOCKET;
+    }
+
+    if (!bindSocket(server_fd, 8080)) {
+        cleanupOnSocketError(server_fd);
+        return INVALID_SOCKET;
+    }
+
+    if (!startListening(server_fd)) {
+        cleanupOnBindError(server_fd);
+        return INVALID_SOCKET;
+    }
+
+    return server_fd;
+}
+
+int main() {
+    setupConsoleEncoding();
+    displayWelcomeMessage();
+
+    SOCKET server_fd = initializeServerSocket();
+    if (server_fd == INVALID_SOCKET) {
+        return 1;
+    }
+
+    displayReadyMessage();
+
+    thread accept_thread(acceptConnections, server_fd);
+    accept_thread.detach();
+
+    runServerLoop();
+
+    cleanupResources(server_fd);
+    system("pause");
     return 0;
 }
