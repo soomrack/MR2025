@@ -1,80 +1,289 @@
+#define _CRT_SECURE_NO_WARNINGS
+#pragma execution_character_set("utf-8") 
+#pragma comment(lib, "ws2_32.lib")
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iostream>
-#include <cstring>
-#include <string> 
-#pragma comment(lib, "ws2_32.lib")
+#include <string>
+#include <thread>
+#include <vector>
+#include <cstdlib>
+#include <ctime>
+#include <windows.h>
+#include <clocale>
 
 using namespace std;
 
-int main() {
+void setupConsoleEncoding() {
+    SetConsoleOutputCP(65001);
+    SetConsoleCP(65001);
+}
+
+bool initializeWinsock() {
     WSADATA wsaData;
-    int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
-
-    if (result != 0) {
-        cout << "WSAStartup failed: " << result << endl;
-        system("pause");
-        return 1;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        cout << "[ERROR] WSAStartup failed" << endl;
+        return false;
     }
+    return true;
+}
 
+SOCKET createClientSocket() {
     SOCKET client_fd = socket(AF_INET, SOCK_STREAM, 0);
-
     if (client_fd == INVALID_SOCKET) {
-        cout << "Socket creation failed: " << WSAGetLastError() << endl;
-        WSACleanup();
-        system("pause");
-        return 1;
+        cout << "[ERROR] Socket creation failed: " << WSAGetLastError() << endl;
+        return INVALID_SOCKET;
     }
+    return client_fd;
+}
 
+bool connectToServer(SOCKET client_fd, const string& server_ip, int port) {
     sockaddr_in server_addr = {};
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(8080);
+    server_addr.sin_port = htons(port);
 
-    const char* server_ip = "192.168.0.114"; 
-
-    if (inet_pton(AF_INET, server_ip, &server_addr.sin_addr) <= 0) {
-        cout << "Invalid address or address not supported" << endl;
-        closesocket(client_fd);
-        WSACleanup();
-        system("pause");
-        return 1;
+    if (inet_pton(AF_INET, server_ip.c_str(), &server_addr.sin_addr) <= 0) {
+        cout << "[ERROR] Invalid server address" << endl;
+        return false;
     }
 
     if (connect(client_fd, (sockaddr*)&server_addr, sizeof(server_addr)) == SOCKET_ERROR) {
-        cout << "Connection failed: " << WSAGetLastError() << endl;
-        closesocket(client_fd);
-        WSACleanup();
-        system("pause");
+        cout << "[ERROR] Connection failed: " << WSAGetLastError() << endl;
+        return false;
+    }
+
+    cout << "[INFO] Connected to server at " << server_ip << ":" << port << endl;
+    return true;
+}
+
+string commandHello10() {
+    string result;
+    for (int i = 0; i < 10; i++) {
+        result += "hello (" + to_string(i + 1) + "/10)\n";
+    }
+    return result;
+}
+
+string commandShtirlits() {
+    vector<string> jokes = {
+        "Штирлиц вёл двойную жизнь и очень надеялся, что хоть одна из них сложится удачно.",
+        "Штирлиц безуспешно пытался установить личность. Личность всё время падала.",
+        "Штирлиц залез на телеграфный столб и, чтобы не привлекать внимания прохожих, развернул газету.",
+        "Штирлиц уже три месяца слал в Центр одну и ту же шифровку:\n4207 1801 2275 4408\n6872 4589 5533 7928\n3473 5600 1956 7639\nНо тщетно, ни на одну из этих кредитных карт не поступало ни копейки зарплаты.",
+        "В дверь кто-то вежливо постучал ногой. - Безруков! - догадался Штирлиц."
+    };
+    srand(static_cast<unsigned>(time(nullptr)));
+    return "[АНЕКДОТ]: " + jokes[rand() % jokes.size()];
+}
+
+string commandList() {
+    return "\n=== ДОСТУПНЫЕ КОМАНДЫ ===\n"
+        "/hello10      - Отправить 'hello' 10 раз\n"
+        "/shtirlits    - Анекдот про Штирлица\n"
+        "/command      - Показать этот список\n"
+        "/fortune      - Случайное предсказание\n"
+        "/motivation   - Мотивационная цитата\n"
+        "/time         - Текущее время сервера\n"
+        "========================\n";
+}
+
+string commandFortune() {
+    vector<string> fortunes = {
+        "Вас ожидает приятный сюрприз!",
+        "Удача на вашей стороне сегодня.",
+        "Ваша настойчивость будет вознаграждена.",
+        "Хороший день для того, чтобы поставить студентам автоматом пять."
+    };
+    srand(static_cast<unsigned>(time(nullptr)));
+    return "[ПРЕДСКАЗАНИЕ]: " + fortunes[rand() % fortunes.size()];
+}
+
+string commandMotivation() {
+    vector<string> quotes = {
+        "Никогда не сдавайся! Выпрашивай автомат до конца.",
+        "Успех - это способность идти от неудачи к неудаче, получая в конце автомат по программированию.",
+        "Лучшее время для автомата - сейчас!",
+        "Верь в себя и преподаватель обязательно поставит автомат!",
+        "Каждый день - новая возможность поставить студентам \"отлично\" автоматом."
+    };
+    srand(static_cast<unsigned>(time(nullptr)));
+    return "[МОТИВАЦИЯ]: " + quotes[rand() % quotes.size()];
+}
+
+string commandTime() {
+    time_t now = time(nullptr);
+    return "[ВРЕМЯ]: " + string(ctime(&now));
+}
+
+string processCommand(const string& command) {
+    if (command == "/hello10") return commandHello10();
+    if (command == "/shtirlits") return commandShtirlits();
+    if (command == "/command") return commandList();
+    if (command == "/fortune") return commandFortune();
+    if (command == "/motivation") return commandMotivation();
+    if (command == "/time") return commandTime();
+    return "";
+}
+
+bool isCommand(const string& input) {
+    return !input.empty() && input[0] == '/';
+}
+
+void receiveMessages(SOCKET client_fd) {
+    char buffer[1024] = {};
+
+    while (true) {
+        int bytes_received = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+
+        if (bytes_received > 0) {
+            buffer[bytes_received] = '\0';
+            cout << "\n" << buffer << "> ";
+            cout.flush();
+        }
+        else if (bytes_received == 0) {
+            cout << "\n[INFO] Server disconnected" << endl;
+            break;
+        }
+        else {
+            cout << "\n[ERROR] Receive failed" << endl;
+            break;
+        }
+    }
+}
+
+void handleCommand(const string& message) {
+    string command_result = processCommand(message);
+    if (!command_result.empty()) {
+        cout << "\n" << command_result << "> ";
+    }
+    else {
+        cout << "[WARNING] Unknown command: " << message << endl;
+    }
+}
+
+void sendMessage(SOCKET client_fd, const string& message) {
+    if (send(client_fd, message.c_str(), static_cast<int>(message.length()), 0) == SOCKET_ERROR) {
+        cout << "[ERROR] Send failed: " << WSAGetLastError() << endl;
+    }
+}
+
+void sendMessages(SOCKET client_fd) {
+    string message;
+
+    while (true) {
+        cout << "> ";
+        getline(cin, message);
+
+        if (message.empty()) {
+            continue;
+        }
+
+        if (isCommand(message)) {
+            string result = processCommand(message);
+            if (!result.empty()) {
+                cout << "\n" << result << "> ";
+                sendMessage(client_fd, result);
+            }
+            else {
+                cout << "[WARNING] Unknown command: " << message << endl;
+            }
+            continue;
+        }
+
+        sendMessage(client_fd, message);
+    }
+}
+
+void cleanupResources(SOCKET client_fd) {
+    closesocket(client_fd);
+    WSACleanup();
+    cout << "[INFO] Client shutdown complete" << endl;
+}
+
+void showWelcomeMessage() {
+    cout << "========================================" << endl;
+    cout << "         ПРОСТОЙ МЕСЕНДЖЕР              " << endl;
+    cout << "========================================" << endl;
+    cout << "Введите /command для списка команд" << endl;
+    cout << "========================================" << endl;
+}
+
+string getServerIpAddress() {
+    string server_ip;
+    cout << "\nВведите IP адрес сервера (или Enter для 172.20.10.2): ";
+    getline(cin, server_ip);
+
+    if (server_ip.empty()) {
+        server_ip = "172.20.10.2";
+    }
+
+    return server_ip;
+}
+
+void displayChatStartedMessage() {
+    cout << "\n=== ЧАТ ЗАПУЩЕН ===" << endl;
+    cout << "Вводите сообщения и нажмите Enter для отправки" << endl;
+    cout << "Введите /command для помощи" << endl;
+    cout << "====================" << endl;
+}
+
+void cleanupOnWinsockError() {
+    WSACleanup();
+    system("pause");
+}
+
+void cleanupOnSocketError() {
+    WSACleanup();
+    system("pause");
+}
+
+void cleanupOnConnectionError(SOCKET client_fd) {
+    closesocket(client_fd);
+    WSACleanup();
+    system("pause");
+}
+
+SOCKET initializeClientSocket(const string& server_ip) {
+    SOCKET client_fd = INVALID_SOCKET;
+
+    if (!initializeWinsock()) {
+        cleanupOnWinsockError();
+        return INVALID_SOCKET;
+    }
+
+    client_fd = createClientSocket();
+    if (client_fd == INVALID_SOCKET) {
+        cleanupOnWinsockError();
+        return INVALID_SOCKET;
+    }
+
+    if (!connectToServer(client_fd, server_ip, 8080)) {
+        cleanupOnConnectionError(client_fd);
+        return INVALID_SOCKET;
+    }
+
+    return client_fd;
+}
+
+int main() {
+    setupConsoleEncoding();
+    showWelcomeMessage();
+
+    string server_ip = getServerIpAddress();
+
+    SOCKET client_fd = initializeClientSocket(server_ip);
+    if (client_fd == INVALID_SOCKET) {
         return 1;
     }
 
-    cout << "Connected to server successfully!" << endl;
+    displayChatStartedMessage();
 
-    cout << "\nEnter your message: ";
+    thread receive_thread(receiveMessages, client_fd);
+    receive_thread.detach();
 
-    string message; 
-    getline(cin, message);
+    sendMessages(client_fd);
 
-    if (message.empty()) { 
-        message = "Default message"; 
-        cout << "Using default message: " << message << endl;
-    }
-  
-    int bytes_sent = send(client_fd, message.c_str(), message.length(), 0);
-
-    if (bytes_sent == SOCKET_ERROR) {
-        cout << "Send failed: " << WSAGetLastError() << endl;
-    }
-    else {
-        cout << "\nMessage sent successfully!" << endl;
-        cout << "Sent " << bytes_sent << " bytes" << endl;
-        cout << "Message: " << message << endl;
-    }
-
-    closesocket(client_fd);
-    WSACleanup();
-
-    cout << "\nClient shut down" << endl;
+    cleanupResources(client_fd);
     system("pause");
     return 0;
 }
