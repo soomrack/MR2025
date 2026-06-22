@@ -1,0 +1,249 @@
+﻿#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <thread>
+#include <mutex>
+#include <chrono>
+#include <cstring>
+#include <ctime>
+#include <iomanip>
+#include <filesystem>
+#include <cstdio>
+#include <csignal>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <sys/statvfs.h>
+
+namespace fs = std::filesystem;
+
+const int PORT = 5000;
+const int COLLECT_INTERVAL_SEC = 5;
+const int LIVE_INTERVAL_SEC = 2;
+const double TEMP_THRESHOLD = 70.0;
+const double CPU_THRESHOLD = 90.0;
+
+struct SystemData {
+    std::string time;
+    double temp_c;
+    double cpu_pct;
+    double mem_pct;
+    double disk_pct;
+    std::string status;
+};
+
+class PiMonitorServer {
+private:
+    std::mutex mtx;
+    SystemData latest_data;
+    fs::path log_dir;
+    std::ofstream main_log;
+    std::ofstream event_log;
+
+    double get_cpu_temp() {
+        std::ifstream f("/sys/class/thermal/thermal_zone0/temp");
+        if (f.is_open()) {
+            int val; f >> val;
+            return val / 1000.0;
+        }
+        return 0.0;
+    }
+
+    double get_cpu_usage() {
+        std::ifstream f("/proc/stat");
+        long u, n, s, i, w, q, sq, st;
+        if (!(f >> u >> n >> s >> i >> w >> q >> sq >> st)) return 0.0;
+        long total1 = u + n + s + i + w + q + sq + st;
+        long idle1 = i + w;
+
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+
+        f.clear(); f.seekg(0, std::ios::beg);
+        if (!(f >> u >> n >> s >> i >> w >> q >> sq >> st)) return 0.0;
+        long total2 = u + n + s + i + w + q + sq + st;
+        long idle2 = i + w;
+
+        double total_diff = total2 - total1;
+        if (total_diff == 0) return 0.0;
+        return (1.0 - (idle2 - idle1) / total_diff) * 100.0;
+    }
+
+    double get_mem_usage() {
+        std::ifstream f("/proc/meminfo");
+        long total = 0, free = 0, buffers = 0, cached = 0;
+        std::string line;
+        while (std::getline(f, line)) {
+            if (line.rfind("MemTotal:", 0) == 0) std::sscanf(line.c_str(), "MemTotal: %ld", &total);
+            else if (line.rfind("MemFree:", 0) == 0) std::sscanf(line.c_str(), "MemFree: %ld", &free);
+            else if (line.rfind("Buffers:", 0) == 0) std::sscanf(line.c_str(), "Buffers: %ld", &buffers);
+            else if (line.rfind("Cached:", 0) == 0) std::sscanf(line.c_str(), "Cached: %ld", &cached);
+        }
+        if (total == 0) return 0.0;
+        double used = total - free - buffers - cached;
+        return (used / total) * 100.0;
+    }
+
+    double get_disk_usage() {
+        struct statvfs vfs;
+        if (statvfs("/", &vfs) == 0) {
+            double total = vfs.f_blocks * vfs.f_frsize;
+            double avail = vfs.f_bfree * vfs.f_frsize;
+            return total == 0 ? 0.0 : ((total - avail) / total) * 100.0;
+        }
+        return 0.0;
+    }
+
+    void collect_loop() {
+        while (true) {
+            auto now = std::chrono::system_clock::now();
+            auto t = std::chrono::system_clock::to_time_t(now);
+            std::stringstream ts;
+            ts << std::put_time(std::localtime(&t), "%H:%M:%S");
+
+            double temp = get_cpu_temp();
+            double cpu = get_cpu_usage();
+            double mem = get_mem_usage();
+            double disk = get_disk_usage();
+
+            std::string status = "OK";
+            std::string event_msg;
+
+            if (temp > TEMP_THRESHOLD) {
+                status = "CRITICAL_TEMP";
+                event_msg = "[EVENT] " + ts.str() + " OVERHEAT! Temp:" + std::to_string(temp).substr(0, 4) + "C";
+            }
+            else if (cpu > CPU_THRESHOLD) {
+                status = "CRITICAL_CPU";
+                event_msg = "[EVENT] " + ts.str() + " CPU_OVERLOAD! Usage:" + std::to_string(cpu).substr(0, 5) + "%";
+            }
+
+            SystemData data{ ts.str(), temp, cpu, mem, disk, status };
+
+            {
+                std::lock_guard<std::mutex> lock(mtx);
+                latest_data = data;
+            }
+
+            main_log << ts.str() << " | " << status << " | T:" << std::fixed << std::setprecision(1) << temp
+                << "C CPU:" << cpu << "% MEM:" << mem << "% DISK:" << disk << "%" << std::endl;
+
+            if (!event_msg.empty()) {
+                event_log << event_msg << " (TEMP:" << temp << " CPU:" << cpu << "%)" << std::endl;
+                main_log << event_msg << std::endl;
+            }
+
+            int sleep_sec = std::max(1, COLLECT_INTERVAL_SEC - 1);
+            std::this_thread::sleep_for(std::chrono::seconds(sleep_sec));
+        }
+    }
+
+    void handle_client(int client_sock, sockaddr_in addr) {
+        std::cout << "[+] Connected: " << inet_ntoa(addr.sin_addr) << std::endl;
+        char buf[256];
+        int n = recv(client_sock, buf, sizeof(buf) - 1, 0);
+        if (n > 0) {
+            buf[n] = '\0';
+            std::string cmd(buf);
+            cmd.erase(cmd.find_last_not_of(" \t\r\n") + 1);
+
+            if (cmd == "LIVE") {
+                std::string resp = "Live stream started.\n";
+                send(client_sock, resp.c_str(), resp.length(), MSG_NOSIGNAL);
+                while (true) {
+                    SystemData d;
+                    {
+                        std::lock_guard<std::mutex> lock(mtx);
+                        d = latest_data;
+                    }
+                    std::stringstream json;
+                    json << "{\"time\":\"" << d.time << "\",\"temp_c\":" << d.temp_c
+                        << ",\"cpu_pct\":" << d.cpu_pct << ",\"mem_pct\":" << d.mem_pct
+                        << ",\"disk_pct\":" << d.disk_pct << ",\"status\":\"" << d.status << "\"}\n";
+                    if (send(client_sock, json.str().c_str(), json.str().length(), MSG_NOSIGNAL) <= 0) break;
+                    std::this_thread::sleep_for(std::chrono::seconds(LIVE_INTERVAL_SEC));
+                }
+            }
+            else if (cmd == "LOGS") {
+                std::string resp = "Reading critical events...\n";
+                send(client_sock, resp.c_str(), resp.length(), MSG_NOSIGNAL);
+
+                std::ifstream log(log_dir / "critical_events.log");
+                if (!log.is_open()) {
+                    send(client_sock, "No event log found.\n", 20, MSG_NOSIGNAL);
+                }
+                else {
+                    std::vector<std::string> lines;
+                    std::string line;
+                    while (std::getline(log, line)) {
+                        lines.push_back(line);
+                        if (lines.size() > 50) lines.erase(lines.begin());
+                    }
+                    for (const auto& l : lines) {
+                        std::string out = l + "\n";
+                        if (send(client_sock, out.c_str(), out.length(), MSG_NOSIGNAL) <= 0) break;
+                    }
+                    std::string end = "\n--- End of Events Log ---\n";
+                    send(client_sock, end.c_str(), end.length(), MSG_NOSIGNAL);
+                }
+            }
+            else {
+                std::string err = "Unknown command. Use LIVE or LOGS.\n";
+                send(client_sock, err.c_str(), err.length(), MSG_NOSIGNAL);
+            }
+        }
+        close(client_sock);
+        std::cout << "[-] Disconnected: " << inet_ntoa(addr.sin_addr) << std::endl;
+    }
+
+public:
+    PiMonitorServer() {
+        const char* home = getenv("HOME");
+        log_dir = fs::path(home ? home : "/home/pi") / "pi_monitor";
+        fs::create_directories(log_dir);
+        main_log.open(log_dir / "system.log", std::ios::app);
+        event_log.open(log_dir / "critical_events.log", std::ios::app);
+    }
+
+    void run() {
+        std::signal(SIGPIPE, SIG_IGN);
+
+        std::thread collector(&PiMonitorServer::collect_loop, this);
+        collector.detach();
+        std::cout << "Metrics collection started\n";
+
+        int srv = socket(AF_INET, SOCK_STREAM, 0);
+        if (srv < 0) { std::cerr << "Socket error\n"; return; }
+
+        int opt = 1;
+        setsockopt(srv, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+        sockaddr_in addr{};
+        addr.sin_family = AF_INET;
+        addr.sin_addr.s_addr = INADDR_ANY;
+        addr.sin_port = htons(PORT);
+
+        if (bind(srv, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+            std::cerr << "Bind error\n"; close(srv); return;
+        }
+
+        listen(srv, 5);
+        std::cout << "Server listening on port " << PORT << "\n";
+
+        while (true) {
+            sockaddr_in caddr{};
+            socklen_t len = sizeof(caddr);
+            int csock = accept(srv, (struct sockaddr*)&caddr, &len);
+            if (csock < 0) continue;
+            std::thread(&PiMonitorServer::handle_client, this, csock, caddr).detach();
+        }
+    }
+};
+
+int main() {
+    PiMonitorServer srv;
+    srv.run();
+    return 0;
+}
