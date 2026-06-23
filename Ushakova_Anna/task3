@@ -1,0 +1,411 @@
+#define LEFT_SENSOR_PIN A1
+#define RIGHT_SENSOR_PIN A0
+#define LEFT_MOTOR_DIR_PIN 7
+#define RIGHT_MOTOR_DIR_PIN 4
+#define LEFT_MOTOR_SPEED_PIN 6
+#define RIGHT_MOTOR_SPEED_PIN 5
+#define BUZZER_PIN A2
+
+// Состояния алгоритма поиска линии
+enum LineSearchMode {
+  SEARCH_ROTATE_LEFT,   
+  SEARCH_MOVE_FORWARD     
+};
+
+// Состояния системы звукового оповещения
+enum AudioSystemState {
+  AUDIO_OFF,
+  SOS_FIRST_DOT,
+  SOS_FIRST_PAUSE,
+  SOS_DASH,
+  SOS_SECOND_PAUSE,
+  SOS_SECOND_DOT,
+  SOS_COMPLETE,
+
+  MELODY_FIRST_NOTE,
+  MELODY_FIRST_BREAK,
+  MELODY_SECOND_NOTE,
+  MELODY_SECOND_BREAK,
+  MELODY_THIRD_NOTE,
+  MELODY_THIRD_BREAK,
+  MELODY_FOURTH_NOTE,
+  MELODY_COMPLETE
+};
+
+LineSearchMode currentSearchMode = SEARCH_ROTATE_LEFT;
+AudioSystemState currentAudioState = AUDIO_OFF;
+
+unsigned long lastStateChangeTime = 0;
+unsigned long searchModeStartTime = 0;
+unsigned long lastMelodyPlayTime = 0;
+unsigned long lineFollowingStartTime = 0;
+unsigned long turnAroundStartTime = 0;
+
+bool isSearchingForLine = false;
+bool sosSignalRequested = false;
+bool happyMelodyRequested = false;
+bool shouldTurnAround = false;
+bool isTurningAround = false;
+
+const int melodyFrequencies[] = {523, 659, 784, 1047};
+const int melodyNoteDurations[] = {100, 100, 100, 150};
+const int melodyPauseDuration = 30;
+
+// Функции для работы с датчиками
+void readSensors(int& leftSensor, int& rightSensor) {
+  leftSensor = analogRead(LEFT_SENSOR_PIN);
+  rightSensor = analogRead(RIGHT_SENSOR_PIN);
+}
+
+bool checkLineDetection(int leftSensor, int rightSensor) {
+  return (leftSensor > 800 || rightSensor > 800);
+}
+
+void initializeRobotSystems() {
+  Serial.begin(9600);
+  
+  pinMode(LEFT_MOTOR_SPEED_PIN, OUTPUT);
+  pinMode(LEFT_MOTOR_DIR_PIN, OUTPUT);
+  pinMode(RIGHT_MOTOR_SPEED_PIN, OUTPUT);
+  pinMode(RIGHT_MOTOR_DIR_PIN, OUTPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+
+  digitalWrite(LEFT_MOTOR_DIR_PIN, HIGH);
+  digitalWrite(RIGHT_MOTOR_DIR_PIN, HIGH);
+}
+
+void setup() {
+  initializeRobotSystems();
+}
+
+// Система управления движением
+void moveForward(int motorPower) {
+  digitalWrite(LEFT_MOTOR_DIR_PIN, HIGH);
+  digitalWrite(RIGHT_MOTOR_DIR_PIN, HIGH);
+  analogWrite(LEFT_MOTOR_SPEED_PIN, motorPower);
+  analogWrite(RIGHT_MOTOR_SPEED_PIN, motorPower);
+}
+
+void rotateLeft(int rightMotorPower, int leftMotorPower) {
+  digitalWrite(LEFT_MOTOR_DIR_PIN, LOW);
+  digitalWrite(RIGHT_MOTOR_DIR_PIN, HIGH);
+  analogWrite(LEFT_MOTOR_SPEED_PIN, leftMotorPower);
+  analogWrite(RIGHT_MOTOR_SPEED_PIN, rightMotorPower);
+}
+
+void rotateRight(int leftMotorPower, int rightMotorPower) {
+  digitalWrite(LEFT_MOTOR_DIR_PIN, HIGH);
+  digitalWrite(RIGHT_MOTOR_DIR_PIN, LOW);
+  analogWrite(LEFT_MOTOR_SPEED_PIN, leftMotorPower);
+  analogWrite(RIGHT_MOTOR_SPEED_PIN, rightMotorPower);
+}
+
+void haltMovement() {
+  digitalWrite(LEFT_MOTOR_DIR_PIN, HIGH);
+  digitalWrite(RIGHT_MOTOR_DIR_PIN, HIGH);
+  analogWrite(LEFT_MOTOR_SPEED_PIN, 0);
+  analogWrite(RIGHT_MOTOR_SPEED_PIN, 0);
+}
+
+// Функция разворота
+void turnAround() {
+  Serial.println("Выполняю разворот!");
+  
+  digitalWrite(LEFT_MOTOR_DIR_PIN, LOW);
+  digitalWrite(RIGHT_MOTOR_DIR_PIN, HIGH);
+  analogWrite(LEFT_MOTOR_SPEED_PIN, 150);
+  analogWrite(RIGHT_MOTOR_SPEED_PIN, 150);
+  
+  delay(800);
+  
+  haltMovement();
+  isTurningAround = false;
+  shouldTurnAround = false;
+  lineFollowingStartTime = millis();
+  
+  Serial.println("Разворот завершен!");
+}
+
+// Система управления звуковыми сигналами
+void triggerSOSSignal() {
+  if (currentAudioState == AUDIO_OFF) {
+    sosSignalRequested = true;
+  }
+}
+
+void triggerHappyMelody() {
+  if (currentAudioState == AUDIO_OFF) {
+    happyMelodyRequested = true;
+  }
+}
+
+void processSOSAudioSequence(unsigned long currentTime) {
+  switch (currentAudioState) {
+    case SOS_FIRST_DOT:
+      if (currentTime - lastStateChangeTime >= 100) {
+        noTone(BUZZER_PIN);
+        currentAudioState = SOS_FIRST_PAUSE;
+        lastStateChangeTime = currentTime;
+      }
+      break;
+
+    case SOS_FIRST_PAUSE:
+      if (currentTime - lastStateChangeTime >= 50) {
+        tone(BUZZER_PIN, 1000);
+        currentAudioState = SOS_DASH;
+        lastStateChangeTime = currentTime;
+      }
+      break;
+
+    case SOS_DASH:
+      if (currentTime - lastStateChangeTime >= 400) {
+        noTone(BUZZER_PIN);
+        currentAudioState = SOS_SECOND_PAUSE;
+        lastStateChangeTime = currentTime;
+      }
+      break;
+
+    case SOS_SECOND_PAUSE:
+      if (currentTime - lastStateChangeTime >= 50) {
+        tone(BUZZER_PIN, 1000);
+        currentAudioState = SOS_SECOND_DOT;
+        lastStateChangeTime = currentTime;
+      }
+      break;
+
+    case SOS_SECOND_DOT:
+      if (currentTime - lastStateChangeTime >= 100) {
+        noTone(BUZZER_PIN);
+        currentAudioState = SOS_COMPLETE;
+      }
+      break;
+
+    case SOS_COMPLETE:
+      break;
+  }
+}
+
+void processHappyMelodySequence(unsigned long currentTime) {
+  switch (currentAudioState) {
+    case MELODY_FIRST_NOTE:
+      if (currentTime - lastStateChangeTime >= melodyNoteDurations[0]) {
+        noTone(BUZZER_PIN);
+        currentAudioState = MELODY_FIRST_BREAK;
+        lastStateChangeTime = currentTime;
+      }
+      break;
+
+    case MELODY_FIRST_BREAK:
+      if (currentTime - lastStateChangeTime >= melodyPauseDuration) {
+        tone(BUZZER_PIN, melodyFrequencies[1], melodyNoteDurations[1]);
+        currentAudioState = MELODY_SECOND_NOTE;
+        lastStateChangeTime = currentTime;
+      }
+      break;
+
+    case MELODY_SECOND_NOTE:
+      if (currentTime - lastStateChangeTime >= melodyNoteDurations[1]) {
+        noTone(BUZZER_PIN);
+        currentAudioState = MELODY_SECOND_BREAK;
+        lastStateChangeTime = currentTime;
+      }
+      break;
+
+    case MELODY_SECOND_BREAK:
+      if (currentTime - lastStateChangeTime >= melodyPauseDuration) {
+        tone(BUZZER_PIN, melodyFrequencies[2], melodyNoteDurations[2]);
+        currentAudioState = MELODY_THIRD_NOTE;
+        lastStateChangeTime = currentTime;
+      }
+      break;
+
+    case MELODY_THIRD_NOTE:
+      if (currentTime - lastStateChangeTime >= melodyNoteDurations[2]) {
+        noTone(BUZZER_PIN);
+        currentAudioState = MELODY_THIRD_BREAK;
+        lastStateChangeTime = currentTime;
+      }
+      break;
+
+    case MELODY_THIRD_BREAK:
+      if (currentTime - lastStateChangeTime >= melodyPauseDuration) {
+        tone(BUZZER_PIN, melodyFrequencies[3], melodyNoteDurations[3]);
+        currentAudioState = MELODY_FOURTH_NOTE;
+        lastStateChangeTime = currentTime;
+      }
+      break;
+
+    case MELODY_FOURTH_NOTE:
+      if (currentTime - lastStateChangeTime >= melodyNoteDurations[3]) {
+        noTone(BUZZER_PIN);
+        currentAudioState = MELODY_COMPLETE;
+      }
+      break;
+
+    case MELODY_COMPLETE:
+      break;
+  }
+}
+
+void handleAudioRequests(unsigned long currentTime) {
+  if (sosSignalRequested) {
+    currentAudioState = SOS_FIRST_DOT;
+    sosSignalRequested = false;
+    tone(BUZZER_PIN, 1000);
+    lastStateChangeTime = currentTime;
+    return;
+  }
+
+  if (happyMelodyRequested) {
+    currentAudioState = MELODY_FIRST_NOTE;
+    happyMelodyRequested = false;
+    tone(BUZZER_PIN, melodyFrequencies[0], melodyNoteDurations[0]);
+    lastStateChangeTime = currentTime;
+    return;
+  }
+}
+
+void updateAudioSystem() {
+  unsigned long currentTime = millis();
+
+  handleAudioRequests(currentTime);
+  processSOSAudioSequence(currentTime);
+  processHappyMelodySequence(currentTime);
+
+  if (currentAudioState == SOS_COMPLETE || currentAudioState == MELODY_COMPLETE) {
+    currentAudioState = AUDIO_OFF;
+  }
+}
+
+// Система следования по линии
+void executeLineFollowing(int leftSensorValue, int rightSensorValue) {
+  if (leftSensorValue > 800 && rightSensorValue > 800) {
+    moveForward(155);
+  } else if (leftSensorValue > 800 && rightSensorValue < 800) {
+    rotateLeft(200, 130);
+  } else if (rightSensorValue > 800 && leftSensorValue < 800) {
+    rotateRight(200, 130);
+  }
+}
+
+void handleLineTracking(unsigned long currentTime, int leftSensorValue, int rightSensorValue) {
+  isSearchingForLine = false;
+
+  // Если только начали движение по линии - запоминаем время
+  if (lineFollowingStartTime == 0) {
+    lineFollowingStartTime = currentTime;
+    Serial.println("Начало движения по линии");
+  }
+
+  // Проверяем, прошло ли 5 секунд движения по линии
+  if (!shouldTurnAround && (currentTime - lineFollowingStartTime > 5000)) {
+    Serial.println("Прошло 5 секунд - готовлюсь к развороту");
+    shouldTurnAround = true;
+    isTurningAround = true;
+    return;
+  }
+
+  // Если не нужно разворачиваться - продолжаем следование по линии
+  if (!shouldTurnAround) {
+    if (currentTime - lastMelodyPlayTime > 3000) {
+      triggerHappyMelody();
+      lastMelodyPlayTime = currentTime;
+    }
+    executeLineFollowing(leftSensorValue, rightSensorValue);
+  }
+}
+
+void executeSearchPattern(unsigned long currentTime) {
+  switch (currentSearchMode) {
+    case SEARCH_ROTATE_LEFT:
+      rotateLeft(180, 100);
+      if (currentTime - lastStateChangeTime >= 1000) {
+        lastStateChangeTime = currentTime;
+        currentSearchMode = SEARCH_MOVE_FORWARD;
+      }
+      break;
+
+    case SEARCH_MOVE_FORWARD:
+      moveForward(100);
+      if (currentTime - lastStateChangeTime >= 1000) {
+        lastStateChangeTime = currentTime;
+        currentSearchMode = SEARCH_ROTATE_LEFT;
+      }
+      break;
+  }
+}
+
+void activateSearchMode(unsigned long currentTime) {
+  isSearchingForLine = true;
+  currentSearchMode = SEARCH_ROTATE_LEFT;
+  searchModeStartTime = currentTime;
+  lastStateChangeTime = currentTime;
+  lineFollowingStartTime = 0;
+  shouldTurnAround = false;
+  triggerSOSSignal();
+}
+
+void handleLineLossSituation(unsigned long currentTime) {
+  if (!isSearchingForLine) {
+    activateSearchMode(currentTime);
+  }
+
+  if (currentTime - searchModeStartTime > 15000) {
+    haltMovement();
+    return;
+  }
+  
+  executeSearchPattern(currentTime);
+}
+
+void processLineFollowing() {
+  unsigned long currentTime = millis();
+  int leftSensorReading = analogRead(LEFT_SENSOR_PIN);
+  int rightSensorReading = analogRead(RIGHT_SENSOR_PIN);
+
+  bool isLineDetected = (leftSensorReading > 800 || rightSensorReading > 800);
+
+  // Если выполняем разворот - не проверяем линию
+  if (isTurningAround) {
+    turnAround();
+    return;
+  }
+
+  if (isLineDetected) {
+    handleLineTracking(currentTime, leftSensorReading, rightSensorReading);
+  } else {
+    handleLineLossSituation(currentTime);
+  }
+}
+
+void loop() {
+  // Все промежуточные функции теперь видны в loop
+  unsigned long currentTime = millis();
+  
+  // Аудио система
+  handleAudioRequests(currentTime);
+  processSOSAudioSequence(currentTime);
+  processHappyMelodySequence(currentTime);
+  
+  // Чтение датчиков и проверка линии
+  int leftSensor, rightSensor;
+  readSensors(leftSensor, rightSensor);
+  bool lineDetected = checkLineDetection(leftSensor, rightSensor);
+  
+  // Обработка движения
+  if (isTurningAround) {
+    turnAround();
+  } else if (lineDetected) {
+    handleLineTracking(currentTime, leftSensor, rightSensor);
+  } else {
+    handleLineLossSituation(currentTime);
+  }
+  
+  // Завершающие действия аудио системы
+  if (currentAudioState == SOS_COMPLETE || currentAudioState == MELODY_COMPLETE) {
+    currentAudioState = AUDIO_OFF;
+  }
+  
+  // Небольшая задержка для стабильности
+  delay(10);
+}
